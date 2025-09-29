@@ -1,3 +1,11 @@
+# --- Backups / Respaldos ---
+*.zip
+*.sql
+*.bak
+*.tar
+*.tar.gz
+*.tgz
+
 # --- Python / FastAPI ---
 .venv/
 __pycache__/
