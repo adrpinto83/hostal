@@ -1,20 +1,24 @@
 # app/schemas/reservation.py
-from pydantic import BaseModel, conint, condecimal
-from typing import Literal
-from datetime import date
+from typing import Optional
 from decimal import Decimal
+from datetime import date
+from pydantic import BaseModel, ConfigDict, field_serializer
 
-PeriodLiteral = Literal["day","week","fortnight","month"]
-StatusLiteral = Literal["pending","active","checked_out","cancelled"]
+# Importa los mismos Enums que usa el modelo
+from ..models.reservation import Period, ReservationStatus
+
 
 class ReservationCreate(BaseModel):
     guest_id: int
     room_id: int
     start_date: date
-    period: PeriodLiteral
-    periods_count: conint(ge=1) = 1
-    price_bs: condecimal(max_digits=12, decimal_places=2) | None = None
-    notes: str | None = None
+    period: Period
+    periods_count: int = 1
+    price_bs: Optional[Decimal] = None
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
 
 class ReservationOut(BaseModel):
     id: int
@@ -22,13 +26,17 @@ class ReservationOut(BaseModel):
     room_id: int
     start_date: date
     end_date: date
-    period: PeriodLiteral
+    period: Period
     periods_count: int
-    price_bs: condecimal(max_digits=12, decimal_places=2)
-    rate_usd: Decimal | None = None
-    rate_eur: Decimal | None = None
-    status: StatusLiteral
-    notes: str | None = None
-    class Config:
-        from_attributes = True
+    price_bs: Decimal
+    rate_usd: Optional[Decimal] = None
+    rate_eur: Optional[Decimal] = None
+    status: ReservationStatus
+    notes: Optional[str] = None
 
+    model_config = ConfigDict(use_enum_values=True)
+
+    # Serializar Decimals como string en JSON
+    @field_serializer("price_bs", "rate_usd", "rate_eur", when_used="json")
+    def ser_decimal(self, v: Optional[Decimal]):
+        return None if v is None else format(v, "f")

@@ -1,19 +1,25 @@
-# app/core/dates.py
 from datetime import date, timedelta
+from typing import Literal, Union
 
-def compute_end_date(start_date: date, period: str, periods_count: int) -> date:
-    if periods_count < 1:
-        periods_count = 1
+Period = Literal["day", "week", "fortnight", "month"]
+
+def _ensure_date(d: Union[str, date]) -> date:
+    if isinstance(d, date):
+        return d
+    # ISO yyyy-mm-dd
+    return date.fromisoformat(d)
+
+def compute_end_date(start_date: Union[str, date], period: Period, periods_count: int = 1) -> date:
+    start = _ensure_date(start_date)
     if period == "day":
-        delta = timedelta(days=periods_count)
+        delta = timedelta(days=periods_count - 1)
     elif period == "week":
-        delta = timedelta(weeks=periods_count)
+        delta = timedelta(days=periods_count * 7 - 1)
     elif period == "fortnight":
-        delta = timedelta(days=14 * periods_count)
+        delta = timedelta(days=periods_count * 14 - 1)
     elif period == "month":
-        # aproximado en días (30) para hostel; si quieres exacto por meses, podemos cambiarlo
-        delta = timedelta(days=30 * periods_count)
+        # “Mes” = 30 días fijos (simple). Si quieres meses calendario reales, avísame y lo cambiamos.
+        delta = timedelta(days=periods_count * 30 - 1)
     else:
         raise ValueError("Invalid period")
-    # end_date exclusivo → almacenamos inclusivo (último día)
-    return start_date + delta
+    return start + delta

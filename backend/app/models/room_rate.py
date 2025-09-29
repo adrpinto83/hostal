@@ -1,15 +1,26 @@
-# app/models/room_rate.py
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, Numeric, String, Enum, ForeignKey
+# solo muestra la parte relevante para back_populates
+from sqlalchemy import Column, Integer, ForeignKey, Numeric, Enum as SAEnum, UniqueConstraint, Text
+from sqlalchemy.orm import relationship
 from ..core.db import Base
+from .room import Room  # import del modelo Room
+from enum import Enum
 
-PeriodEnumName = "period"  # ya existe como tipo en Postgres por migración
+class Period(str, Enum):
+    day = "day"
+    week = "week"
+    fortnight = "fortnight"
+    month = "month"
 
 class RoomRate(Base):
     __tablename__ = "room_rates"
+    __table_args__ = (
+        UniqueConstraint("room_id", "period", name="uq_room_rates_room_period"),
+    )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
-    period: Mapped[str] = mapped_column(Enum(name=PeriodEnumName, create_type=False), index=True)
-    price_bs: Mapped[str] = mapped_column(Numeric(12,2))
-    currency_note: Mapped[str | None] = mapped_column(String(50))
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    period = Column(SAEnum(Period, name="period", create_constraint=True), nullable=False)
+    price_bs = Column(Numeric(12, 2), nullable=False)
+    currency_note = Column(Text, nullable=True)
+
+    room = relationship("Room", back_populates="rates")

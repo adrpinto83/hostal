@@ -1,7 +1,6 @@
-# app/routers/reservations.py
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from ..core.db import get_db
 from ..core.security import require_roles
 from ..core.dates import compute_end_date
@@ -21,11 +20,12 @@ def _range_overlap(q, start, end):
 def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     # Validar entidades
     if not db.get(Guest, data.guest_id):
-        raise HTTPException(404, "Guest not found")
-    if not db.get(Room, data.room_id):
-        raise HTTPException(404, "Room not found")
+        raise HTTPException(status_code=404, detail="Guest not found")
+    room = db.get(Room, data.room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
 
-    # Calcular end_date
+    # Calcular end_date (ahora start_date ya es date)
     end_date = compute_end_date(data.start_date, data.period, data.periods_count)
 
     # Evitar traslapes en misma habitación
@@ -34,14 +34,22 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
         start=data.start_date, end=end_date
     ).first()
     if overlap:
-        raise HTTPException(409, "Room already reserved in that range")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "Room already reserved in that range",
+                "conflict_id": overlap.id,
+                "conflict_start": overlap.start_date.isoformat(),
+                "conflict_end": overlap.end_date.isoformat(),
+            },
+        )
 
-    # Resolver price_bs: si no viene, tomar tarifa por período
+    # Resolver price_bs
     price_bs = data.price_bs
     if price_bs is None:
         rate = db.query(RoomRate).filter_by(room_id=data.room_id, period=data.period).first()
         if not rate:
-            raise HTTPException(400, "No room rate found for given period; provide price_bs")
+            raise HTTPException(400, detail="No room rate found for given period; provide price_bs")
         price_bs = rate.price_bs
 
     res = Reservation(
@@ -60,8 +68,7 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     db.refresh(res)
     return res
 
-@router.get("/", response_model=list[ReservationOut],
-            dependencies=[Depends(require_roles("admin","recepcionista"))])
+@router.get("/", response_model=list[ReservationOut], dependencies=[Depends(require_roles("admin","recepcionista"))])
 def list_reservations(
     db: Session = Depends(get_db),
     guest_id: int | None = None,
@@ -79,7 +86,6 @@ def list_reservations(
     if status:
         query = query.filter(Reservation.status == status)
     if q:
-        # búsqueda simple por notas
         like = f"%{q}%"
         query = query.filter(Reservation.notes.ilike(like))
     return query.order_by(Reservation.start_date.desc()).offset(offset).limit(limit).all()
