@@ -1,0 +1,31 @@
+# --- Python / FastAPI ---
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+db.sqlite3
+migrations/
+
+# Archivos de entorno / seguridad
+.env
+.env.*
+secrets.json
+
+# --- Cachés / Testing ---
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# --- IDE / Sistema ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Node / Frontend (si tienes frontend dentro del repo) ---
+node_modules/
+dist/
+build/

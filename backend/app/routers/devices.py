@@ -1,0 +1,62 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List
+from ..core.db import get_db
+from ..core.security import require_roles
+from ..models.device import Device
+from ..models.guest import Guest
+from ..schemas.device import DeviceCreate, DeviceOut
+
+router = APIRouter(prefix="/guests/{guest_id}/devices", tags=["devices"])
+
+# List devices for a guest (admin and recepcionista)
+@router.get("/", response_model=List[DeviceOut], dependencies=[Depends(require_roles("admin","recepcionista"))])
+def list_devices(guest_id: int, db: Session = Depends(get_db)):
+    guest = db.get(Guest, guest_id)
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    return guest.devices
+
+# Add a device (register MAC)
+@router.post("/", response_model=DeviceOut, status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_roles("admin","recepcionista"))])
+def add_device(guest_id: int, data: DeviceCreate, db: Session = Depends(get_db)):
+    guest = db.get(Guest, guest_id)
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    # Normalize MAC to uppercase colon format
+    mac = data.mac.upper()
+    exists = db.query(Device).filter(Device.mac == mac).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="MAC already registered")
+    device = Device(guest_id=guest_id, mac=mac, name=data.name, vendor=data.vendor, allowed=True)
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+
+    # Notify network controller to whitelist this MAC
+    try:
+        from ..core.network import notify_whitelist_add
+        notify_whitelist_add(mac, guest, device)
+    except Exception:
+        # log but do not fail the request; admin can retry network sync
+        pass
+
+    return device
+
+# Remove device (delete) or revoke (set allowed=False)
+@router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_roles("admin","recepcionista"))])
+def delete_device(guest_id: int, device_id: int, db: Session = Depends(get_db)):
+    device = db.get(Device, device_id)
+    if not device or device.guest_id != guest_id:
+        raise HTTPException(status_code=404, detail="Device not found")
+    mac = device.mac
+    db.delete(device)
+    db.commit()
+    # Notify network controller to remove from whitelist
+    try:
+        from ..core.network import notify_whitelist_remove
+        notify_whitelist_remove(mac)
+    except Exception:
+        pass
+    return
