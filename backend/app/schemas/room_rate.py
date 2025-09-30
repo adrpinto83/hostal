@@ -1,12 +1,15 @@
 # app/schemas/room_rate.py
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, field_serializer
 
 # Usa el mismo Enum "Period" que usan tus modelos
 # Si lo declaraste en models.reservation, importa desde ahí:
 from ..models.reservation import Period
+
 # (Si tu Enum Period vive en otro módulo, ajusta el import)
+
 
 class RoomRateBase(BaseModel):
     period: Period

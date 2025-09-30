@@ -1,6 +1,8 @@
 # app/schemas/room.py
 from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
+
 # Importa el mismo Enum que usa tu modelo SQLAlchemy
 from ..models.room import RoomType
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Text, Enum as SAEnum, UniqueConstraint
+
+from sqlalchemy import Column, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
 from ..core.db import Base
@@ -15,9 +17,7 @@ class RoomType(str, Enum):
 
 class Room(Base):
     __tablename__ = "rooms"
-    __table_args__ = (
-        UniqueConstraint("number", name="uq_rooms_number"),
-    )
+    __table_args__ = (UniqueConstraint("number", name="uq_rooms_number"),)
 
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String(20), nullable=False, index=True)
@@ -25,5 +25,9 @@ class Room(Base):
     notes = Column(Text, nullable=True)
 
     # Relaciones opcionales (si existen estos modelos)
-    rates = relationship("RoomRate", back_populates="room", cascade="all, delete-orphan", lazy="selectin")
-    reservations = relationship("Reservation", back_populates="room", cascade="all, delete-orphan", lazy="selectin")
+    rates = relationship(
+        "RoomRate", back_populates="room", cascade="all, delete-orphan", lazy="selectin"
+    )
+    reservations = relationship(
+        "Reservation", back_populates="room", cascade="all, delete-orphan", lazy="selectin"
+    )

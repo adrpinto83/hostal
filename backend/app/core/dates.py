@@ -1,7 +1,10 @@
-from datetime import date, timedelta
-from typing import Literal, Union
+from __future__ import annotations
 
-Period = Literal["day", "week", "fortnight", "month"]
+from datetime import date, timedelta
+from typing import Literal, TypeAlias, Union
+
+Period: TypeAlias = Literal["day", "week", "fortnight", "month"]
+
 
 def _ensure_date(d: Union[str, date]) -> date:
     if isinstance(d, date):
@@ -9,8 +12,8 @@ def _ensure_date(d: Union[str, date]) -> date:
     # ISO yyyy-mm-dd
     return date.fromisoformat(d)
 
-def compute_end_date(start_date: Union[str, date], period: Period, periods_count: int = 1) -> date:
-    start = _ensure_date(start_date)
+
+def compute_end_date(start_date: date, period: Period, periods_count: int) -> date:
     if period == "day":
         delta = timedelta(days=periods_count - 1)
     elif period == "week":
@@ -18,8 +21,9 @@ def compute_end_date(start_date: Union[str, date], period: Period, periods_count
     elif period == "fortnight":
         delta = timedelta(days=periods_count * 14 - 1)
     elif period == "month":
-        # “Mes” = 30 días fijos (simple). Si quieres meses calendario reales, avísame y lo cambiamos.
+        # 30 días fijos; si quieres meses calendario reales, lo cambiamos luego
         delta = timedelta(days=periods_count * 30 - 1)
     else:
+        # Defensa por si el tipado se pierde en runtime
         raise ValueError("Invalid period")
-    return start + delta
+    return start_date + delta

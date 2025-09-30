@@ -1,15 +1,19 @@
-from alembic import op
+# mypy: ignore-errors
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 
+from alembic import op
+
 revision = "0003_add_reservations"
-down_revision = "5e2a10be4dcb"   # <-- pon aquí tu última revisión (devices)
+down_revision = "5e2a10be4dcb"  # <-- pon aquí tu última revisión (devices)
 branch_labels = None
 depends_on = None
 
+
 def upgrade():
     # 1) Crear tipos ENUM solo si NO existen
-    op.execute("""
+    op.execute(
+        """
     DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'period') THEN
@@ -20,17 +24,27 @@ def upgrade():
         END IF;
     END
     $$;
-    """)
+    """
+    )
 
     # 2) Reutilizar los tipos existentes sin intentar crearlos otra vez
-    period_enum = PGEnum('day','week','fortnight','month', name='period', create_type=False)
-    status_enum = PGEnum('pending','active','checked_out','cancelled', name='reservationstatus', create_type=False)
+    period_enum = PGEnum("day", "week", "fortnight", "month", name="period", create_type=False)
+    status_enum = PGEnum(
+        "pending", "active", "checked_out", "cancelled", name="reservationstatus", create_type=False
+    )
 
     op.create_table(
         "reservations",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("guest_id", sa.Integer(), sa.ForeignKey("guests.id", ondelete="RESTRICT"), nullable=False),
-        sa.Column("room_id", sa.Integer(), sa.ForeignKey("rooms.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column(
+            "guest_id",
+            sa.Integer(),
+            sa.ForeignKey("guests.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column(
+            "room_id", sa.Integer(), sa.ForeignKey("rooms.id", ondelete="RESTRICT"), nullable=False
+        ),
         sa.Column("start_date", sa.Date(), nullable=False),
         sa.Column("end_date", sa.Date(), nullable=False),
         sa.Column("period", period_enum, nullable=False),
@@ -44,6 +58,7 @@ def upgrade():
     op.create_index(op.f("ix_reservations_guest_id"), "reservations", ["guest_id"])
     op.create_index(op.f("ix_reservations_room_id"), "reservations", ["room_id"])
     op.create_index(op.f("ix_reservations_status"), "reservations", ["status"])
+
 
 def downgrade():
     op.drop_index(op.f("ix_reservations_status"), table_name="reservations")

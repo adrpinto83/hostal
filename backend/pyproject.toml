@@ -1,0 +1,32 @@
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312", "py313"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+# ⚠️ Las reglas van en la sección `lint`, no en top-level
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = [
+  "B008",  # Depends(...) en FastAPI es un caso aceptado; si quieres mantenerlo, quítalo de aquí
+  "E402",  # imports no al inicio (a veces se necesita con settings)
+  "E501",  # si prefieres que Ruff no rompa por 101>100, quítalo de aquí para forzar ajuste
+]
+
+# Puedes aplicar ignores por archivo si hiciera falta
+[tool.ruff.lint.per-file-ignores]
+"backend/app/core/dates.py" = ["E501"]  # o corrige esa línea larga
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["app"]
+ignore_missing_imports = true
+# Excluye archivos generados / migraciones
+exclude = "(^|/)alembic/versions/.*|(^|/)alembic/env.py"
+
+# Overrides puntuales
+[[tool.mypy.overrides]]
+module = "alembic.*"
+ignore_errors = true

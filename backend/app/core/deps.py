@@ -1,33 +1,28 @@
 # app/core/deps.py
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError
+from __future__ import annotations
+
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from .db import get_db
-from .security import decode_token
 from ..models.user import User
+from .db import get_db
+from .security import get_current_user, require_roles  # usa las dependencias existentes
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = decode_token(token)  # <- dict
-        user_id = payload.get("sub")   # <- usa .get
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+def current_user(user: User = Depends(get_current_user)) -> User:
+    """Atajo reutilizable en routers."""
+    return user
 
-    user = db.get(User, int(user_id))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+
+def db_session(db: Session = Depends(get_db)) -> Session:
+    """Atajo para inyectar la sesión."""
+    return db
+
+
+# Ejemplos de roles reusables (opcionales)
+def role_admin(user: User = Depends(require_roles("admin"))) -> User:
+    return user
+
+
+def role_staff(user: User = Depends(require_roles("admin", "recepcionista"))) -> User:
     return user

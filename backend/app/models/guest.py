@@ -1,7 +1,8 @@
-
-from sqlalchemy import String, Integer
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from ..core.db import Base
+
 
 class Guest(Base):
     __tablename__ = "guests"

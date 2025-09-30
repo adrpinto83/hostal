@@ -1,9 +1,12 @@
+# mypy: ignore-errors
 """create rooms table (safe if not exists)"""
-from alembic import op
-import sqlalchemy as sa
-from sqlalchemy import inspect
+
 from enum import Enum
 
+import sqlalchemy as sa
+from sqlalchemy import inspect
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0002_create_rooms"

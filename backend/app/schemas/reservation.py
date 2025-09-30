@@ -1,10 +1,13 @@
 # app/schemas/reservation.py
-from typing import Optional
-from decimal import Decimal
-from datetime import date
-from pydantic import BaseModel, ConfigDict, field_serializer
+from __future__ import annotations
 
-# Importa los mismos Enums que usa el modelo
+from datetime import date
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
+# Usa los mismos enums del modelo (única fuente de verdad)
 from ..models.reservation import Period, ReservationStatus
 
 
@@ -13,7 +16,7 @@ class ReservationCreate(BaseModel):
     room_id: int
     start_date: date
     period: Period
-    periods_count: int = 1
+    periods_count: int = Field(ge=1)
     price_bs: Optional[Decimal] = None
     notes: Optional[str] = None
 
@@ -36,7 +39,7 @@ class ReservationOut(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-    # Serializar Decimals como string en JSON
+    # Serializar Decimals como string en JSON (pydantic v2)
     @field_serializer("price_bs", "rate_usd", "rate_eur", when_used="json")
     def ser_decimal(self, v: Optional[Decimal]):
         return None if v is None else format(v, "f")

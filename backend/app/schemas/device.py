@@ -1,15 +1,15 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 
-MAC = Annotated[
-    str,
-    Field(pattern=r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
-]
+from pydantic import BaseModel, Field
+
+MAC = Annotated[str, Field(pattern=r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")]
+
 
 class DeviceCreate(BaseModel):
     mac: MAC
     name: Optional[str] = None
     vendor: Optional[str] = None
+
 
 class DeviceOut(BaseModel):
     id: int
