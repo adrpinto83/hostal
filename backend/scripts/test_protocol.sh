@@ -1,259 +1,243 @@
 #!/usr/bin/env bash
-# scripts/test_protocol.sh
-# Protocolo de pruebas end-to-end (incluye CRUD de Rooms)
-# Nota: NO usamos `set -e` para seguir con las pruebas aunque algo falle.
+set -euo pipefail
 
-set -u
-
-BASE_URL="${BASE_URL:-http://localhost:8000}"
+# ===============================
+# Config
+# ===============================
+BASE="${BASE:-http://localhost:8000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@hostal.com}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-MiClaveSegura}"
-GUEST_DOC="${GUEST_DOC:-V-12345678}"
-GUEST_NAME="${GUEST_NAME:-Ana Pérez}"
-GUEST_EMAIL="${GUEST_EMAIL:-ana@ejemplo.com}"
-GUEST_PHONE="${GUEST_PHONE:-0414-0000000}"
+ROOM_NUMBER_STABLE="${ROOM_NUMBER_STABLE:-101}"
+RESET="${RESET:-0}"     # Si =1 y existe scripts/dev_reset.sh => resetea datos antes de probar
 
-ok(){ echo -e "✔ $*"; }
-warn(){ echo -e "⚠ $*"; }
-fail(){ echo -e "✖ $*"; }
+# ===============================
+# Helpers
+# ===============================
+jqget() { jq -r "$1" 2>/dev/null || true; }
 
-echo "==> Backend: $BASE_URL"
+call() {
+  local METHOD=$1
+  local URL=$2
+  local DATA=${3:-}
+  local ARGS=(-s -w "\n%{http_code}" -X "$METHOD" "$BASE$URL")
+  if [ -n "${TOKEN:-}" ]; then ARGS+=(-H "Authorization: Bearer $TOKEN"); fi
+  if [ -n "$DATA" ]; then ARGS+=(-H "Content-Type: application/json" -d "$DATA"); fi
+  local RESP; RESP=$(curl "${ARGS[@]}")
+  BODY=$(echo "$RESP" | head -n1)
+  CODE=$(echo "$RESP" | tail -n1)
+}
+
+iso_plus_days() {
+  # $1=YYYY-MM-DD  $2=+N (o -N)
+  date -d "$1 $2 days" +%F
+}
+
+# ===============================
+# Reset (opcional)
+# ===============================
+if [ "$RESET" = "1" ] && [ -x "./scripts/dev_reset.sh" ]; then
+  echo "==> Reset de datos (scripts/dev_reset.sh)"
+  ./scripts/dev_reset.sh || { echo "✖ Reset falló"; exit 1; }
+fi
+
+# ===============================
+echo
+echo "==> Backend: $BASE"
 echo "==> Admin:   $ADMIN_EMAIL"
+
+# ===============================
 echo
-
-jq_installed=$(command -v jq || true)
-if [[ -z "$jq_installed" ]]; then
-  warn "jq no está instalado; se mostrarán respuestas sin formatear."
-fi
-
-# -----------------------------
-# Curl wrapper robusto:
-# Deja en variables globales: HTTP (código) y BODY (respuesta)
-# -----------------------------
-HTTP= BODY=
-call(){
-  local method="$1" path="$2" data="${3:-}" auth="${4:-}"
-  local url="$BASE_URL$path"
-  local headers=(-H "Content-Type: application/json")
-  [[ -n "$auth" ]] && headers+=(-H "Authorization: Bearer $auth")
-
-  local resp
-  if [[ -n "$data" ]]; then
-    resp=$(curl -sS -X "$method" "${headers[@]}" -d "$data" "$url" -w $'\n%{http_code}')
-  else
-    resp=$(curl -sS -X "$method" "${headers[@]}" "$url" -w $'\n%{http_code}')
-  fi
-
-  # Última línea = código HTTP; el resto = body
-  HTTP="${resp##*$'\n'}"
-  BODY="${resp%$'\n'*}"
-}
-
-json_or_raw(){
-  if [[ -n "$jq_installed" ]]; then
-    echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
-  else
-    echo "$BODY"
-  fi
-}
-
-# 1) Health
 echo "==> Health"
-call GET /health
-if [[ "$HTTP" == "200" ]]; then ok "Health OK"; else fail "Health FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-echo
+RESP=$(curl -s -w "\n%{http_code}" "$BASE/health")
+BODY=$(echo "$RESP" | head -n1)
+CODE=$(echo "$RESP" | tail -n1)
+if [ "$CODE" = "200" ]; then
+  echo "✔ Health OK"
+else
+  echo "✖ Health FAIL (HTTP $CODE): $BODY"
+fi
 
-# 2) Bootstrap Admin (idempotente)
+# ===============================
+echo
 echo "==> Bootstrap Admin (idempotente)"
-call POST /users/bootstrap "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}"
-if [[ "$HTTP" == "200" ]]; then ok "Bootstrap: Admin creado"; else warn "Bootstrap: $(json_or_raw)"; fi
-echo
+RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE/users/bootstrap" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+BODY=$(echo "$RESP" | head -n1)
+CODE=$(echo "$RESP" | tail -n1)
+if [ "$CODE" = "200" ]; then
+  echo "✔ Bootstrap OK"
+else
+  echo "⚠ Bootstrap: $BODY"
+fi
 
-# 3) Login
+# ===============================
+echo
 echo "==> Login"
-call POST /auth/login "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}"
-TOKEN=""
-if [[ "$HTTP" == "200" ]]; then
-  TOKEN=$(echo "$BODY" | jq -r .access_token 2>/dev/null || echo "")
-  if [[ -n "$TOKEN" && "$TOKEN" != "null" ]]; then
-    ok "Login OK. TOKEN len=${#TOKEN}"
-  else
-    fail "Login sin token: $(json_or_raw)"
+RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
+BODY=$(echo "$RESP" | head -n1)
+CODE=$(echo "$RESP" | tail -n1)
+if [ "$CODE" = "200" ]; then
+  TOKEN=$(echo "$BODY" | jqget '.access_token')
+  if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+    echo "✖ Login OK pero sin token: $BODY"
+    exit 1
   fi
+  echo "✔ Login OK. TOKEN len=${#TOKEN}"
 else
-  fail "Login FAIL (HTTP $HTTP): $(json_or_raw)"
+  echo "✖ Login FAIL (HTTP $CODE): $BODY"
+  exit 1
 fi
-echo
 
-# 4) Me
+# ===============================
+echo
 echo "==> Quien soy (/users/me)"
-if [[ -n "$TOKEN" ]]; then
-  call GET /users/me "" "$TOKEN"
-  if [[ "$HTTP" == "200" ]]; then ok "Me => $(json_or_raw)"; else fail "Me FAIL (HTTP $HTTP): $(json_or_raw)"; fi
+call GET /users/me
+if [ "$CODE" = "200" ]; then
+  echo "✔ Me => $BODY"
 else
-  fail "No TOKEN; omito /users/me"
+  echo "✖ /users/me FAIL (HTTP $CODE): $BODY"
 fi
-echo
 
-# 5) Guests
+# ===============================
+echo
 echo "==> Guests"
-GUEST_ID=""
-if [[ -n "$TOKEN" ]]; then
-  call POST /guests/ "{\"full_name\":\"$GUEST_NAME\",\"document_id\":\"$GUEST_DOC\",\"phone\":\"$GUEST_PHONE\",\"email\":\"$GUEST_EMAIL\"}" "$TOKEN"
-  if [[ "$HTTP" == "201" ]]; then
-    GUEST_ID=$(echo "$BODY" | jq -r .id 2>/dev/null || echo "")
-    ok "Guest creado: id=$GUEST_ID"
-  else
-    warn "Guest no creado: $(json_or_raw)"
-    call GET "/guests/?q=$GUEST_DOC" "" "$TOKEN"
-    GUEST_ID=$(echo "$BODY" | jq -r '.[0].id' 2>/dev/null || echo "")
-    if [[ -n "$GUEST_ID" && "$GUEST_ID" != "null" ]]; then
-      ok "Uso guest existente id=$GUEST_ID"
-    else
-      fail "No pude obtener guest id"
-    fi
-  fi
-
-  if [[ -n "$GUEST_ID" && "$GUEST_ID" != "null" ]]; then
-    call GET "/guests/$GUEST_ID" "" "$TOKEN"
-    if [[ "$HTTP" == "200" ]]; then ok "Get Guest => $(json_or_raw)"; else fail "Get Guest FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-  fi
+call POST /guests/ '{"full_name":"John Test","document_id":"V-12345678","phone":"+58-412-0000000","email":"john.test@example.com","notes":"demo guest"}'
+if [ "$CODE" = "201" ]; then
+  GUEST_ID=$(echo "$BODY" | jqget .id)
+  echo "✔ Guest creado => $BODY"
 else
-  fail "No TOKEN; omito Guests"
+  echo "⚠ Guest no creado: $BODY"
+  call GET "/guests/?q=V-12345678"
+  GUEST_ID=$(echo "$BODY" | jqget '.[0].id')
+  echo "✔ Uso guest existente id=$GUEST_ID"
 fi
-echo
+call GET "/guests/$GUEST_ID"
+echo "✔ Get Guest => $BODY"
 
-# 6) Devices
+# ===============================
+echo
 echo "==> Devices"
-if [[ -n "$TOKEN" && -n "${GUEST_ID:-}" ]]; then
-  call POST "/guests/$GUEST_ID/devices/" '{"mac":"AA:BB:CC:DD:EE:01","name":"Phone","vendor":"DemoVendor"}' "$TOKEN"
-  if [[ "$HTTP" == "201" ]]; then
-    DEVICE_ID=$(echo "$BODY" | jq -r .id 2>/dev/null || echo "")
-    ok "Device agregado => $(json_or_raw)"
-
-    call GET "/guests/$GUEST_ID/devices/" "" "$TOKEN"
-    if [[ "$HTTP" == "200" ]]; then
-      echo "Devices:"
-      json_or_raw
-    else
-      warn "Listar devices FAIL (HTTP $HTTP): $(json_or_raw)"
-    fi
-
-    call DELETE "/guests/$GUEST_ID/devices/$DEVICE_ID" "" "$TOKEN"
-    if [[ "$HTTP" == "204" ]]; then ok "Device eliminado (cleanup)"; else warn "Eliminar device FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-  else
-    warn "No se pudo agregar device: $(json_or_raw)"
-  fi
+call POST "/guests/$GUEST_ID/devices/" '{"mac":"AA:BB:CC:DD:EE:01","name":"Phone","vendor":"DemoVendor","allowed":true}'
+if [ "$CODE" = "201" ]; then
+  DEVICE_ID=$(echo "$BODY" | jqget .id)
+  echo "✔ Device agregado => $BODY"
 else
-  fail "No TOKEN/GUEST_ID; omito Devices"
+  echo "✖ Device FAIL (HTTP $CODE): $BODY"
 fi
-echo
+call GET "/guests/$GUEST_ID/devices/"
+echo "Devices:"
+echo "$BODY" | jq .
+if [ -n "${DEVICE_ID:-}" ] && [ "$DEVICE_ID" != "null" ]; then
+  call DELETE "/guests/$GUEST_ID/devices/$DEVICE_ID"
+  echo "✔ Device eliminado (cleanup)"
+fi
 
-# 7) CRUD Rooms completo
+# ===============================
+echo
 echo "==> Rooms (CRUD completo)"
-ROOM_TEMP_NUM="TMP-$(date +%s)"
-ROOM_TYPE="single"
+ROOM_TMP="TMP-$(date +%s)"
+call POST /rooms/ "{\"number\":\"$ROOM_TMP\",\"type\":\"single\",\"notes\":\"room temporal para pruebas\"}"
+if [ "$CODE" = "201" ]; then
+  ROOM_TMP_ID=$(echo "$BODY" | jqget .id)
+  echo "✔ Room creado => $BODY"
+else
+  echo "✖ Crear room FAIL (HTTP $CODE): $BODY"
+fi
+call GET "/rooms/?q=$ROOM_TMP"
+echo "✔ List Rooms (filtro q=$ROOM_TMP) OK"
+call GET "/rooms/$ROOM_TMP_ID"
+echo "✔ Get Room => $BODY"
+call PATCH "/rooms/$ROOM_TMP_ID" '{"notes":"notes actualizadas"}'
+echo "✔ Patch Room => $BODY"
+call DELETE "/rooms/$ROOM_TMP_ID"
+echo "✔ Delete Room OK (cleanup)"
+
+# ===============================
+echo
+echo "==> Room estable (para rates/reservations)"
 ROOM_ID=""
-
-if [[ -n "$TOKEN" ]]; then
-  # CREATE
-  call POST /rooms/ "{\"number\":\"$ROOM_TEMP_NUM\",\"type\":\"$ROOM_TYPE\",\"notes\":\"room temporal para pruebas\"}" "$TOKEN"
-  if [[ "$HTTP" == "201" ]]; then
-    ROOM_ID=$(echo "$BODY" | jq -r .id 2>/dev/null || echo "")
-    ok "Room creado => $(json_or_raw)"
-  elif [[ "$HTTP" == "409" ]]; then
-    warn "Número de room ya existe (inesperado). Buscando por listado…"
-    call GET "/rooms/?q=$ROOM_TEMP_NUM" "" "$TOKEN"
-    ROOM_ID=$(echo "$BODY" | jq -r '.[0].id' 2>/dev/null || echo "")
+call GET "/rooms/?q=$ROOM_NUMBER_STABLE"
+ROOM_ID=$(echo "$BODY" | jqget '.[0].id // empty')
+if [ -z "$ROOM_ID" ] || [ "$ROOM_ID" = "null" ]; then
+  call POST /rooms/ "{\"number\":\"$ROOM_NUMBER_STABLE\",\"type\":\"single\",\"notes\":\"demo room estable\"}"
+  if [ "$CODE" = "201" ]; then
+    ROOM_ID=$(echo "$BODY" | jqget .id)
+    echo "✔ Room $ROOM_NUMBER_STABLE creado (id=$ROOM_ID)"
   else
-    fail "Crear room FAIL (HTTP $HTTP): $(json_or_raw)"
-  fi
-
-  # LIST
-  call GET "/rooms/?q=$ROOM_TEMP_NUM" "" "$TOKEN"
-  if [[ "$HTTP" == "200" ]]; then ok "List Rooms (filtro q=$ROOM_TEMP_NUM) OK"; else fail "List Rooms FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-
-  # GET detalle
-  if [[ -n "$ROOM_ID" && "$ROOM_ID" != "null" ]]; then
-    call GET "/rooms/$ROOM_ID" "" "$TOKEN"
-    if [[ "$HTTP" == "200" ]]; then ok "Get Room => $(json_or_raw)"; else fail "Get Room FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-  fi
-
-  # PATCH
-  if [[ -n "$ROOM_ID" && "$ROOM_ID" != "null" ]]; then
-    call PATCH "/rooms/$ROOM_ID" '{"notes":"notes actualizadas"}' "$TOKEN"
-    if [[ "$HTTP" == "200" ]]; then ok "Patch Room => $(json_or_raw)"; else fail "Patch Room FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-  fi
-
-  # DELETE
-  if [[ -n "$ROOM_ID" && "$ROOM_ID" != "null" ]]; then
-    call DELETE "/rooms/$ROOM_ID" "" "$TOKEN"
-    if [[ "$HTTP" == "204" ]]; then ok "Delete Room OK (cleanup)"; else warn "Delete Room FAIL (HTTP $HTTP): $(json_or_raw)"; fi
-  fi
-
-  # Asegurar room id=1 para pruebas siguientes
-  call GET /rooms/1 "" "$TOKEN"
-  if [[ "$HTTP" != "200" ]]; then
-    call POST /rooms/ '{"number":"101","type":"single","notes":"demo room estable"}' "$TOKEN"
-    if [[ "$HTTP" == "201" ]]; then ok "Room 101 creado para rates/reservations"; else warn "No se pudo crear room 101: $(json_or_raw)"; fi
+    call GET "/rooms/?q=$ROOM_NUMBER_STABLE"
+    ROOM_ID=$(echo "$BODY" | jqget '.[0].id // empty')
+    echo "✔ Uso room existente $ROOM_NUMBER_STABLE (id=$ROOM_ID)"
   fi
 else
-  fail "No TOKEN; omito Rooms CRUD"
+  echo "✔ Uso room existente $ROOM_NUMBER_STABLE (id=$ROOM_ID)"
 fi
+
+# ===============================
 echo
-
-# 8) Room Rates (room_id=1)
-echo "==> Room Rates (room_id=1)"
-if [[ -n "$TOKEN" ]]; then
-  call POST /rooms/1/rates '{"period":"week","price_bs":500.00}' "$TOKEN"
-  if [[ "$HTTP" == "200" ]]; then ok "Rate creada => $(json_or_raw)"
-  elif [[ "$HTTP" == "409" ]]; then warn "No se pudo crear rate => $(json_or_raw)"
-  else fail "Crear rate FAIL (HTTP $HTTP): $(json_or_raw)"
-  fi
-
-  call GET /rooms/1/rates "" "$TOKEN"
-  if [[ "$HTTP" == "200" ]]; then
-    echo "Rates:"
-    json_or_raw
-  else
-    warn "No hay rates para room_id=1 (HTTP $HTTP): $(json_or_raw)"
-  fi
+echo "==> Room Rates (room_id=$ROOM_ID)"
+call POST "/rooms/$ROOM_ID/rates" '{"period":"week","price_bs":"500.00","currency_note":"demo"}'
+if [ "$CODE" = "201" ]; then
+  echo "✔ Rate creado => $BODY"
+elif [ "$CODE" = "409" ]; then
+  echo "⚠ Rate ya existía => $BODY"
 else
-  fail "No TOKEN; omito Room Rates"
+  echo "✖ Crear rate FAIL (HTTP $CODE): $BODY"
 fi
-echo
+call GET "/rooms/$ROOM_ID/rates"
+if [ "$CODE" = "200" ]; then
+  echo "Rates:"
+  echo "$BODY" | jq .
+else
+  echo "✖ List rates FAIL (HTTP $CODE): $BODY"
+fi
 
-# 9) Reservations
+# ===============================
+echo
 echo "==> Reservations"
-if [[ -n "$TOKEN" && -n "${GUEST_ID:-}" ]]; then
-  TODAY=$(date +%Y-%m-%d)
-  call POST /reservations/ "{\"guest_id\":$GUEST_ID,\"room_id\":1,\"start_date\":\"$TODAY\",\"period\":\"week\",\"periods_count\":1,\"notes\":\"demo reservation\"}" "$TOKEN"
-  if [[ "$HTTP" == "200" ]]; then
-    ok "Reserva creada => $(json_or_raw)"
-  elif [[ "$HTTP" == "409" ]]; then
-    warn "Reserva no creada => $(json_or_raw)"
-  else
-    fail "Crear reserva FAIL (HTTP $HTTP): $(json_or_raw)"
-  fi
+START=$(date -d "+14 days" +%F)
+END=$(date -d "+20 days" +%F)
 
-  call GET "/reservations/?limit=5" "" "$TOKEN"
-  if [[ "$HTTP" == "200" ]]; then
-    echo "Reservations:"
-    json_or_raw
-  else
-    fail "List Reservations FAIL (HTTP $HTTP): $(json_or_raw)"
+reservar() {
+  local S="$1" E="$2"
+  call POST /reservations/ "{\"guest_id\":$GUEST_ID,\"room_id\":$ROOM_ID,\"start_date\":\"$S\",\"end_date\":\"$E\",\"period\":\"week\",\"periods_count\":1,\"notes\":\"test happy path\"}"
+}
+
+reservar "$START" "$END"
+if [ "$CODE" = "201" ]; then
+  echo "✔ Reserva creada => $BODY"
+elif [ "$CODE" = "409" ]; then
+  # Auto-repair: si hay conflicto, tomar conflict_end y reintentar 7 días después
+  echo "⚠ Reserva no creada => $BODY"
+  CONFLICT_END=$(echo "$BODY" | jq -r '.detail.conflict_end // empty' 2>/dev/null || true)
+  if [ -n "$CONFLICT_END" ] && [ "$CONFLICT_END" != "null" ]; then
+    NEW_START=$(iso_plus_days "$CONFLICT_END" +1)
+    NEW_END=$(iso_plus_days "$NEW_START" +6)
+    echo "↻ Reintentando con fechas libres: $NEW_START -> $NEW_END"
+    reservar "$NEW_START" "$NEW_END"
+    if [ "$CODE" = "201" ]; then
+      echo "✔ Reserva creada (reintento) => $BODY"
+    else
+      echo "✖ Reintento reserva FAIL (HTTP $CODE): $BODY"
+    fi
   fi
 else
-  fail "No TOKEN/GUEST_ID; omito Reservations"
-fi
-echo
-
-# 10) Token
-if [[ -n "$TOKEN" ]]; then
-  echo
-  ok "TOKEN listo para usar:"
-  echo "$TOKEN"
+  echo "✖ Crear reserva FAIL (HTTP $CODE): $BODY"
 fi
 
+call GET "/reservations/?limit=5"
+if [ "$CODE" = "200" ]; then
+  echo "Reservations:"
+  echo "$BODY" | jq .
+else
+  echo "✖ List Reservations FAIL (HTTP $CODE): $BODY"
+fi
+
+# ===============================
 echo
-ok "Protocolo de pruebas finalizado."
+echo "✔ TOKEN listo para usar:"
+echo "$TOKEN"
+echo
+echo "✔ Protocolo de pruebas finalizado."
