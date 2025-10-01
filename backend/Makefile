@@ -1,8 +1,4 @@
 # ====== Hostal Backend Makefile ======
-# Uso típico:
-#   make venv install up migrate run
-#   make admin email=admin@hostal.com pass=MiClaveSegura
-
 SHELL := /bin/bash
 VENV := .venv
 PY := $(VENV)/bin/python
@@ -10,9 +6,30 @@ PIP := $(VENV)/bin/pip
 UVICORN := $(PY) -m uvicorn
 APP := app.main:app
 
-# -------- Entorno --------
-.PHONY: venv activate install freeze clean
+.PHONY: help test test-verbose ci venv activate install freeze clean \
+	up down logs ps psql migrate revision downgrade run run-no-reload \
+	admin login
 
+help:
+	@echo "Comandos disponibles:"
+	@echo "  make venv         - crear virtualenv"
+	@echo "  make install      - instalar dependencias"
+	@echo "  make up           - levantar DB y pgAdmin (docker compose up -d)"
+	@echo "  make migrate      - alembic upgrade head"
+	@echo "  make run          - correr uvicorn (con --reload)"
+	@echo "  make admin email=... pass=...  - crear admin"
+	@echo "  make test         - ejecutar tests"
+
+test:
+	$(PY) -m pytest -q
+
+test-verbose:
+	$(PY) -m pytest -vv
+
+ci:
+	pre-commit run -a && make test
+
+# -------- Entorno --------
 venv:
 	@test -d $(VENV) || python3 -m venv $(VENV)
 	@echo "✅ venv listo en $(VENV)"
@@ -31,10 +48,9 @@ freeze:
 clean:
 	rm -rf __pycache__ **/__pycache__ .pytest_cache .mypy_cache .ruff_cache
 	find . -name '*.pyc' -delete
+	@echo "Limpieza completada (no se borra $(VENV) por defecto)."
 
 # -------- Base de Datos (Docker) --------
-.PHONY: up down logs ps psql
-
 up:
 	docker compose up -d
 	@echo "✅ DB y pgAdmin arriba"
@@ -52,8 +68,6 @@ psql:
 	@docker exec -it $$(docker ps -qf "name=db") psql -U $${POSTGRES_USER:-hostal} -d $${POSTGRES_DB:-hostal_db}
 
 # -------- Alembic --------
-.PHONY: migrate revision downgrade
-
 migrate:
 	$(PY) -m alembic upgrade head
 
@@ -66,8 +80,6 @@ revision:
 	$(PY) -m alembic revision -m "$(m)" --autogenerate
 
 # -------- Run API --------
-.PHONY: run run-no-reload
-
 run:
 	$(UVICORN) $(APP) --reload --host 0.0.0.0 --port 8000
 
@@ -75,8 +87,6 @@ run-no-reload:
 	$(UVICORN) $(APP) --host 0.0.0.0 --port 8000
 
 # -------- Bootstrap Admin --------
-.PHONY: admin login
-
 admin:
 	@if [ -z "$(email)" ] || [ -z "$(pass)" ]; then echo 'Uso: make admin email=usuario@dominio pass="ClaveSegura"'; exit 1; fi
 	@echo "Creando admin $(email)..."

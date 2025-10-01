@@ -1,7 +1,12 @@
 # app/main.py
-from fastapi import FastAPI
+from __future__ import annotations
 
-# importa los routers una sola vez, sin alias duplicados
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.common.errors import register_exception_handlers
+from app.core.logging import setup_logging
 from app.routers import (
     auth,
     devices,
@@ -13,24 +18,44 @@ from app.routers import (
     users,
 )
 
+setup_logging()
+ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+# --- Middlewares ---
+async def security_headers_mw(request, call_next):
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    return resp
+
+
+# --- App ---
 app = FastAPI(title="Hostal API (with auth & roles)")
 
-# Montaje de routers:
-# - health suele no tener prefix en el router
-app.include_router(health.router)
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Si auth.router YA tiene prefix="/auth" dentro del archivo, no le pongas otro aquí.
-# Si NO lo tiene, entonces sí ponle prefix aquí. (ajusta según tu archivo)
-app.include_router(auth.router)  # o app.include_router(auth.router, prefix="/auth")
+# Security headers
+app.add_middleware(BaseHTTPMiddleware, dispatch=security_headers_mw)
 
-# Igual criterio para los demás: NO repitas el prefix si ya está en el router.
-app.include_router(users.router)  # users: si ya define prefix="/users" en el router
-app.include_router(guests.router)  # guests: idem
-app.include_router(rooms.router)  # rooms: idem
-app.include_router(room_rates.router)  # room_rates: típicamente prefix="/rooms" dentro del router
-app.include_router(
-    reservations.router
-)  # reservations: típicamente prefix="/reservations" dentro del router
-app.include_router(
-    devices.router
-)  # devices: típicamente prefix="/guests/{guest_id}/devices" dentro del router
+# Handlers de error globales
+register_exception_handlers(app)
+
+# --- Routers ---
+# Cada router ya define su propio prefix internamente.
+app.include_router(health.router)  # /health
+app.include_router(auth.router)  # /auth/...
+app.include_router(users.router)  # /users/...
+app.include_router(guests.router)  # /guests/...
+app.include_router(rooms.router)  # /rooms/...
+app.include_router(room_rates.router)  # /rooms/{room_id}/rates ...
+app.include_router(reservations.router)  # /reservations/...
+app.include_router(devices.router)  # /guests/{guest_id}/devices/...
