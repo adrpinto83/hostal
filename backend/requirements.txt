@@ -13,3 +13,4 @@ passlib[bcrypt]
 pytest
 httpx
 pytest-asyncio
+requests==2.32.5

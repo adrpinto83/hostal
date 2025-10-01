@@ -1,0 +1,35 @@
+{
+  "backend_url": "http://localhost:8000",
+  "admin_email": "admin@hostal.com",
+  "admin_password": "MiClaveSegura",
+
+  "tmp_room_prefix": "TMP",
+  "stable_room_number": "101",
+
+  "guest": {
+    "full_name": "John Test",
+    "document_id": "V-12345678",
+    "phone": "+58-412-0000000",
+    "email": "john.test@example.com",
+    "notes": "demo guest"
+  },
+
+  "device": {
+    "mac": "AA:BB:CC:DD:EE:01",
+    "name": "Phone",
+    "vendor": "DemoVendor"
+  },
+
+  "rate": {
+    "period": "week",
+    "price_bs": "500.00",
+    "currency_note": "demo"
+  },
+
+  "reservation": {
+    "start_date": "2025-10-13",
+    "period": "week",
+    "periods_count": 1,
+    "notes": "test happy path"
+  }
+}
