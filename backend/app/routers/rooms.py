@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..core.security import require_roles  # <--- DESCOMENTADO
+from ..core.security import require_roles
 from ..models.room import Room, RoomType
 from ..schemas.room import RoomCreate, RoomOut, RoomUpdate
 
@@ -14,7 +14,9 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
     "/",
     response_model=RoomOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Crear una nueva habitación",
+    description="Crea una nueva habitación en la base de datos. El número de habitación debe ser único.",
 )
 def create_room(data: RoomCreate, db: Session = Depends(get_db)):
     room = Room(number=data.number, type=RoomType(data.type), notes=data.notes)
@@ -31,11 +33,18 @@ def create_room(data: RoomCreate, db: Session = Depends(get_db)):
 @router.get(
     "/",
     response_model=list[RoomOut],
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Listar todas las habitaciones",
+    description="""
+Obtiene una lista de todas las habitaciones, con opciones de paginación y filtrado.
+
+- **q**: Busca por número o notas (búsqueda parcial, insensible a mayúsculas).
+- **room_type**: Filtra por tipo de habitación ('single', 'double', 'suite').
+""",
 )
 def list_rooms(
     db: Session = Depends(get_db),
-    q: str | None = Query(None, description="Buscar por número o notas (ILIKE)"),
+    q: str | None = Query(None, description="Buscar por número o notas"),
     room_type: str | None = Query(None, pattern="^(single|double|suite)$"),
     skip: int = 0,
     limit: int = Query(50, le=200),
@@ -52,7 +61,8 @@ def list_rooms(
 @router.get(
     "/{room_id}",
     response_model=RoomOut,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Obtener una habitación por ID",
 )
 def get_room(room_id: int, db: Session = Depends(get_db)):
     room = db.get(Room, room_id)
@@ -64,7 +74,9 @@ def get_room(room_id: int, db: Session = Depends(get_db)):
 @router.patch(
     "/{room_id}",
     response_model=RoomOut,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Actualizar una habitación",
+    description="Actualiza parcialmente los datos de una habitación existente.",
 )
 def update_room(room_id: int, data: RoomUpdate, db: Session = Depends(get_db)):
     room = db.get(Room, room_id)
@@ -90,7 +102,8 @@ def update_room(room_id: int, data: RoomUpdate, db: Session = Depends(get_db)):
 @router.delete(
     "/{room_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_roles("admin"))],  # <--- DESCOMENTADO
+    dependencies=[Depends(require_roles("admin"))],
+    summary="Eliminar una habitación",
 )
 def delete_room(room_id: int, db: Session = Depends(get_db)):
     room = db.get(Room, room_id)

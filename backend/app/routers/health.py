@@ -4,28 +4,28 @@ from sqlalchemy.sql import text
 
 from ..core.db import get_db
 
-router = APIRouter()
+router = APIRouter(tags=["Health"])
 
 
-@router.get("/healthz", tags=["Health"])
+@router.get(
+    "/healthz",
+    summary="Verificar si la aplicación está activa (Liveness)",
+    description="Endpoint simple que devuelve un 200 OK si el proceso de la API está corriendo.",
+)
 def liveness_check():
-    """
-    Verifica que la aplicación está corriendo (Liveness Probe).
-    """
     return {"status": "ok"}
 
 
-@router.get("/readyz", tags=["Health"])
+@router.get(
+    "/readyz",
+    summary="Verificar si la aplicación está lista para recibir peticiones (Readiness)",
+    description="Verifica que la aplicación puede conectarse a sus dependencias (como la base de datos). Devuelve un 503 si la conexión falla.",
+)
 def readiness_check(db: Session = Depends(get_db)):
-    """
-    Verifica que la aplicación puede conectarse a sus dependencias, como la BD (Readiness Probe).
-    """
     try:
-        # Ejecuta una consulta simple para verificar la conexión a la base de datos
         db.execute(text("SELECT 1"))
         return {"status": "ready"}
     except Exception as e:
-        # Si la conexión a la BD falla, lanza un error 503
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Database connection failed: {e}",

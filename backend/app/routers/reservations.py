@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from prometheus_client import Counter
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -24,14 +23,9 @@ from ..schemas.reservation import ReservationCreate, ReservationOut
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
 
-# Create the metric object outside of the endpoints
-RESERVATIONS_CREATED = Counter(
-    "hostal_reservations_created_total", "Total number of reservations created"
-)
-
 
 def _range_overlap(q, start, end):
-    """Filters for overlapping ranges in the same room."""
+    """Filtra traslapes de rangos en la misma habitación."""
     return q.filter(and_(Reservation.start_date <= end, Reservation.end_date >= start))
 
 
@@ -39,6 +33,8 @@ def _range_overlap(q, start, end):
     "/",
     response_model=ReservationOut,
     dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Crear una nueva reserva",
+    description="Crea una reserva para un huésped en una habitación. Valida que no existan solapamientos de fechas.",
 )
 def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     if not db.get(Guest, data.guest_id):
@@ -100,10 +96,6 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     db.add(res)
     db.commit()
     db.refresh(res)
-
-    # Increment the counter
-    RESERVATIONS_CREATED.inc()
-
     return res
 
 
@@ -111,6 +103,8 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     "/",
     response_model=list[ReservationOut],
     dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Listar todas las reservas",
+    description="Obtiene una lista de reservas con opciones de filtrado y paginación.",
 )
 def list_reservations(
     db: Session = Depends(get_db),
@@ -146,11 +140,10 @@ def list_reservations(
     "/{reservation_id}/confirm",
     response_model=ReservationOut,
     dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Confirmar una reserva",
+    description="Cambia el estado de una reserva de 'pending' a 'active'.",
 )
 def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
-    """
-    Confirms a reservation, changing its status from 'pending' to 'active'.
-    """
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
@@ -171,11 +164,10 @@ def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
     "/{reservation_id}/cancel",
     response_model=ReservationOut,
     dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Cancelar una reserva",
+    description="Cambia el estado de una reserva a 'cancelled'. No se puede cancelar si ya está en un estado final.",
 )
 def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
-    """
-    Cancels a reservation, changing its status to 'cancelled'.
-    """
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")

@@ -9,7 +9,13 @@ from ..schemas.user import UserCreate, UserOut
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("/", response_model=UserOut, dependencies=[Depends(require_roles("admin"))])
+@router.post(
+    "/",
+    response_model=UserOut,
+    dependencies=[Depends(require_roles("admin"))],
+    summary="Crear un nuevo usuario",
+    description="Crea un nuevo usuario en el sistema (ej. un recepcionista). Solo los administradores pueden realizar esta acción.",
+)
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(
@@ -22,17 +28,33 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.get("/me", response_model=UserOut)
+@router.get(
+    "/me",
+    response_model=UserOut,
+    summary="Obtener datos del usuario actual",
+    description="Devuelve la información del usuario que está actualmente autenticado a través del token JWT.",
+)
 def me(current: User = Depends(get_current_user)):
     return current
 
 
-@router.get("/", response_model=list[UserOut], dependencies=[Depends(require_roles("admin"))])
+@router.get(
+    "/",
+    response_model=list[UserOut],
+    dependencies=[Depends(require_roles("admin"))],
+    summary="Listar todos los usuarios",
+    description="Obtiene una lista de todos los usuarios registrados en el sistema. Solo para administradores.",
+)
 def list_users(db: Session = Depends(get_db)):
     return db.query(User).order_by(User.id).all()
 
 
-@router.post("/bootstrap", response_model=UserOut)
+@router.post(
+    "/bootstrap",
+    response_model=UserOut,
+    summary="Crear el primer usuario administrador",
+    description="Endpoint especial para crear el primer usuario administrador si no existe ninguno. Falla si ya existe un administrador.",
+)
 def bootstrap_admin(data: UserCreate, db: Session = Depends(get_db)):
     has_admin = db.query(User).filter(User.role == "admin").first()
     if has_admin:
