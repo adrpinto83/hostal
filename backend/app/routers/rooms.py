@@ -3,8 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-
-# from ..core.security import require_roles # <--- COMENTADO
+from ..core.security import require_roles  # <--- DESCOMENTADO
 from ..models.room import Room, RoomType
 from ..schemas.room import RoomCreate, RoomOut, RoomUpdate
 
@@ -15,7 +14,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
     "/",
     response_model=RoomOut,
     status_code=status.HTTP_201_CREATED,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
 )
 def create_room(data: RoomCreate, db: Session = Depends(get_db)):
     room = Room(number=data.number, type=RoomType(data.type), notes=data.notes)
@@ -32,7 +31,7 @@ def create_room(data: RoomCreate, db: Session = Depends(get_db)):
 @router.get(
     "/",
     response_model=list[RoomOut],
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
 )
 def list_rooms(
     db: Session = Depends(get_db),
@@ -53,7 +52,7 @@ def list_rooms(
 @router.get(
     "/{room_id}",
     response_model=RoomOut,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
 )
 def get_room(room_id: int, db: Session = Depends(get_db)):
     room = db.get(Room, room_id)
@@ -65,7 +64,7 @@ def get_room(room_id: int, db: Session = Depends(get_db)):
 @router.patch(
     "/{room_id}",
     response_model=RoomOut,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],  # <--- DESCOMENTADO
 )
 def update_room(room_id: int, data: RoomUpdate, db: Session = Depends(get_db)):
     room = db.get(Room, room_id)
@@ -91,7 +90,7 @@ def update_room(room_id: int, data: RoomUpdate, db: Session = Depends(get_db)):
 @router.delete(
     "/{room_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    # dependencies=[Depends(require_roles("admin"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin"))],  # <--- DESCOMENTADO
 )
 def delete_room(room_id: int, db: Session = Depends(get_db)):
     room = db.get(Room, room_id)
