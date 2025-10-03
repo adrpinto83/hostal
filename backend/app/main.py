@@ -1,6 +1,7 @@
 # app/main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette_prometheus import PrometheusMiddleware, metrics  # <-- 1. Importar
 
 from app.core.logging import setup_logging
 from app.core.middleware import LoggingMiddleware
@@ -15,25 +16,22 @@ from app.routers import (
     users,
 )
 
-# 1) Configurar el logging ANTES de crear la app
 setup_logging()
 
-# 2) Instancia de FastAPI
 app = FastAPI(title="Hostal API")
 
-# 3) Añadir Middlewares
+# Middlewares
 app.add_middleware(LoggingMiddleware)
+app.add_middleware(PrometheusMiddleware)  # <-- 2. Añadir el middleware de Prometheus
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ajusta esto en producción
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# --- INICIO DE LA CORRECCIÓN ---
-# 3.1) Middleware para añadir cabeceras de seguridad
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -43,10 +41,9 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# --- FIN DE LA CORRECCIÓN ---
+# Endpoints
+app.add_route("/metrics", metrics)  # <-- 3. Añadir el endpoint /metrics
 
-
-# 4) Montaje de routers
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)

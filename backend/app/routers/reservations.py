@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from prometheus_client import Counter
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -23,9 +24,14 @@ from ..schemas.reservation import ReservationCreate, ReservationOut
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
 
+# Create the metric object outside of the endpoints
+RESERVATIONS_CREATED = Counter(
+    "hostal_reservations_created_total", "Total number of reservations created"
+)
+
 
 def _range_overlap(q, start, end):
-    """Filtra traslapes de rangos en la misma habitación."""
+    """Filters for overlapping ranges in the same room."""
     return q.filter(and_(Reservation.start_date <= end, Reservation.end_date >= start))
 
 
@@ -94,6 +100,10 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     db.add(res)
     db.commit()
     db.refresh(res)
+
+    # Increment the counter
+    RESERVATIONS_CREATED.inc()
+
     return res
 
 
@@ -139,7 +149,7 @@ def list_reservations(
 )
 def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
     """
-    Confirma una reserva, cambiando su estado de 'pending' a 'active'.
+    Confirms a reservation, changing its status from 'pending' to 'active'.
     """
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
@@ -164,7 +174,7 @@ def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
 )
 def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
     """
-    Cancela una reserva, cambiando su estado a 'cancelled'.
+    Cancels a reservation, changing its status to 'cancelled'.
     """
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
