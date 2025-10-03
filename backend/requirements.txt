@@ -10,7 +10,8 @@ pydantic-settings==2.5.2
 PyJWT==2.9.0
 python-jose[cryptography]
 passlib[bcrypt]
-pytest
 httpx
-pytest-asyncio
 requests==2.32.5
+pytest
+pytest-cov
+python-multipart

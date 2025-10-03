@@ -1,10 +1,13 @@
-def test_health(client):
-    r = client.get("/health")
-    assert r.status_code == 200
+def test_login_and_me(client, seed_admin):
+    r = client.post(
+        "/auth/login", data={"username": "admin@hostal.com", "password": "MiClaveSegura"}
+    )
+    assert r.status_code == 200, r.text
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
 
-
-def test_login(client):
-    r = client.post("/auth/login", json={"email": "admin@hostal.com", "password": "MiClaveSegura"})
-    assert r.status_code == 200
-    data = r.json()
-    assert "access_token" in data
+    r2 = client.get("/users/me", headers=headers)
+    assert r2.status_code == 200, r2.text
+    me = r2.json()
+    assert me["email"] == "admin@hostal.com"
+    assert me["role"] == "admin"

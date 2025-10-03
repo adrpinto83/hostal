@@ -2,42 +2,39 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
-from ..core.db import get_db
-from ..core.security import create_access_token, verify_password
-from ..models.user import User
+from app.core.config import settings
+from app.core.db import get_db
+from app.core.security import create_access_token, verify_password
+from app.models.user import User
+from app.schemas.auth import TokenOut
 
-router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-class LoginIn(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class TokenOut(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenOut)
-def login(data: LoginIn, db: Session = Depends(get_db)):
-    # 1) Buscar usuario por email
-    user = db.execute(select(User).where(User.email == data.email)).scalar_one_or_none()
+def login(
+    db: Session = Depends(get_db),
+    form_data: OAuth2PasswordRequestForm = Depends(),
+):
+    """
+    Inicia sesión y devuelve un token JWT.
+    """
+    user = db.query(User).filter(User.email == form_data.username).first()
 
-    # 2) Validar existencia y password
-    if not user or not user.hashed_password:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    # Usa el nombre en MAYÚSCULAS
+    expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    # 3) Construir JWT
-    expires = timedelta(minutes=settings.access_token_expire_minutes)
-    token = create_access_token({"sub": str(user.id), "role": user.role}, expires_delta=expires)
+    token_data = {"sub": str(user.id), "role": user.role}
+    access_token = create_access_token(token_data, expires_delta=expires)
 
-    return TokenOut(access_token=token)
+    return {"access_token": access_token, "token_type": "bearer"}

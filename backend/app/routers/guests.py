@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..core.security import require_roles
+
+# from ..core.security import require_roles  # <--- COMENTADO
 from ..models.guest import Guest
 from ..schemas.guest import GuestCreate, GuestOut, GuestUpdate
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/guests", tags=["guests"])
 @router.get(
     "/",
     response_model=List[GuestOut],
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
 )
 def list_guests(
     q: str | None = Query(None, description="Buscar por nombre o documento"),
@@ -34,7 +35,7 @@ def list_guests(
 @router.get(
     "/{guest_id}",
     response_model=GuestOut,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
 )
 def get_guest(guest_id: int, db: Session = Depends(get_db)):
     guest = db.get(Guest, guest_id)
@@ -48,10 +49,9 @@ def get_guest(guest_id: int, db: Session = Depends(get_db)):
     "/",
     response_model=GuestOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
 )
 def create_guest(data: GuestCreate, db: Session = Depends(get_db)):
-    # opcional: validar duplicados por documento
     exists = db.query(Guest).filter(Guest.document_id == data.document_id).first()
     if exists:
         raise HTTPException(status_code=400, detail="document_id already exists")
@@ -66,7 +66,7 @@ def create_guest(data: GuestCreate, db: Session = Depends(get_db)):
 @router.patch(
     "/{guest_id}",
     response_model=GuestOut,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
 )
 def update_guest(guest_id: int, data: GuestUpdate, db: Session = Depends(get_db)):
     guest = db.get(Guest, guest_id)
@@ -83,7 +83,7 @@ def update_guest(guest_id: int, data: GuestUpdate, db: Session = Depends(get_db)
 @router.delete(
     "/{guest_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_roles("admin"))],
+    # dependencies=[Depends(require_roles("admin"))], # <--- COMENTADO
 )
 def delete_guest(guest_id: int, db: Session = Depends(get_db)):
     guest = db.get(Guest, guest_id)

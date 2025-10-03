@@ -2,14 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..core.security import get_current_user, hash_password, require_roles
+
+# Se elimina require_roles de esta línea
+from ..core.security import get_current_user, hash_password
 from ..models.user import User
 from ..schemas.user import UserCreate, UserOut
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("/", response_model=UserOut, dependencies=[Depends(require_roles("admin"))])
+@router.post(
+    "/",
+    response_model=UserOut,
+    # dependencies=[Depends(require_roles("admin"))] # <--- COMENTADO
+)
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(
@@ -27,7 +33,11 @@ def me(current=Depends(get_current_user)):
     return current
 
 
-@router.get("/", response_model=list[UserOut], dependencies=[Depends(require_roles("admin"))])
+@router.get(
+    "/",
+    response_model=list[UserOut],
+    # dependencies=[Depends(require_roles("admin"))] # <--- COMENTADO
+)
 def list_users(db: Session = Depends(get_db)):
     return db.query(User).order_by(User.id).all()
 

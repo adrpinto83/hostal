@@ -1,6 +1,6 @@
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field  # 1. Importa ConfigDict
 
 MAC = Annotated[str, Field(pattern=r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")]
 
@@ -18,5 +18,5 @@ class DeviceOut(BaseModel):
     vendor: Optional[str]
     allowed: bool
 
-    class Config:
-        from_attributes = True
+    # 2. Reemplaza la clase Config
+    model_config = ConfigDict(from_attributes=True)

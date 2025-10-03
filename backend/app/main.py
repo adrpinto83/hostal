@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.common.errors import register_exception_handlers
-from app.core.logging import setup_logging
+from app.core.settings import settings
 from app.routers import (
     auth,
     devices,
@@ -18,11 +18,20 @@ from app.routers import (
     users,
 )
 
-setup_logging()
-ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+# 1) Instancia de FastAPI
+app = FastAPI(title="Hostal API (with auth & roles)")
+
+# 2) CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,  # viene de app/core/settings.py
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-# --- Middlewares ---
+# 3) Security headers muy básicos
 async def security_headers_mw(request, call_next):
     resp = await call_next(request)
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -31,31 +40,18 @@ async def security_headers_mw(request, call_next):
     return resp
 
 
-# --- App ---
-app = FastAPI(title="Hostal API (with auth & roles)")
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Security headers
 app.add_middleware(BaseHTTPMiddleware, dispatch=security_headers_mw)
 
-# Handlers de error globales
+# 4) Handlers de errores comunes
 register_exception_handlers(app)
 
-# --- Routers ---
-# Cada router ya define su propio prefix internamente.
-app.include_router(health.router)  # /health
-app.include_router(auth.router)  # /auth/...
-app.include_router(users.router)  # /users/...
-app.include_router(guests.router)  # /guests/...
-app.include_router(rooms.router)  # /rooms/...
-app.include_router(room_rates.router)  # /rooms/{room_id}/rates ...
-app.include_router(reservations.router)  # /reservations/...
-app.include_router(devices.router)  # /guests/{guest_id}/devices/...
+# 5) Montaje de routers
+# Si cada router ya define su propio prefix en su archivo, NO repetir aquí.
+app.include_router(health.router)  # normalmente sin prefix o con /health en el router
+app.include_router(auth.router)  # si el router define prefix="/auth"
+app.include_router(users.router)  # si define prefix="/users"
+app.include_router(guests.router)  # si define prefix="/guests"
+app.include_router(rooms.router)  # si define prefix="/rooms"
+app.include_router(room_rates.router)  # si define prefix="/rooms" o similar dentro
+app.include_router(reservations.router)  # si define prefix="/reservations"
+app.include_router(devices.router)  # si define prefix="/guests/{guest_id}/devices" o similar
