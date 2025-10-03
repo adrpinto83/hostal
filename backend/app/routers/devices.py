@@ -4,8 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-
-# from ..core.security import require_roles # <--- 1. LÍNEA DE IMPORTACIÓN COMENTADA
+from ..core.security import require_roles
 from ..models.device import Device
 from ..models.guest import Guest
 from ..schemas.device import DeviceCreate, DeviceOut
@@ -17,7 +16,7 @@ router = APIRouter(prefix="/guests/{guest_id}/devices", tags=["devices"])
 @router.get(
     "/",
     response_model=List[DeviceOut],
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- 2. DEPENDENCIA COMENTADA
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def list_devices(guest_id: int, db: Session = Depends(get_db)):
     guest = db.get(Guest, guest_id)
@@ -31,7 +30,7 @@ def list_devices(guest_id: int, db: Session = Depends(get_db)):
     "/",
     response_model=DeviceOut,
     status_code=status.HTTP_201_CREATED,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- 3. DEPENDENCIA COMENTADA
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def add_device(guest_id: int, data: DeviceCreate, db: Session = Depends(get_db)):
     guest = db.get(Guest, guest_id)
@@ -62,7 +61,7 @@ def add_device(guest_id: int, data: DeviceCreate, db: Session = Depends(get_db))
 @router.delete(
     "/{device_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- 4. DEPENDENCIA COMENTADA
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def delete_device(guest_id: int, device_id: int, db: Session = Depends(get_db)):
     device = db.get(Device, device_id)

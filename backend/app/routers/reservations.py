@@ -8,8 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..core.dates import compute_end_date
 from ..core.db import get_db
-
-# from ..core.security import require_roles  # <--- COMENTADO
+from ..core.security import require_roles
 from ..models.guest import Guest
 from ..models.reservation import (
     Period as PeriodEnum,
@@ -33,7 +32,7 @@ def _range_overlap(q, start, end):
 @router.post(
     "/",
     response_model=ReservationOut,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     if not db.get(Guest, data.guest_id):
@@ -101,7 +100,7 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
 @router.get(
     "/",
     response_model=list[ReservationOut],
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))], # <--- COMENTADO
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def list_reservations(
     db: Session = Depends(get_db),
@@ -133,11 +132,10 @@ def list_reservations(
     return query.order_by(Reservation.start_date.desc()).offset(offset).limit(limit).all()
 
 
-# NUEVO ENDPOINT PARA CONFIRMAR RESERVA
 @router.post(
     "/{reservation_id}/confirm",
     response_model=ReservationOut,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
     """
@@ -162,7 +160,7 @@ def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
 @router.post(
     "/{reservation_id}/cancel",
     response_model=ReservationOut,
-    # dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
 )
 def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
     """
@@ -172,7 +170,6 @@ def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
     if not reservation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
 
-    # Regla de negocio: No se puede cancelar una reserva que ya está en un estado final.
     if reservation.status in (ReservationStatus.cancelled, ReservationStatus.checked_out):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
