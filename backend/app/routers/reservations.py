@@ -157,3 +157,29 @@ def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(reservation)
     return reservation
+
+
+@router.post(
+    "/{reservation_id}/cancel",
+    response_model=ReservationOut,
+    # dependencies=[Depends(require_roles("admin", "recepcionista"))],
+)
+def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
+    """
+    Cancela una reserva, cambiando su estado a 'cancelled'.
+    """
+    reservation = db.get(Reservation, reservation_id)
+    if not reservation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
+
+    # Regla de negocio: No se puede cancelar una reserva que ya está en un estado final.
+    if reservation.status in (ReservationStatus.cancelled, ReservationStatus.checked_out):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel reservation with status '{reservation.status.value}'",
+        )
+
+    reservation.status = ReservationStatus.cancelled
+    db.commit()
+    db.refresh(reservation)
+    return reservation

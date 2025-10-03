@@ -111,3 +111,63 @@ def test_confirm_reservation_flow(client, auth_headers):
     # Verificar que la API previene la transición de estado inválida
     assert r3.status_code == 400, "La API no debería permitir confirmar una reserva ya activa"
     assert "Cannot confirm reservation with status 'active'" in r3.text
+
+
+def test_cancel_reservation_flow(client, auth_headers):
+    """
+    Verifica el flujo de cancelar una reserva:
+    1. Crea una reserva en estado 'pending'.
+    2. La cancela y verifica que su estado cambie a 'cancelled'.
+    3. Intenta cancelarla de nuevo y verifica que la API devuelve un error.
+    """
+    # --- 1. Setup: Crear una reserva ---
+    room_resp = client.post(
+        "/rooms/", json={"number": "R-400", "type": "double"}, headers=auth_headers
+    )
+    assert room_resp.status_code == 201
+    room = room_resp.json()
+
+    guest_resp = client.post(
+        "/guests/",
+        json={"full_name": "Cancel Tester", "document_id": "V-445566"},
+        headers=auth_headers,
+    )
+    assert guest_resp.status_code == 201
+    guest = guest_resp.json()
+
+    rate_resp = client.post(
+        f"/rooms/{room['id']}/rates",
+        json={"period": "day", "price_bs": "50.00"},
+        headers=auth_headers,
+    )
+    assert rate_resp.status_code in (200, 201)
+
+    reservation_in = {
+        "guest_id": guest["id"],
+        "room_id": room["id"],
+        "start_date": "2025-12-01",
+        "period": "day",
+        "periods_count": 3,
+    }
+    r1 = client.post("/reservations/", json=reservation_in, headers=auth_headers)
+    assert r1.status_code == 200, f"La creación de la reserva inicial falló: {r1.text}"
+    reservation_created = r1.json()
+    assert reservation_created["status"] == "pending"
+
+    # --- 2. Acción y Verificación (Happy Path) ---
+    reservation_id = reservation_created["id"]
+    r2 = client.post(f"/reservations/{reservation_id}/cancel", headers=auth_headers)
+
+    # Verificar que la cancelación fue exitosa
+    assert r2.status_code == 200, f"La cancelación falló: {r2.text}"
+    reservation_cancelled = r2.json()
+    assert reservation_cancelled["id"] == reservation_id
+    assert reservation_cancelled["status"] == "cancelled"
+
+    # --- 3. Acción y Verificación (Error Path) ---
+    # Intentar cancelar la misma reserva que ya está cancelada
+    r3 = client.post(f"/reservations/{reservation_id}/cancel", headers=auth_headers)
+
+    # Verificar que la API previene la transición de estado inválida
+    assert r3.status_code == 400, "La API no debería permitir cancelar una reserva ya cancelada"
+    assert "Cannot cancel reservation with status 'cancelled'" in r3.text
