@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.sql import text
 
-from ..core.db import get_db
+# Importamos el 'engine' directamente
+from ..core.db import engine
 
 router = APIRouter(tags=["Health"])
 
@@ -21,9 +21,19 @@ def liveness_check():
     summary="Verificar si la aplicación está lista para recibir peticiones (Readiness)",
     description="Verifica que la aplicación puede conectarse a sus dependencias (como la base de datos). Devuelve un 503 si la conexión falla.",
 )
-def readiness_check(db: Session = Depends(get_db)):
+def readiness_check():
+    """
+    Verifica que la aplicación puede conectarse a sus dependencias (como la base de datos).
+    Devuelve un 503 si la conexión falla.
+    """
+    print("--> Ejecutando nueva prueba de readiness...")  # Mensaje para depuración
     try:
-        db.execute(text("SELECT 1"))
+        # Intenta obtener una conexión del pool. Esto fallará si la BD no está disponible.
+        connection = engine.connect()
+        # Opcional: ejecuta una consulta simple para ser extra seguro.
+        connection.execute(text("SELECT 1"))
+        # Cierra la conexión inmediatamente para devolverla al pool.
+        connection.close()
         return {"status": "ready"}
     except Exception as e:
         raise HTTPException(

@@ -18,6 +18,13 @@ from app.routers import (
 
 setup_logging()
 
+from app.core.config import settings
+
+print("=" * 80)
+print(f"ATENCIÓN: La aplicación se está conectando a esta BD -> {settings.DATABASE_URL}")
+print("=" * 80)
+# --- FIN DEL BLOQUE DE DEPURACIÓN ---
+
 app = FastAPI(title="Hostal API")
 
 # Middlewares
