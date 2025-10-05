@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Servicio de pgAdmin (opcional, para administrar la BD)
+  # Servicio de pgAdmin (opcional)
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: hostal_pgadmin
@@ -32,7 +32,19 @@ services:
       db:
         condition: service_healthy
 
-  # --- NUEVO SERVICIO: TU APLICACIÓN FASTAPI ---
+  # --- INICIO DE LA MODIFICACIÓN ---
+
+  # Nuevo servicio de Redis para el rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: hostal_redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de la App (con Redis)
   app:
     build:
       context: . # Usa el Dockerfile en el directorio actual
@@ -41,13 +53,18 @@ services:
       - "8000:8000"
     depends_on:
       db:
-        condition: service_healthy # No arrancar la app hasta que la BD esté lista
+        condition: service_healthy
+      redis: # La app ahora también depende de Redis
+        condition: service_healthy
     environment:
       # Pasa las variables de entorno a la aplicación.
-      # Docker Compose las toma del archivo .env automáticamente.
       - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-hostal}:${POSTGRES_PASSWORD:-hostal_pass}@db:5432/${POSTGRES_DB:-hostal_db}
       - SECRET_KEY=${SECRET_KEY}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      # Nueva variable para conectar con Redis
+      - REDIS_URL=redis://redis:6379
+
+  # --- FIN DE LA MODIFICACIÓN ---
 
 volumes:
   postgres_data:

@@ -19,3 +19,5 @@ structlog
 starlette-prometheus
 psycopg2-binary
 email-validator
+slowapi
+redis

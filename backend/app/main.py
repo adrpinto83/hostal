@@ -1,19 +1,22 @@
 # app/main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette_prometheus import PrometheusMiddleware, metrics
 
+from app.core.limiter import limiter  # <--- Importar desde el nuevo archivo
 from app.core.logging import setup_logging
 from app.core.middleware import LoggingMiddleware
-from app.routers.api import api_router  # <--- 1. Importamos el nuevo router principal
-
-# 2. (Opcional) Eliminamos las líneas de depuración que ya no necesitamos
-# from app.core.config import settings
-# print(...)
+from app.routers.api import api_router
 
 setup_logging()
 
 app = FastAPI(title="Hostal API")
+
+# Asigna el limitador al estado de la app y añade el manejador de excepciones
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Middlewares
 app.add_middleware(LoggingMiddleware)
@@ -38,6 +41,4 @@ async def add_security_headers(request: Request, call_next):
 
 # Endpoints
 app.add_route("/metrics", metrics)
-
-# 3. Incluimos ÚNICAMENTE el router principal
 app.include_router(api_router)

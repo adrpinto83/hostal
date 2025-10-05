@@ -1,53 +1,45 @@
 # alembic/env.py
-from __future__ import annotations
-
 import sys
-from logging.config import fileConfig
 from pathlib import Path
-from typing import Any
+
+# --- INICIO DE LA CORRECCIÓN ---
+# Añade el directorio raíz del proyecto ('/app' dentro de Docker) al path de Python
+# para que Alembic pueda encontrar el módulo 'app'.
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+# --- FIN DE LA CORRECCIÓN ---
+
+from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
-from alembic import context as _alembic_context  # type: ignore[attr-defined]
+from alembic import context
+from app.core.config import settings
+from app.core.db import Base
 
-# --- Habilitar import de "app" ---
-BASE_DIR = Path(__file__).resolve().parents[1]  # .../backend
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
-
-# --- Config de Alembic ---
-context: Any = _alembic_context  # mypy: alembic no tiene stubs
-
+# this is the Alembic Config object, which provides
+# access to the values within the .ini file in use.
 config = context.config
 
-# Logging de Alembic (opcional, si existe alembic.ini)
+# Interpret the config file for Python logging.
+# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# --- Fuente única de settings (la misma que usa la app) ---
-from app.core.config import settings  # noqa: E402
-from app.core.db import Base  # noqa: E402
-from app.models.device import Device  # noqa: F401,E402
-from app.models.guest import Guest  # noqa: F401,E402
-from app.models.reservation import Reservation  # noqa: F401,E402
-from app.models.room import Room  # noqa: F401,E402
-from app.models.room_rate import RoomRate  # noqa: F401,E402
-from app.models.user import User  # noqa: F401,E402
+# Asignar la URL de la base de datos desde nuestro objeto `settings`
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
-db_url = settings.database_url
-if not db_url:
-    raise RuntimeError(
-        "DATABASE_URL no está definido. Revisa app/core/config.py o tus variables de entorno."
-    )
-
-# Forzamos sqlalchemy.url para que Alembic use la misma URL
-config.set_main_option("sqlalchemy.url", db_url)
-
+# add your model's MetaData object here
+# for 'autogenerate' support
 target_metadata = Base.metadata
+
+# other values from the config, defined by the needs of env.py,
+# can be acquired:
+# my_important_option = config.get_main_option("my_important_option")
+# ... etc.
 
 
 def run_migrations_offline() -> None:
-    """Ejecuta migraciones en modo offline."""
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -55,20 +47,22 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Ejecuta migraciones en modo online."""
+    """Run migrations in 'online' mode."""
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section) or {},
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
+
         with context.begin_transaction():
             context.run_migrations()
 
