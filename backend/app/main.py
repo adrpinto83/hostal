@@ -1,38 +1,26 @@
 # app/main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from starlette_prometheus import PrometheusMiddleware, metrics  # <-- 1. Importar
+from starlette_prometheus import PrometheusMiddleware, metrics
 
 from app.core.logging import setup_logging
 from app.core.middleware import LoggingMiddleware
-from app.routers import (
-    auth,
-    devices,
-    guests,
-    health,
-    reservations,
-    room_rates,
-    rooms,
-    users,
-)
+from app.routers.api import api_router  # <--- 1. Importamos el nuevo router principal
+
+# 2. (Opcional) Eliminamos las líneas de depuración que ya no necesitamos
+# from app.core.config import settings
+# print(...)
 
 setup_logging()
-
-from app.core.config import settings
-
-print("=" * 80)
-print(f"ATENCIÓN: La aplicación se está conectando a esta BD -> {settings.DATABASE_URL}")
-print("=" * 80)
-# --- FIN DEL BLOQUE DE DEPURACIÓN ---
 
 app = FastAPI(title="Hostal API")
 
 # Middlewares
 app.add_middleware(LoggingMiddleware)
-app.add_middleware(PrometheusMiddleware)  # <-- 2. Añadir el middleware de Prometheus
+app.add_middleware(PrometheusMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Ajusta esto en producción
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,13 +37,7 @@ async def add_security_headers(request: Request, call_next):
 
 
 # Endpoints
-app.add_route("/metrics", metrics)  # <-- 3. Añadir el endpoint /metrics
+app.add_route("/metrics", metrics)
 
-app.include_router(health.router)
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(guests.router)
-app.include_router(rooms.router)
-app.include_router(room_rates.router)
-app.include_router(reservations.router)
-app.include_router(devices.router)
+# 3. Incluimos ÚNICAMENTE el router principal
+app.include_router(api_router)
