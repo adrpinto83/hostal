@@ -16,3 +16,6 @@ pytest
 pytest-cov
 python-multipart
 structlog
+starlette-prometheus
+psycopg2-binary
+email-validator

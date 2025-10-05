@@ -1,25 +1,53 @@
+version: '3.8'
 
 services:
+  # Servicio de la Base de Datos (PostgreSQL)
   db:
-    image: postgres:16
-    restart: unless-stopped
+    image: postgres:16-alpine
+    container_name: hostal_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-hostal}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hostal_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-hostal_db}
+      - POSTGRES_USER=${POSTGRES_USER:-hostal}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hostal_pass}
+      - POSTGRES_DB=${POSTGRES_DB:-hostal_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hostal} -d ${POSTGRES_DB:-hostal_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de pgAdmin (opcional, para administrar la BD)
   pgadmin:
     image: dpage/pgadmin4:8
-    restart: unless-stopped
+    container_name: hostal_pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin1234
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
     ports:
       - "5050:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
+  # --- NUEVO SERVICIO: TU APLICACIÓN FASTAPI ---
+  app:
+    build:
+      context: . # Usa el Dockerfile en el directorio actual
+    container_name: hostal_app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy # No arrancar la app hasta que la BD esté lista
+    environment:
+      # Pasa las variables de entorno a la aplicación.
+      # Docker Compose las toma del archivo .env automáticamente.
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-hostal}:${POSTGRES_PASSWORD:-hostal_pass}@db:5432/${POSTGRES_DB:-hostal_db}
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+
 volumes:
-  dbdata:
+  postgres_data:
