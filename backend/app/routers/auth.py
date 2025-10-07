@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.limiter import limiter  # <--- CORRECCIÓN: Importar desde el nuevo archivo
+from app.core.limiter import limiter
 from app.core.security import create_access_token, verify_password
 from app.models.user import User
 from app.schemas.auth import TokenOut
@@ -26,6 +26,13 @@ def login(
     Inicia sesión y devuelve un token JWT.
     Limitado a 5 intentos por minuto por IP.
     """
+    # --- INICIO DE LA DEPURACIÓN ---
+    print("=" * 50)
+    print(f"EMAIL RECIBIDO: '{form_data.username}'")
+    print(f"CONTRASEÑA RECIBIDA: '{form_data.password}'")
+    print("=" * 50)
+    # --- FIN DE LA DEPURACIÓN ---
+
     user = db.query(User).filter(User.email == form_data.username).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
