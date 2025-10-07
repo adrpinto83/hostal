@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // 1. Import Link
 
 interface User {
   email: string;
@@ -26,7 +26,7 @@ function DashboardPage() {
         setUser(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al obtener datos.');
-        logout(); // Si hay error, cerramos sesión
+        logout();
         navigate('/login');
       }
     };
@@ -46,7 +46,18 @@ function DashboardPage() {
         <div className="space-y-4">
           <p>Bienvenido, <span className="font-bold">{user.email}</span></p>
           <p>Rol: <span className="font-mono bg-gray-700 px-2 py-1 rounded">{user.role}</span></p>
-          <button onClick={handleLogout} className="w-full px-4 py-2 font-bold text-white bg-red-600 rounded-md hover:bg-red-700">Cerrar Sesión</button>
+
+          {/* --- 2. ADD THIS LINK/BUTTON --- */}
+          <Link to="/rooms">
+            <button className="w-full px-4 py-2 font-bold text-white bg-gray-600 rounded-md hover:bg-gray-700">
+              Gestionar Habitaciones
+            </button>
+          </Link>
+          {/* --- END OF BUTTON --- */}
+
+          <button onClick={handleLogout} className="w-full px-4 py-2 font-bold text-white bg-red-600 rounded-md hover:bg-red-700">
+            Cerrar Sesión
+          </button>
         </div>
       ) : <p className="text-center">Cargando...</p>}
     </div>
