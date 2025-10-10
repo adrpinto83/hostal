@@ -1,8 +1,13 @@
 // src/components/CreateRoomForm.tsx
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
-// Esta función será llamada por el componente padre (`RoomsPage`) cuando se cree una habitación
 interface CreateRoomFormProps {
   onRoomCreated: () => void;
   onCancel: () => void;
@@ -36,65 +41,47 @@ function CreateRoomForm({ onRoomCreated, onCancel }: CreateRoomFormProps) {
       }
 
       alert('¡Habitación creada exitosamente!');
-      onRoomCreated(); // Avisa al padre que la habitación fue creada para que pueda refrescar la lista
+      onRoomCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocurrió un error.');
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-      <div className="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-white">Crear Nueva Habitación</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Número de Habitación</label>
-            <input
-              type="text"
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-              className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border border-gray-600 rounded-md"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Tipo</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as 'single' | 'double' | 'suite')}
-              className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border border-gray-600 rounded-md"
-            >
-              <option value="single">Single</option>
-              <option value="double">Double</option>
-              <option value="suite">Suite</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Notas (Opcional)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border border-gray-600 rounded-md"
-            />
-          </div>
-          {error && <p className="text-sm text-center text-red-400">{error}</p>}
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 font-bold text-gray-300 bg-gray-600 rounded-md hover:bg-gray-700"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700"
-            >
-              Crear Habitación
-            </button>
-          </div>
-        </form>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Crear Nueva Habitación</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="number">Número de Habitación</Label>
+              <Input id="number" value={number} onChange={(e) => setNumber(e.target.value)} required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="type">Tipo</Label>
+              <Select onValueChange={(value) => setType(value as any)} defaultValue={type}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un tipo" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="double">Double</SelectItem>
+                  <SelectItem value="suite">Suite</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notes">Notas (Opcional)</Label>
+              <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+            {error && <p className="text-sm text-center text-red-500">{error}</p>}
+            <div className="flex justify-end space-x-4 pt-4">
+              <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
+              <Button type="submit">Crear Habitación</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
