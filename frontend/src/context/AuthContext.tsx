@@ -1,52 +1,51 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { getUserFromToken, JwtUser } from "@/lib/auth";
+import { useNavigate } from "react-router-dom";
 
-// Definimos la forma del contexto
-interface AuthContextType {
+type AuthState = {
   token: string | null;
+  user: JwtUser | null;
   login: (token: string) => void;
   logout: () => void;
-  isAuthenticated: boolean;
-}
+};
 
-// Creamos el contexto
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthState | undefined>(undefined);
 
-// Creamos el "Proveedor" del contexto. Este componente envolverá toda nuestra app.
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const [user, setUser] = useState<JwtUser | null>(() => {
+    const t = localStorage.getItem("token");
+    return t ? getUserFromToken(t) : null;
+  });
 
-  // Al cargar, intentamos leer el token desde localStorage
   useEffect(() => {
-    const storedToken = localStorage.getItem('authToken');
-    if (storedToken) {
-      setToken(storedToken);
+    if (token) {
+      localStorage.setItem("token", token);
+      setUser(getUserFromToken(token));
+    } else {
+      localStorage.removeItem("token");
+      setUser(null);
     }
-  }, []);
+  }, [token]);
 
-  const login = (newToken: string) => {
-    setToken(newToken);
-    localStorage.setItem('authToken', newToken);
+  const login = (t: string) => {
+    setToken(t);
+    navigate("/dashboard");
   };
 
   const logout = () => {
     setToken(null);
-    localStorage.removeItem('authToken');
+    navigate("/login");
   };
 
-  const isAuthenticated = !!token;
+  const value = useMemo(() => ({ token, user, login, logout }), [token, user]);
 
-  return (
-    <AuthContext.Provider value={{ token, login, logout, isAuthenticated }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
 
-// Creamos un "hook" personalizado para usar el contexto fácilmente en otros componentes
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }

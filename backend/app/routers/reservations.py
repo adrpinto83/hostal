@@ -4,29 +4,27 @@ from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from ..core.dates import compute_end_date
-from ..core.db import get_db
-from ..core.security import require_roles
-from ..models.guest import Guest
-from ..models.reservation import (
-    Period as PeriodEnum,
-)
-from ..models.reservation import (
-    Reservation,
-    ReservationStatus,
-)
-from ..models.room import Room
-from ..models.room_rate import RoomRate
-from ..schemas.reservation import ReservationCreate, ReservationOut
+from app.core.dates import compute_end_date
+from app.core.db import get_db
+from app.core.security import require_roles
+from app.models.guest import Guest
+from app.models.reservation import Period as PeriodEnum
+from app.models.reservation import Reservation, ReservationStatus
+from app.models.room import Room
+from app.models.room_rate import RoomRate
+from app.schemas.reservation import ReservationCreate, ReservationOut
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
 
 
 def _range_overlap(q, start, end):
-    """Filtra traslapes de rangos en la misma habitación."""
-    return q.filter(and_(Reservation.start_date <= end, Reservation.end_date >= start))
+    """
+    Filtra traslapes de rangos en la misma habitación.
+    Usamos < y > para permitir reservas consecutivas (salida y entrada el mismo día).
+    """
+    return q.filter(and_(Reservation.start_date < end, Reservation.end_date > start))
 
 
 @router.post(
@@ -37,12 +35,18 @@ def _range_overlap(q, start, end):
     description="Crea una reserva para un huésped en una habitación. Valida que no existan solapamientos de fechas.",
 )
 def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
+    # Validaciones de entidades
     if not db.get(Guest, data.guest_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guest not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "Guest not found"}
+        )
     room = db.get(Room, data.room_id)
     if not room:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "Room not found"}
+        )
 
+    # Normalizar enum Period
     if isinstance(data.period, PeriodEnum):
         period_enum = data.period
         period_value = data.period.value
@@ -50,12 +54,14 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
         try:
             period_enum = PeriodEnum(str(data.period))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid period") from None
+            raise HTTPException(status_code=400, detail={"error": "Invalid period"}) from None
         period_value = period_enum.value
 
+    # Calcular end_date con helper
     period_literal = cast(Literal["day", "week", "fortnight", "month"], period_value)
     end_date = compute_end_date(data.start_date, period_literal, data.periods_count)
 
+    # Validar solapamiento en misma habitación
     overlap = _range_overlap(
         db.query(Reservation).filter(Reservation.room_id == data.room_id),
         start=data.start_date,
@@ -72,16 +78,23 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
             },
         )
 
+    # Determinar precio (si no se envía). Aquí asumimos tarifa por PERÍODO.
     price_bs = data.price_bs
     if price_bs is None:
-        rate = db.query(RoomRate).filter_by(room_id=data.room_id, period=period_value).first()
+        rate = (
+            db.query(RoomRate)
+            .filter(RoomRate.room_id == data.room_id, RoomRate.period == period_value)
+            .first()
+        )
         if not rate:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No room rate found for given period; provide price_bs",
+                detail={"error": "No room rate found for given period; provide price_bs"},
             )
-        price_bs = rate.price_bs
+        # Si la tarifa es POR PERÍODO, multiplicar por cantidad de períodos
+        price_bs = rate.price_bs * data.periods_count
 
+    # Crear reserva
     res = Reservation(
         guest_id=data.guest_id,
         room_id=data.room_id,
@@ -110,12 +123,21 @@ def list_reservations(
     db: Session = Depends(get_db),
     guest_id: int | None = None,
     room_id: int | None = None,
-    status: str | None = Query(None, pattern="^(pending|active|checked_out|cancelled)$"),
+    status: list[str] | None = Query(
+        None, description="Puede repetirse ?status=pending&status=active"
+    ),
     q: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
-    query = db.query(Reservation)
+    query = (
+        db.query(Reservation)
+        .options(
+            joinedload(Reservation.guest),
+            joinedload(Reservation.room),
+        )
+        .order_by(Reservation.start_date.desc())
+    )
 
     if guest_id:
         query = query.filter(Reservation.guest_id == guest_id)
@@ -124,16 +146,18 @@ def list_reservations(
 
     if status:
         try:
-            status_enum = ReservationStatus(status)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid status") from None
-        query = query.filter(Reservation.status == status_enum)
+            statuses = [ReservationStatus(s) for s in status]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400, detail={"error": f"Invalid status in {status}"}
+            ) from e
+        query = query.filter(Reservation.status.in_(statuses))
 
     if q:
         like = f"%{q}%"
         query = query.filter(Reservation.notes.ilike(like))
 
-    return query.order_by(Reservation.start_date.desc()).offset(offset).limit(limit).all()
+    return query.offset(offset).limit(limit).all()
 
 
 @router.post(
@@ -146,12 +170,16 @@ def list_reservations(
 def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "Reservation not found"}
+        )
 
     if reservation.status != ReservationStatus.pending:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot confirm reservation with status '{reservation.status.value}'",
+            detail={
+                "error": f"Cannot confirm reservation with status '{reservation.status.value}'"
+            },
         )
 
     reservation.status = ReservationStatus.active
@@ -170,12 +198,14 @@ def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
 def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "Reservation not found"}
+        )
 
     if reservation.status in (ReservationStatus.cancelled, ReservationStatus.checked_out):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot cancel reservation with status '{reservation.status.value}'",
+            detail={"error": f"Cannot cancel reservation with status '{reservation.status.value}'"},
         )
 
     reservation.status = ReservationStatus.cancelled

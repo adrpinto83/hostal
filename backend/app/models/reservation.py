@@ -1,60 +1,42 @@
-# fragmento clave de relaciones
-from enum import Enum
+from __future__ import annotations
 
-from sqlalchemy import (
-    Column,
-    Date,
-    ForeignKey,
-    Integer,
-    Numeric,
-    Text,
-)
-from sqlalchemy import (
-    Enum as SAEnum,
-)
+import enum
+
+from sqlalchemy import Column, Date, Enum, Float, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import relationship
 
-from ..core.db import Base
+from app.core.db import Base
 
 
-class ReservationStatus(str, Enum):
-    pending = "pending"
-    active = "active"
-    checked_out = "checked_out"
-    cancelled = "cancelled"
-
-
-class Period(str, Enum):
+class Period(str, enum.Enum):
     day = "day"
     week = "week"
     fortnight = "fortnight"
     month = "month"
 
 
+class ReservationStatus(str, enum.Enum):
+    pending = "pending"
+    active = "active"
+    checked_out = "checked_out"
+    cancelled = "cancelled"
+
+
 class Reservation(Base):
     __tablename__ = "reservations"
 
     id = Column(Integer, primary_key=True)
-    guest_id = Column(
-        Integer, ForeignKey("guests.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    room_id = Column(
-        Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    guest_id = Column(Integer, ForeignKey("guests.id"), nullable=False)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    period = Column(Enum(Period), nullable=False)
+    periods_count = Column(Integer, nullable=False)
+    price_bs = Column(Float, nullable=False)
+    status = Column(Enum(ReservationStatus), nullable=False, default=ReservationStatus.pending)
+    notes = Column(Text)
 
-    start_date = Column(Date, nullable=False, index=True)
-    end_date = Column(Date, nullable=False, index=True)
+    guest = relationship("Guest")
+    room = relationship("Room")
 
-    period = Column(SAEnum(Period, name="period", create_constraint=False), nullable=False)
-    periods_count = Column(Integer, nullable=False, default=1)
-    price_bs = Column(Numeric(12, 2), nullable=False)
-    rate_usd = Column(Numeric(12, 2), nullable=True)
-    rate_eur = Column(Numeric(12, 2), nullable=True)
-    status = Column(
-        SAEnum(ReservationStatus, name="reservation_status", create_constraint=True),
-        nullable=False,
-        default=ReservationStatus.pending,
-    )
-    notes = Column(Text, nullable=True)
-
-    room = relationship("Room", back_populates="reservations")
+    __table_args__ = (Index("ix_res_room_range", "room_id", "start_date", "end_date"),)

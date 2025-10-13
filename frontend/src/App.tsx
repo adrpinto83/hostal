@@ -1,26 +1,49 @@
-// src/App.tsx
-import { Routes, Route, Navigate } from 'react-router-dom';
-import LoginPage from './pages/Login';
-import DashboardPage from './pages/Dashboard';
-import RoomsPage from './pages/Rooms'; // <-- 1. Importa la nueva página
-import RequireAuth from './router/RequireAuth';
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import AppLayout from "@/layouts/AppLayout";
 
-function App() {
+// Páginas existentes
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import Profile from "@/pages/Profile";
+
+const App: React.FC = () => {
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-900">
-      <Routes>
-        {/* Rutas públicas */}
-        <Route path="/login" element={<LoginPage />} />
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<Login />} />
 
-        {/* Rutas protegidas */}
-        <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
-        <Route path="/rooms" element={<RequireAuth><RoomsPage /></RequireAuth>} /> {/* <-- 2. Añade la nueva ruta protegida */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Dashboard />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        {/* Redirige cualquier otra ruta a la página de login por defecto */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </div>
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Profile />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
-}
+};
 
 export default App;

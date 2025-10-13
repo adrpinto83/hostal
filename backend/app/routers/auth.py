@@ -26,12 +26,6 @@ def login(
     Inicia sesión y devuelve un token JWT.
     Limitado a 5 intentos por minuto por IP.
     """
-    # --- INICIO DE LA DEPURACIÓN ---
-    print("=" * 50)
-    print(f"EMAIL RECIBIDO: '{form_data.username}'")
-    print(f"CONTRASEÑA RECIBIDA: '{form_data.password}'")
-    print("=" * 50)
-    # --- FIN DE LA DEPURACIÓN ---
 
     user = db.query(User).filter(User.email == form_data.username).first()
 

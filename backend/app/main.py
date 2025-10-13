@@ -8,11 +8,14 @@ from starlette_prometheus import PrometheusMiddleware, metrics
 from app.core.limiter import limiter  # <--- Importar desde el nuevo archivo
 from app.core.logging import setup_logging
 from app.core.middleware import LoggingMiddleware
+from app.routers import reservations
 from app.routers.api import api_router
 
-setup_logging()
-
 app = FastAPI(title="Hostal API")
+
+# Registrar routers y configurar logging después de crear la app
+app.include_router(reservations.router, prefix="/api/v1")
+setup_logging()
 
 # Asigna el limitador al estado de la app y añade el manejador de excepciones
 app.state.limiter = limiter
