@@ -1,139 +1,325 @@
-import React, { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import BrandLogo from "@/components/BrandLogo";
 
-const API_BASE =
-  (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/+$/, "") || "";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
-function LoginPage() {
-  const [email, setEmail] = useState("");
+export default function Login() {
+  const [email, setEmail] = useState("admin@hostal.com");
   const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
+  const [show, setShow] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation() as any;
+  const from = location.state?.from?.pathname || "/dashboard";
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  // Mostrar herramientas de setup si la URL tiene ?setup=1
+  const setupMode = useMemo(() => {
+    return new URLSearchParams(location.search).get("setup") === "1";
+  }, [location.search]);
+
+  useEffect(() => {
+    // Opcional: precargar nombre de marca en el título del documento
+    const brandName =
+      localStorage.getItem("brand.name") ||
+      (import.meta.env.VITE_BRAND_NAME as string) ||
+      "Sistema Hostales";
+    document.title = `${brandName} · Iniciar sesión`;
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError("");
     setLoading(true);
 
-    const formData = new URLSearchParams();
-    formData.append("username", email.trim());
-    formData.append("password", password);
-
     try {
+      const form = new URLSearchParams();
+      form.append("username", email.trim());
+      form.append("password", password);
+
       const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
+        body: form,
       });
 
-      // Intenta parsear JSON aunque no sea 200
       let data: any = {};
       try {
         data = await res.json();
-      } catch {
-        /* cuerpo vacío o texto */
-      }
+      } catch {}
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          setError(
-            (data?.detail as string) || "Credenciales inválidas. Intenta de nuevo."
-          );
-        } else {
-          setError(
-            (data?.detail as string) || "Ocurrió un error al iniciar sesión."
-          );
-        }
-        return;
-      }
+      if (!res.ok) throw new Error(data?.detail || "Credenciales inválidas");
 
-      if (!data?.access_token) {
-        setError("Respuesta inválida del servidor.");
-        return;
-      }
-
-      login(data.access_token);
-      navigate("/dashboard");
-    } catch (err) {
-      setError("No se pudo conectar con el servidor.");
+      await login(data.access_token, { remember });
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err?.message || "No se pudo iniciar sesión");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-xs p-8 space-y-6 bg-gray-800 rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold text-center text-white">Iniciar Sesión</h1>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
+        {/* Lado izquierdo con branding */}
+        <aside className="relative hidden overflow-hidden lg:block">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-slate-900" />
+          <div className="relative z-10 flex h-full flex-col p-10">
+            <header>
+              <BrandLogo size={40} showName />
+            </header>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-300">Email</label>
-          <input
-            type="email"
-            value={email}
-            autoComplete="username"
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
+            <div className="mt-auto">
+              <h2 className="mb-2 text-3xl font-bold leading-tight text-white">
+                Bienvenido
+              </h2>
+              <p className="max-w-md text-white/80">
+                Administra reservas, huéspedes y tarifas desde un solo lugar.
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-300">
-            Contraseña
-          </label>
-          <div className="relative mt-1">
-            <input
-              type={showPwd ? "text" : "password"}
-              value={password}
-              autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 pr-10 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPwd((s) => !s)}
-              className="absolute inset-y-0 right-2 my-auto text-xs text-gray-300 hover:text-white"
-              aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
-            >
-              {showPwd ? "Ocultar" : "Mostrar"}
-            </button>
+            <footer className="mt-10 text-xs text-white/60">
+              © {new Date().getFullYear()}{" "}
+              {localStorage.getItem("brand.name") ||
+                (import.meta.env.VITE_BRAND_NAME as string) ||
+                "Sistema Hostales"}
+              . Todos los derechos reservados.
+            </footer>
           </div>
-        </div>
+        </aside>
 
-        {error && (
-          <p className="text-sm text-center text-red-400 min-h-[1.25rem]">{error}</p>
-        )}
+        {/* Lado derecho con formulario */}
+        <main className="flex items-center justify-center p-6">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-8">
+              <div className="mb-4 block lg:hidden">
+                {/* Versión compacta del logo en móvil */}
+                <BrandLogo size={36} showName />
+              </div>
+              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
+                Iniciar sesión
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Accede con tus credenciales de administrador o recepción.
+              </p>
+            </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-4 py-2 font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          {loading ? "Entrando..." : "Entrar"}
-        </button>
+            <form className="space-y-5" onSubmit={submit} noValidate>
+              <div>
+                <label
+                  htmlFor="email"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="username"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@hostal.com"
+                  required
+                />
+              </div>
 
-        <div className="text-center">
-          <a
-            className="text-xs text-blue-300 hover:underline"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              alert("Recuperación de contraseña — por implementar.");
-            }}
-          >
-            ¿Olvidaste tu contraseña?
-          </a>
-        </div>
-      </form>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    Contraseña
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShow((s) => !s)}
+                    aria-pressed={show}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
+                  >
+                    {show ? "Ocultar" : "Mostrar"}
+                  </button>
+                </div>
+                <input
+                  id="password"
+                  type={show ? "text" : "password"}
+                  autoComplete="current-password"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                  />
+                  Recordarme
+                </label>
+                <a
+                  className="text-sm font-medium text-slate-500 hover:text-slate-700"
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  ¿Olvidaste tu contraseña?
+                </a>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="group relative inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <>
+                    <span className="absolute left-4 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    Iniciando…
+                  </>
+                ) : (
+                  "Entrar"
+                )}
+              </button>
+            </form>
+
+            {/* Panel de configuración rápida (solo si ?setup=1) */}
+            {setupMode && <BrandQuickSetup />}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-export default LoginPage;
+/** Herramienta de branding sin backend para demos: guardar en localStorage */
+function BrandQuickSetup() {
+  const [name, setName] = useState(
+    localStorage.getItem("brand.name") ||
+      (import.meta.env.VITE_BRAND_NAME as string) ||
+      "Sistema Hostales"
+  );
+  const [primary, setPrimary] = useState(
+    localStorage.getItem("brand.primary") ||
+      (import.meta.env.VITE_BRAND_PRIMARY as string) ||
+      "#2563eb"
+  );
+  const [logoPreview, setLogoPreview] = useState<string | null>(
+    localStorage.getItem("brand.logoDataUrl")
+  );
+
+  const onFile = (f?: File) => {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      setLogoPreview(dataUrl);
+    };
+    reader.readAsDataURL(f);
+  };
+
+  const save = () => {
+    try {
+      if (logoPreview) localStorage.setItem("brand.logoDataUrl", logoPreview);
+      localStorage.setItem("brand.name", name.trim());
+      localStorage.setItem("brand.primary", primary.trim());
+      alert("Brand guardado. Recarga la página para aplicarlo en todo el sitio.");
+    } catch {
+      alert("No se pudo guardar la configuración.");
+    }
+  };
+
+  const reset = () => {
+    localStorage.removeItem("brand.logoDataUrl");
+    localStorage.removeItem("brand.name");
+    localStorage.removeItem("brand.primary");
+    setLogoPreview(null);
+    alert("Brand eliminado. Recarga la página para limpiar.");
+  };
+
+  return (
+    <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <h4 className="mb-3 text-sm font-semibold text-slate-700">
+        Configuración rápida de marca (demo)
+      </h4>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm text-slate-600">Nombre</label>
+          <input
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Mi Hostal"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm text-slate-600">Color primario</label>
+          <input
+            type="color"
+            className="h-10 w-full cursor-pointer rounded-lg border border-slate-300 bg-white"
+            value={primary}
+            onChange={(e) => setPrimary(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <label className="text-sm text-slate-600">Logo (PNG/SVG)</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => onFile(e.target.files?.[0] || undefined)}
+            />
+            {logoPreview && (
+              <img
+                src={logoPreview}
+                alt="Preview"
+                className="h-10 w-10 rounded-lg ring-1 ring-black/5 object-contain"
+              />
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Consejo: usa un logo cuadrado con fondo transparente para mejor resultado.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          onClick={save}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Guardar brand
+        </button>
+        <button
+          onClick={reset}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
+        >
+          Eliminar brand
+        </button>
+        <span className="text-xs text-slate-500">
+          *Visible solo cuando la URL incluye <code>?setup=1</code>
+        </span>
+      </div>
+    </div>
+  );
+}

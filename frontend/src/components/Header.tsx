@@ -1,37 +1,33 @@
-import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
-const Header: React.FC = () => {
+export default function Header() {
   const { user, logout } = useAuth();
 
   return (
-    <header className="w-full border-b bg-white">
-      <div className="mx-auto max-w-6xl flex items-center justify-between p-4">
-        <Link to="/dashboard" className="text-xl font-semibold">Sistema Hostales</Link>
+    <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
+        <Link to="/dashboard" className="flex items-center gap-2 font-semibold text-gray-800">
+          <div className="h-7 w-7 rounded bg-gray-900" />
+          <span>Sistema Hostales</span>
+        </Link>
 
-        <nav className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">
-            Hola {user?.id ? `#${user.id}` : ""} · {user?.role ?? " invitado"}
-          </span>
-
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600">Hola {user?.email}</span>
           <Link
             to="/profile"
-            className="rounded-xl px-3 py-2 text-sm border hover:bg-gray-50"
+            className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50"
           >
             Perfil
           </Link>
-
           <button
             onClick={logout}
-            className="rounded-xl px-3 py-2 text-sm text-white bg-gray-800 hover:bg-gray-700"
+            className="rounded bg-gray-900 px-3 py-1 text-sm text-white hover:bg-black"
           >
             Cerrar sesión
           </button>
-        </nav>
+        </div>
       </div>
     </header>
   );
-};
-
-export default Header;
+}
