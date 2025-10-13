@@ -1,4 +1,9 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/v1";
+// frontend/src/lib/api.ts
+// Reexporta el cliente real desde src/api/http.ts
+export { default } from "@/api/http";      // default export
+export { default as api } from "@/api/http"; // named export "api"
+export * from "@/api/http";                 // reexporta helpers/types si existen
 
 export class ApiError extends Error {
   status: number;
