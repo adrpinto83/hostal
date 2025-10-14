@@ -1,51 +1,79 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { getUserFromToken, JwtUser } from "@/lib/auth";
-import { useNavigate } from "react-router-dom";
+import { createContext, useContext, useEffect, useState } from "react";
+import http from "@/api/http";
 
-type AuthState = {
-  token: string | null;
-  user: JwtUser | null;
-  login: (token: string) => void;
+type User = {
+  id: number;
+  email: string;
+  role: string;
+};
+
+type AuthCtx = {
+  user: User | null;
+  loading: boolean;
+  login: (token: string, opts?: { remember?: boolean }) => Promise<void>;
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthState | undefined>(undefined);
+const Ctx = createContext<AuthCtx>({
+  user: null,
+  loading: true,
+  login: async () => {},
+  logout: () => {},
+});
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const navigate = useNavigate();
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
-  const [user, setUser] = useState<JwtUser | null>(() => {
-    const t = localStorage.getItem("token");
-    return t ? getUserFromToken(t) : null;
-  });
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Cargar sesión desde storage al inicio
   useEffect(() => {
-    if (token) {
-      localStorage.setItem("token", token);
-      setUser(getUserFromToken(token));
-    } else {
-      localStorage.removeItem("token");
-      setUser(null);
+    const token = localStorage.getItem("auth_token");
+    const cached = localStorage.getItem("auth_user");
+    if (!token) {
+      setLoading(false);
+      return;
     }
-  }, [token]);
+    // opcional: hidratar con cache para evitar "parpadeo"
+    if (cached) {
+      try {
+        setUser(JSON.parse(cached));
+      } catch {}
+    }
+    // Validar token contra /users/me
+    http
+      .get("/users/me")
+      .then((res) => {
+        setUser(res.data);
+        localStorage.setItem("auth_user", JSON.stringify(res.data));
+      })
+      .catch(() => {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  const login = (t: string) => {
-    setToken(t);
-    navigate("/dashboard");
+  const login = async (token: string, opts?: { remember?: boolean }) => {
+    // Guarda token
+    localStorage.setItem("auth_token", token);
+    // Carga el perfil con el token
+    const { data } = await http.get<User>("/users/me");
+    setUser(data);
+    localStorage.setItem("auth_user", JSON.stringify(data));
+    // Opcional: si no quieres persistir, podrías usar sessionStorage según opts?.remember
+    // (te lo dejo simple para no complicar el flujo)
   };
 
   const logout = () => {
-    setToken(null);
-    navigate("/login");
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    setUser(null);
   };
 
-  const value = useMemo(() => ({ token, user, login, logout }), [token, user]);
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  return (
+    <Ctx.Provider value={{ user, loading, login, logout }}>{children}</Ctx.Provider>
+  );
 }
+
+export const useAuth = () => useContext(Ctx);

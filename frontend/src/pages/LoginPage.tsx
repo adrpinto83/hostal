@@ -2,8 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import BrandLogo from "@/components/BrandLogo";
+import http from "@/api/http"; // <-- usa el cliente axios central
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+type LoginResponse = {
+  access_token: string;
+  token_type: "bearer";
+};
 
 export default function Login() {
   const [email, setEmail] = useState("admin@hostal.com");
@@ -18,19 +22,27 @@ export default function Login() {
   const location = useLocation() as any;
   const from = location.state?.from?.pathname || "/dashboard";
 
-  // Mostrar herramientas de setup si la URL tiene ?setup=1
-  const setupMode = useMemo(() => {
-    return new URLSearchParams(location.search).get("setup") === "1";
-  }, [location.search]);
+  // branding básico
+  const brandName =
+    localStorage.getItem("brand.name") ||
+    (import.meta.env.VITE_BRAND_NAME as string) ||
+    "Sistema Hostales";
+  const brandPrimary =
+    localStorage.getItem("brand.primary") ||
+    (import.meta.env.VITE_BRAND_PRIMARY as string) ||
+    "#2563eb";
+
+  // Mostrar panel de setup si ?setup=1
+  const setupMode = useMemo(
+    () => new URLSearchParams(location.search).get("setup") === "1",
+    [location.search]
+  );
 
   useEffect(() => {
-    // Opcional: precargar nombre de marca en el título del documento
-    const brandName =
-      localStorage.getItem("brand.name") ||
-      (import.meta.env.VITE_BRAND_NAME as string) ||
-      "Sistema Hostales";
     document.title = `${brandName} · Iniciar sesión`;
-  }, []);
+    // Aplica el color de marca como CSS var para reusarlo en gradientes si quieres
+    document.documentElement.style.setProperty("--brand-primary", brandPrimary);
+  }, [brandName, brandPrimary]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,23 +54,19 @@ export default function Login() {
       form.append("username", email.trim());
       form.append("password", password);
 
-      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
-        method: "POST",
+      // http ya tiene baseURL = VITE_API_BASE_URL || http://localhost:8000/api/v1
+      const { data } = await http.post<LoginResponse>("/auth/login", form, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: form,
       });
-
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {}
-
-      if (!res.ok) throw new Error(data?.detail || "Credenciales inválidas");
 
       await login(data.access_token, { remember });
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err?.message || "No se pudo iniciar sesión");
+      const apiDetail =
+        err?.response?.data?.detail ||
+        err?.message ||
+        "No se pudo iniciar sesión";
+      setError(String(apiDetail));
     } finally {
       setLoading(false);
     }
@@ -67,9 +75,15 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-        {/* Lado izquierdo con branding */}
+        {/* LADO IZQUIERDO · Branding */}
         <aside className="relative hidden overflow-hidden lg:block">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-slate-900" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--brand-primary, #2563eb) 0%, #1d4ed8 40%, #0f172a 100%)",
+            }}
+          />
           <div className="relative z-10 flex h-full flex-col p-10">
             <header>
               <BrandLogo size={40} showName />
@@ -79,27 +93,24 @@ export default function Login() {
               <h2 className="mb-2 text-3xl font-bold leading-tight text-white">
                 Bienvenido
               </h2>
-              <p className="max-w-md text-white/80">
+              <p className="max-w-md text-white/85">
                 Administra reservas, huéspedes y tarifas desde un solo lugar.
               </p>
             </div>
 
-            <footer className="mt-10 text-xs text-white/60">
-              © {new Date().getFullYear()}{" "}
-              {localStorage.getItem("brand.name") ||
-                (import.meta.env.VITE_BRAND_NAME as string) ||
-                "Sistema Hostales"}
-              . Todos los derechos reservados.
+            <footer className="mt-10 text-xs text-white/70">
+              © {new Date().getFullYear()} {brandName}. Todos los derechos
+              reservados.
             </footer>
           </div>
         </aside>
 
-        {/* Lado derecho con formulario */}
+        {/* LADO DERECHO · Formulario */}
         <main className="flex items-center justify-center p-6">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="mb-8">
+              {/* Logo compacto en móvil */}
               <div className="mb-4 block lg:hidden">
-                {/* Versión compacta del logo en móvil */}
                 <BrandLogo size={36} showName />
               </div>
               <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
@@ -189,7 +200,7 @@ export default function Login() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !email || !password}
                 className="group relative inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
@@ -212,7 +223,7 @@ export default function Login() {
   );
 }
 
-/** Herramienta de branding sin backend para demos: guardar en localStorage */
+/** Herramienta de branding (demo) persistiendo en localStorage */
 function BrandQuickSetup() {
   const [name, setName] = useState(
     localStorage.getItem("brand.name") ||
@@ -231,10 +242,7 @@ function BrandQuickSetup() {
   const onFile = (f?: File) => {
     if (!f) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result || "");
-      setLogoPreview(dataUrl);
-    };
+    reader.onload = () => setLogoPreview(String(reader.result || ""));
     reader.readAsDataURL(f);
   };
 
@@ -298,7 +306,8 @@ function BrandQuickSetup() {
             )}
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Consejo: usa un logo cuadrado con fondo transparente para mejor resultado.
+            Consejo: usa un logo cuadrado con fondo transparente para mejor
+            resultado.
           </p>
         </div>
       </div>

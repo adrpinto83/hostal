@@ -1,21 +1,21 @@
-// src/App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/layouts/AppLayout";
-import Login from "@/pages/LoginPage";
-import Dashboard from "@/pages/DashboardPage";
-import Profile from "@/pages/ProfilePage";
-import Rooms from "@/pages/RoomsPage";
+
+import LoginPage from "@/pages/LoginPage";
+import DashboardPage from "@/pages/DashboardPage";
+import ProfilePage from "@/pages/ProfilePage";
+import RoomsPage from "@/pages/RoomsPage";
 import ReservationsPage from "@/pages/ReservationsPage";
 import GuestsPage from "@/pages/GuestsPage";
 
 export default function App() {
   return (
     <Routes>
-      {/* público */}
-      <Route path="/login" element={<Login />} />
+      {/* Público */}
+      <Route path="/login" element={<LoginPage />} />
 
-      {/* privado con layout */}
+      {/* Privado con layout */}
       <Route
         element={
           <ProtectedRoute>
@@ -24,14 +24,14 @@ export default function App() {
         }
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/rooms" element={<Rooms />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/rooms" element={<RoomsPage />} />
         <Route path="/reservations" element={<ReservationsPage />} />
         <Route path="/guests" element={<GuestsPage />} />
       </Route>
 
-      {/* fallback */}
+      {/* Fallback */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
