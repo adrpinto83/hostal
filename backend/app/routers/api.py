@@ -8,10 +8,13 @@ from . import (
     guests,
     health,
     internet_control,
+    maintenance,
     media,
+    occupancy,
     reservations,
     room_rates,
     rooms,
+    staff,
     users,
 )
 
@@ -29,3 +32,6 @@ api_router.include_router(devices.router)
 api_router.include_router(internet_control.router)  # Control de internet
 api_router.include_router(exchange_rates.router)  # Tasas de cambio
 api_router.include_router(media.router)  # Gestión de archivos
+api_router.include_router(staff.router)  # Gestión de personal
+api_router.include_router(occupancy.router)  # Check-in/Check-out
+api_router.include_router(maintenance.router)  # Mantenimiento
