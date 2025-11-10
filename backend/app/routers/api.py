@@ -4,9 +4,11 @@ from fastapi import APIRouter
 from . import (
     auth,
     devices,
+    exchange_rates,
     guests,
     health,
     internet_control,
+    media,
     reservations,
     room_rates,
     rooms,
@@ -25,3 +27,5 @@ api_router.include_router(room_rates.router)
 api_router.include_router(reservations.router)
 api_router.include_router(devices.router)
 api_router.include_router(internet_control.router)  # Control de internet
+api_router.include_router(exchange_rates.router)  # Tasas de cambio
+api_router.include_router(media.router)  # Gestión de archivos

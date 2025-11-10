@@ -5,10 +5,13 @@ Modelos de base de datos del sistema Hostal.
 
 # Modelos principales
 from .device import Device
+from .exchange_rate import ExchangeRate
 from .guest import Guest
 from .maintenance import Maintenance, MaintenancePriority, MaintenanceStatus, MaintenanceType
+from .media import Media, MediaCategory, MediaType
 from .network_activity import ActivityType, NetworkActivity
 from .occupancy import Occupancy
+from .payment import Currency, Payment, PaymentMethod, PaymentStatus
 from .reservation import Period, Reservation, ReservationStatus
 from .room import Room, RoomStatus, RoomType
 from .room_rate import RoomRate
@@ -39,4 +42,14 @@ __all__ = [
     # Network control
     "NetworkActivity",
     "ActivityType",
+    # Payments and currency
+    "Payment",
+    "PaymentMethod",
+    "PaymentStatus",
+    "Currency",
+    "ExchangeRate",
+    # Media
+    "Media",
+    "MediaType",
+    "MediaCategory",
 ]
