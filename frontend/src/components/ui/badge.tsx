@@ -10,11 +10,9 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
     <div
       className={cn(
         'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors',
-        {
-          'bg-primary text-primary-foreground': variant === 'default',
-          'bg-secondary text-secondary-foreground': variant === 'secondary',
-          'bg-destructive text-destructive-foreground': variant === 'destructive',
-        },
+        variant === 'default' && 'bg-primary text-primary-foreground',
+        variant === 'secondary' && 'bg-secondary text-secondary-foreground',
+        variant === 'destructive' && 'bg-destructive text-destructive-foreground',
         className
       )}
       {...props}

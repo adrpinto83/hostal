@@ -7,8 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(amount: number, currency: 'EUR' | 'USD' | 'VES'): string {
   const symbols = { EUR: '€', USD: '$', VES: 'Bs' };
-  const formatted = amount.toFixed(2);
-  return `${symbols[currency]} ${formatted}`;
+  return symbols[currency] + ' ' + amount.toFixed(2);
 }
 
 export function formatDate(date: string): string {

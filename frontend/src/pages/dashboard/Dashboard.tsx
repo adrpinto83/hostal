@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { dashboardApi } from '@/lib/api';
-import { Bed, Users, Wrench, UserCog, DollarSign } from 'lucide-react';
+import { Bed, Users, Wrench, UserCog } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 export default function Dashboard() {

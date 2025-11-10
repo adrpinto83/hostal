@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { staffApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 
 const staffRoleLabels: Record<string, string> = {
   recepcionista: 'Recepcionista',

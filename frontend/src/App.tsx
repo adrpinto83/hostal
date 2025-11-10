@@ -28,10 +28,8 @@ function App() {
             <Route path="staff" element={<StaffList />} />
             <Route path="occupancy" element={<OccupancyList />} />
             <Route path="maintenance" element={<MaintenanceList />} />
-            <Route path="guests" element={<div>Página de Huéspedes (Por implementar)</div>} />
-            <Route path="rooms" element={<div>Página de Habitaciones (Por implementar)</div>} />
-            <Route path="reservations" element={<div>Página de Reservas (Por implementar)</div>} />
-            <Route path="payments" element={<div>Página de Pagos (Por implementar)</div>} />
+            <Route path="guests" element={<div className="text-2xl">Página de Huéspedes (Por implementar)</div>} />
+            <Route path="rooms" element={<div className="text-2xl">Página de Habitaciones (Por implementar)</div>} />
           </Route>
         </Routes>
       </BrowserRouter>
