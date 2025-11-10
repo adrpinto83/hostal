@@ -1,7 +1,17 @@
 # app/routers/api.py
 from fastapi import APIRouter
 
-from . import auth, devices, guests, health, reservations, room_rates, rooms, users
+from . import (
+    auth,
+    devices,
+    guests,
+    health,
+    internet_control,
+    reservations,
+    room_rates,
+    rooms,
+    users,
+)
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -14,3 +24,4 @@ api_router.include_router(rooms.router)
 api_router.include_router(room_rates.router)
 api_router.include_router(reservations.router)
 api_router.include_router(devices.router)
+api_router.include_router(internet_control.router)  # Control de internet
