@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256", alias="ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
 
+    # --- Server Settings ---
+    API_URL: str = Field(
+        default="http://localhost:8000",
+        alias="API_URL",
+        description="Base URL of the API server for generating absolute URLs",
+    )
+
     # --- CORS Settings ---
     CORS_ORIGINS: str = Field(
         default="http://localhost:3000,http://localhost:5173",

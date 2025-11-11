@@ -99,8 +99,11 @@ class Media(Base):
     @property
     def url(self) -> str:
         """Retorna la URL pública del archivo."""
+        from ..core.config import settings
+
         # Si está en cloud storage, file_path ya es la URL
-        # Si es local, construir URL
         if self.file_path.startswith("http"):
             return self.file_path
-        return f"/media/{self.stored_filename}"
+
+        # Si es local, construir URL absoluta
+        return f"{settings.API_URL}/media/{self.stored_filename}"

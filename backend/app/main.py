@@ -1,6 +1,9 @@
 # app/main.py
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette_prometheus import PrometheusMiddleware, metrics
@@ -18,6 +21,10 @@ app = FastAPI(
     version="1.0.0",
     debug=settings.DEBUG,
 )
+
+# Configurar directorio de uploads para servir archivos estáticos
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 @app.on_event("startup")
@@ -78,3 +85,7 @@ async def add_security_headers(request: Request, call_next):
 # Endpoints
 app.add_route("/metrics", metrics)
 app.include_router(api_router)
+
+# Montar carpeta de uploads como archivos estáticos
+# IMPORTANTE: Esto debe ir al final, después de todos los routers
+app.mount("/media", StaticFiles(directory=str(UPLOAD_DIR)), name="media")
