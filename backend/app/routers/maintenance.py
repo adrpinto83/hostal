@@ -408,8 +408,8 @@ def start_maintenance(
 )
 def complete_maintenance(
     maintenance_id: int,
-    actual_cost: float | None = Field(None, ge=0, description="Costo real del mantenimiento"),
-    notes: str | None = None,
+    actual_cost: float | None = Query(None, ge=0, description="Costo real del mantenimiento"),
+    notes: str | None = Query(None, description="Notas adicionales"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

@@ -23,6 +23,10 @@ def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
+# Alias para compatibilidad
+get_password_hash = hash_password
+
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
