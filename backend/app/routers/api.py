@@ -11,6 +11,7 @@ from . import (
     maintenance,
     media,
     occupancy,
+    payments,
     reservations,
     room_rates,
     rooms,
@@ -31,6 +32,7 @@ api_router.include_router(reservations.router)
 api_router.include_router(devices.router)
 api_router.include_router(internet_control.router)  # Control de internet
 api_router.include_router(exchange_rates.router)  # Tasas de cambio
+api_router.include_router(payments.router)  # Pagos multimoneda
 api_router.include_router(media.router)  # Gestión de archivos
 api_router.include_router(staff.router)  # Gestión de personal
 api_router.include_router(occupancy.router)  # Check-in/Check-out

@@ -41,23 +41,32 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    import structlog
+    log = structlog.get_logger()
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="No se pudieron validar las credenciales",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        log.info("Validating token", token_preview=token[:50] if token else "None")
         # Usa los nombres en MAYÚSCULAS
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        log.info("Token decoded", payload=payload)
         user_id = payload.get("sub")
         if user_id is None:
+            log.warning("No user_id in token payload")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        log.error("JWT decode error", error=str(e))
         raise credentials_exception from None
 
     user = db.get(User, user_id)
     if user is None:
+        log.warning("User not found in database", user_id=user_id)
         raise credentials_exception
+    log.info("User authenticated successfully", user_id=user.id, email=user.email)
     return user
 
 

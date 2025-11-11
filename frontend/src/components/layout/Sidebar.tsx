@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, Bed, Wrench, UserCog, DoorOpen } from 'lucide-react';
+import { Home, Users, Bed, Wrench, UserCog, DoorOpen, DollarSign, BarChart3, Wifi, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
@@ -7,6 +7,10 @@ const navigation = [
   { name: 'Huéspedes', href: '/guests', icon: Users },
   { name: 'Habitaciones', href: '/rooms', icon: Bed },
   { name: 'Ocupación', href: '/occupancy', icon: DoorOpen },
+  { name: 'Pagos', href: '/payments', icon: DollarSign },
+  { name: 'Reportes', href: '/payments/reports', icon: BarChart3 },
+  { name: 'Red', href: '/network', icon: Wifi },
+  { name: 'Dispositivos', href: '/devices', icon: Monitor },
   { name: 'Personal', href: '/staff', icon: UserCog },
   { name: 'Mantenimiento', href: '/maintenance', icon: Wrench },
 ];

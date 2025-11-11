@@ -23,6 +23,8 @@ export default function Login() {
 
     try {
       const response = await authApi.login({ username: email, password });
+      // Guardar el token ANTES de hacer otras llamadas
+      localStorage.setItem('access_token', response.access_token);
       const user = await authApi.getCurrentUser();
       setAuth(user, response.access_token);
       navigate('/dashboard');

@@ -9,9 +9,10 @@ from app.core.audit import log_login
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.limiter import limiter
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, get_current_user, verify_password
 from app.models.user import User
 from app.schemas.auth import TokenOut
+from app.schemas.user import UserOut
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -55,3 +56,12 @@ def login(
     access_token = create_access_token(token_data, expires_delta=expires)
 
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(get_current_user)):
+    """
+    Obtiene los datos del usuario autenticado actualmente.
+    Requiere un token JWT válido en el header Authorization.
+    """
+    return current_user

@@ -45,6 +45,7 @@ class Media(Base):
     file_path = Column(String(500), nullable=False)  # Path completo o URL
     file_size = Column(Integer, nullable=False)  # Tamaño en bytes
     mime_type = Column(String(100), nullable=False)  # image/jpeg, application/pdf, etc.
+    file_hash = Column(String(64), nullable=True, index=True)  # SHA256 hash para detección de duplicados
 
     # Clasificación
     media_type = Column(
