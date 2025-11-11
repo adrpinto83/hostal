@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Enum, Float, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Column, Enum, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.core.db import Base
@@ -14,6 +14,7 @@ class RoomRate(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     period = Column(Enum(Period), nullable=False)  # <-- Enum consistente
     price_bs = Column(Float, nullable=False)
+    currency_note = Column(String(50), nullable=True)  # Nota sobre moneda/tipo de cambio
 
     room = relationship("Room")
 
