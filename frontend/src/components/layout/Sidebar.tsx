@@ -1,18 +1,21 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, Bed, Wrench, UserCog, DoorOpen, DollarSign, BarChart3, Wifi, Monitor } from 'lucide-react';
+import { Home, Users, Bed, Wrench, UserCog, DoorOpen, DollarSign, BarChart3, Wifi, Monitor, Calendar, Shield, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Huéspedes', href: '/guests', icon: Users },
   { name: 'Habitaciones', href: '/rooms', icon: Bed },
+  { name: 'Reservas', href: '/reservations', icon: Calendar },
   { name: 'Ocupación', href: '/occupancy', icon: DoorOpen },
   { name: 'Pagos', href: '/payments', icon: DollarSign },
   { name: 'Reportes', href: '/payments/reports', icon: BarChart3 },
+  { name: 'Tasas de Cambio', href: '/exchange-rates', icon: TrendingUp },
   { name: 'Red', href: '/network', icon: Wifi },
   { name: 'Dispositivos', href: '/devices', icon: Monitor },
   { name: 'Personal', href: '/staff', icon: UserCog },
   { name: 'Mantenimiento', href: '/maintenance', icon: Wrench },
+  { name: 'Usuarios', href: '/users', icon: Shield },
 ];
 
 export default function Sidebar() {

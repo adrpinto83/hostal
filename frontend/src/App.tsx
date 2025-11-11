@@ -12,6 +12,9 @@ import PaymentList from './pages/payments/PaymentList';
 import PaymentReports from './pages/payments/PaymentReports';
 import NetworkMonitoring from './pages/network/NetworkMonitoring';
 import DeviceList from './pages/devices/DeviceList';
+import ReservationList from './pages/reservations/ReservationList';
+import UserList from './pages/users/UserList';
+import ExchangeRates from './pages/exchange/ExchangeRates';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +36,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="rooms" element={<RoomList />} />
             <Route path="guests" element={<GuestList />} />
+            <Route path="reservations" element={<ReservationList />} />
             <Route path="payments" element={<PaymentList />} />
             <Route path="payments/reports" element={<PaymentReports />} />
             <Route path="staff" element={<StaffList />} />
@@ -40,6 +44,8 @@ function App() {
             <Route path="maintenance" element={<MaintenanceList />} />
             <Route path="network" element={<NetworkMonitoring />} />
             <Route path="devices" element={<DeviceList />} />
+            <Route path="users" element={<UserList />} />
+            <Route path="exchange-rates" element={<ExchangeRates />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -1,12 +1,20 @@
 import { api } from './client';
 import type {
   Staff,
+  StaffCreate,
+  StaffUpdate,
   Occupancy,
+  OccupancyCreate,
+  OccupancyCheckOut,
   Maintenance,
+  MaintenanceCreate,
+  MaintenanceUpdate,
   DashboardStats,
   Room,
   RoomCreate,
   RoomUpdate,
+  RoomRate,
+  RoomRateCreate,
   Guest,
   GuestCreate,
   GuestUpdate,
@@ -22,12 +30,50 @@ import type {
   DeviceBandwidth,
   GuestBandwidth,
   Media,
-  MediaStats
+  MediaStats,
+  User,
+  UserCreate,
+  UserUpdate,
+  Reservation,
+  ReservationCreate,
+  ReservationUpdate,
+  ExchangeRatesResponse,
+  ConversionResult,
+  MultiConversionResult,
+  InternetStatus,
+  NetworkActivity,
+  HealthCheck
 } from '@/types';
 
+// Staff API (Complete)
 export const staffApi = {
-  getAll: async () => {
-    const response = await api.get<Staff[]>('/staff');
+  getAll: async (params?: {
+    role?: string;
+    status?: string;
+    search?: string;
+    skip?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get<Staff[]>('/staff/', { params });
+    return response.data;
+  },
+  getById: async (id: number) => {
+    const response = await api.get<Staff>(`/staff/${id}`);
+    return response.data;
+  },
+  create: async (data: StaffCreate) => {
+    const response = await api.post<Staff>('/staff/', data);
+    return response.data;
+  },
+  update: async (id: number, data: StaffUpdate) => {
+    const response = await api.patch<Staff>(`/staff/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    await api.delete(`/staff/${id}`);
+  },
+  changeStatus: async (id: number, status: 'active' | 'inactive' | 'on_leave') => {
+    const response = await api.post(`/staff/${id}/change-status`, { status });
     return response.data;
   },
   getStats: async () => {
@@ -36,10 +82,36 @@ export const staffApi = {
   },
 };
 
+// Occupancy API (Complete)
 export const occupancyApi = {
-  getAll: async () => {
-    const response = await api.get<Occupancy[]>('/occupancy');
+  getAll: async (params?: {
+    room_id?: number;
+    guest_id?: number;
+    active_only?: boolean;
+    skip?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get<Occupancy[]>('/occupancy/', { params });
     return response.data;
+  },
+  getActive: async () => {
+    const response = await api.get<Occupancy[]>('/occupancy/active');
+    return response.data;
+  },
+  getById: async (id: number) => {
+    const response = await api.get<Occupancy>(`/occupancy/${id}`);
+    return response.data;
+  },
+  checkIn: async (data: OccupancyCreate) => {
+    const response = await api.post<Occupancy>('/occupancy/check-in', data);
+    return response.data;
+  },
+  checkOut: async (id: number, data?: OccupancyCheckOut) => {
+    const response = await api.post<Occupancy>(`/occupancy/${id}/check-out`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    await api.delete(`/occupancy/${id}`);
   },
   getStats: async () => {
     const response = await api.get('/occupancy/stats/summary');
@@ -47,10 +119,45 @@ export const occupancyApi = {
   },
 };
 
+// Maintenance API (Complete)
 export const maintenanceApi = {
-  getAll: async () => {
-    const response = await api.get<Maintenance[]>('/maintenance');
+  getAll: async (params?: {
+    room_id?: number;
+    type?: string;
+    priority?: string;
+    status?: string;
+    assigned_to?: number;
+    pending_only?: boolean;
+    skip?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get<Maintenance[]>('/maintenance/', { params });
     return response.data;
+  },
+  getById: async (id: number) => {
+    const response = await api.get<Maintenance>(`/maintenance/${id}`);
+    return response.data;
+  },
+  create: async (data: MaintenanceCreate) => {
+    const response = await api.post<Maintenance>('/maintenance/', data);
+    return response.data;
+  },
+  update: async (id: number, data: MaintenanceUpdate) => {
+    const response = await api.patch<Maintenance>(`/maintenance/${id}`, data);
+    return response.data;
+  },
+  start: async (id: number) => {
+    const response = await api.post<Maintenance>(`/maintenance/${id}/start`);
+    return response.data;
+  },
+  complete: async (id: number, actual_cost?: number, notes?: string) => {
+    const response = await api.post<Maintenance>(`/maintenance/${id}/complete`, null, {
+      params: { actual_cost, notes }
+    });
+    return response.data;
+  },
+  delete: async (id: number) => {
+    await api.delete(`/maintenance/${id}`);
   },
   getStats: async () => {
     const response = await api.get('/maintenance/stats/summary');
@@ -227,7 +334,7 @@ export const bandwidthApi = {
   },
 };
 
-// Media API
+// Media API (Already complete)
 export const mediaApi = {
   upload: async (formData: FormData) => {
     const response = await api.post('/media/upload', formData, {
@@ -255,6 +362,150 @@ export const mediaApi = {
 
   getStats: async () => {
     const response = await api.get<MediaStats>('/media/stats');
+    return response.data;
+  },
+};
+
+// Users API (NEW)
+export const usersApi = {
+  create: async (data: UserCreate) => {
+    const response = await api.post<User>('/users/', data);
+    return response.data;
+  },
+  getMe: async () => {
+    const response = await api.get<User>('/users/me');
+    return response.data;
+  },
+  getAll: async () => {
+    const response = await api.get<User[]>('/users/');
+    return response.data;
+  },
+  bootstrap: async (data: UserCreate) => {
+    const response = await api.post<User>('/users/bootstrap', data);
+    return response.data;
+  },
+};
+
+// Reservations API (NEW)
+export const reservationsApi = {
+  create: async (data: ReservationCreate) => {
+    const response = await api.post<Reservation>('/reservations/', data);
+    return response.data;
+  },
+  getAll: async (params?: {
+    guest_id?: number;
+    room_id?: number;
+    status?: string;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const response = await api.get<Reservation[]>('/reservations/', { params });
+    return response.data;
+  },
+  getById: async (id: number) => {
+    const response = await api.get<Reservation>(`/reservations/${id}`);
+    return response.data;
+  },
+  update: async (id: number, data: ReservationUpdate) => {
+    const response = await api.patch<Reservation>(`/reservations/${id}`, data);
+    return response.data;
+  },
+  confirm: async (id: number) => {
+    const response = await api.post<Reservation>(`/reservations/${id}/confirm`);
+    return response.data;
+  },
+  cancel: async (id: number, reason?: string) => {
+    const response = await api.post<Reservation>(`/reservations/${id}/cancel`, { reason });
+    return response.data;
+  },
+};
+
+// Room Rates API (NEW)
+export const roomRatesApi = {
+  create: async (roomId: number, data: RoomRateCreate) => {
+    const response = await api.post<RoomRate>(`/rooms/${roomId}/rates`, data);
+    return response.data;
+  },
+  getByRoom: async (roomId: number) => {
+    const response = await api.get<RoomRate[]>(`/rooms/${roomId}/rates`);
+    return response.data;
+  },
+  delete: async (rateId: number) => {
+    await api.delete(`/rooms/rates/${rateId}`);
+  },
+};
+
+// Exchange Rates API (NEW)
+export const exchangeRatesApi = {
+  update: async () => {
+    const response = await api.post('/exchange-rates/update');
+    return response.data;
+  },
+  getLatest: async (baseCurrency: string = 'USD') => {
+    const response = await api.get<ExchangeRatesResponse>('/exchange-rates/latest', {
+      params: { base_currency: baseCurrency }
+    });
+    return response.data;
+  },
+  convert: async (amount: number, fromCurrency: string, toCurrency: string) => {
+    const response = await api.post<ConversionResult>('/exchange-rates/convert', null, {
+      params: { amount, from_currency: fromCurrency, to_currency: toCurrency }
+    });
+    return response.data;
+  },
+  convertAll: async (amount: number, fromCurrency: string) => {
+    const response = await api.post<MultiConversionResult>('/exchange-rates/convert-all', null, {
+      params: { amount, from_currency: fromCurrency }
+    });
+    return response.data;
+  },
+};
+
+// Internet Control API (Extended with missing endpoints)
+export const internetControlApi = {
+  // Device control (already implemented via devicesApi)
+  suspendDevice: async (deviceId: number, reason?: string) => {
+    await api.post(`/internet-control/devices/${deviceId}/suspend`, { reason });
+  },
+  resumeDevice: async (deviceId: number) => {
+    await api.post(`/internet-control/devices/${deviceId}/resume`);
+  },
+  // Guest control (NEW)
+  suspendAllGuest: async (guestId: number, reason?: string) => {
+    const response = await api.post(`/internet-control/guests/${guestId}/suspend-all`, { reason });
+    return response.data;
+  },
+  resumeAllGuest: async (guestId: number) => {
+    const response = await api.post(`/internet-control/guests/${guestId}/resume-all`);
+    return response.data;
+  },
+  // Status (NEW)
+  getStatus: async () => {
+    const response = await api.get<InternetStatus>('/internet-control/status');
+    return response.data;
+  },
+};
+
+// Health API (NEW)
+export const healthApi = {
+  liveness: async () => {
+    const response = await api.get<HealthCheck>('/healthz');
+    return response.data;
+  },
+  readiness: async () => {
+    const response = await api.get<HealthCheck>('/readyz');
+    return response.data;
+  },
+};
+
+// Metrics API (NEW)
+export const metricsApi = {
+  get: async () => {
+    // Note: metrics endpoint is not under /api/v1
+    const response = await api.get('/metrics', {
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    });
     return response.data;
   },
 };

@@ -383,3 +383,207 @@ export interface MediaStats {
     count: number;
   }>;
 }
+
+// User Management Types
+export interface UserCreate {
+  email: string;
+  password: string;
+  role: 'admin' | 'gerente' | 'recepcionista' | 'mantenimiento';
+}
+
+export interface UserUpdate {
+  email?: string;
+  password?: string;
+  role?: 'admin' | 'gerente' | 'recepcionista' | 'mantenimiento';
+}
+
+// Reservation Types
+export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+
+export interface Reservation {
+  id: number;
+  guest_id: number;
+  room_id: number;
+  start_date: string;
+  end_date: string;
+  status: ReservationStatus;
+  total_amount?: number;
+  currency?: Currency;
+  notes?: string;
+  guest_name?: string;
+  room_number?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReservationCreate {
+  guest_id: number;
+  room_id: number;
+  start_date: string;
+  end_date: string;
+  total_amount?: number;
+  currency?: Currency;
+  notes?: string;
+}
+
+export interface ReservationUpdate {
+  start_date?: string;
+  end_date?: string;
+  status?: ReservationStatus;
+  total_amount?: number;
+  currency?: Currency;
+  notes?: string;
+}
+
+// Room Rates Types
+export interface RoomRate {
+  id: number;
+  room_id: number;
+  rate_type: 'hourly' | 'daily' | 'weekly' | 'monthly';
+  price: number;
+  currency: Currency;
+  valid_from?: string;
+  valid_until?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface RoomRateCreate {
+  rate_type: 'hourly' | 'daily' | 'weekly' | 'monthly';
+  price: number;
+  currency: Currency;
+  valid_from?: string;
+  valid_until?: string;
+  notes?: string;
+}
+
+// Exchange Rates Types
+export interface ExchangeRate {
+  id: number;
+  base_currency: string;
+  target_currency: string;
+  rate: number;
+  source: string;
+  fetched_at: string;
+}
+
+export interface ExchangeRatesResponse {
+  base_currency: string;
+  rates: Record<string, number>;
+  last_updated: string;
+}
+
+export interface ConversionResult {
+  from_currency: string;
+  to_currency: string;
+  amount: number;
+  converted_amount: number;
+  rate: number;
+  timestamp: string;
+}
+
+export interface MultiConversionResult {
+  from_currency: string;
+  amount: number;
+  conversions: Record<string, number>;
+  rates: Record<string, number>;
+  timestamp: string;
+}
+
+// Staff Types (Extended)
+export interface StaffCreate {
+  full_name: string;
+  document_id: string;
+  phone?: string;
+  email?: string;
+  role: 'gerente' | 'recepcionista' | 'mantenimiento' | 'limpieza';
+  status?: 'active' | 'inactive' | 'on_leave';
+  hire_date?: string;
+  salary?: number;
+  notes?: string;
+}
+
+export interface StaffUpdate {
+  full_name?: string;
+  document_id?: string;
+  phone?: string;
+  email?: string;
+  role?: 'gerente' | 'recepcionista' | 'mantenimiento' | 'limpieza';
+  status?: 'active' | 'inactive' | 'on_leave';
+  salary?: number;
+  notes?: string;
+}
+
+// Occupancy Types (Extended)
+export interface OccupancyCreate {
+  room_id: number;
+  guest_id: number;
+  reservation_id?: number;
+  amount_paid_bs?: number;
+  amount_paid_usd?: number;
+  payment_method?: string;
+  notes?: string;
+}
+
+export interface OccupancyCheckOut {
+  amount_paid_bs?: number;
+  amount_paid_usd?: number;
+  payment_method?: string;
+  notes?: string;
+}
+
+// Maintenance Types (Extended)
+export interface MaintenanceCreate {
+  room_id: number;
+  type: 'repair' | 'cleaning' | 'inspection' | 'upgrade' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  title: string;
+  description?: string;
+  estimated_cost?: number;
+  assigned_to?: number;
+  notes?: string;
+}
+
+export interface MaintenanceUpdate {
+  type?: 'repair' | 'cleaning' | 'inspection' | 'upgrade' | 'other';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  title?: string;
+  description?: string;
+  estimated_cost?: number;
+  actual_cost?: number;
+  assigned_to?: number;
+  notes?: string;
+}
+
+// Internet Control Types (Extended)
+export interface InternetStatus {
+  total_devices: number;
+  online_devices: number;
+  suspended_devices: number;
+  active_guests: number;
+  bandwidth_usage_gb: number;
+}
+
+export interface NetworkActivity {
+  id: number;
+  device_id: number;
+  activity_type: string;
+  timestamp: string;
+  downloaded_mb: number;
+  uploaded_mb: number;
+  ip_address?: string;
+  notes?: string;
+  device?: {
+    mac: string;
+    name?: string;
+    guest_id: number;
+  };
+}
+
+// Health Check Types
+export interface HealthCheck {
+  status: string;
+  timestamp: string;
+  details?: Record<string, unknown>;
+}
