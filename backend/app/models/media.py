@@ -28,6 +28,7 @@ class MediaCategory(str, Enum):
     room_photo = "room_photo"  # Foto de habitación
     guest_id = "guest_id"  # Documento de identidad del huésped
     guest_photo = "guest_photo"  # Foto del huésped
+    staff_photo = "staff_photo"  # Foto del personal
     payment_proof = "payment_proof"  # Comprobante de pago
     maintenance_photo = "maintenance_photo"  # Foto de mantenimiento
     other = "other"  # Otro
@@ -61,6 +62,7 @@ class Media(Base):
 
     # Relaciones opcionales (puede estar asociado a múltiples entidades)
     guest_id = Column(Integer, ForeignKey("guests.id", ondelete="CASCADE"), nullable=True, index=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=True, index=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=True, index=True)
     maintenance_id = Column(Integer, ForeignKey("maintenances.id", ondelete="CASCADE"), nullable=True, index=True)
     payment_id = Column(Integer, ForeignKey("payments.id", ondelete="CASCADE"), nullable=True, index=True)
@@ -76,6 +78,7 @@ class Media(Base):
 
     # Relaciones
     guest = relationship("Guest")
+    staff = relationship("Staff")
     room = relationship("Room")
     maintenance = relationship("Maintenance")
     payment = relationship("Payment")

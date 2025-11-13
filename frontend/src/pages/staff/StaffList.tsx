@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { staffApi } from '@/lib/api';
+import { staffApi, mediaApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Staff, StaffCreate, StaffUpdate } from '@/types';
-import { Plus, Edit, Trash2, X, UserCheck } from 'lucide-react';
+import { Plus, Edit, Trash2, X, UserCheck, CheckCircle2, Circle, Camera } from 'lucide-react';
+import { CameraCapture } from '@/components/ui/camera-capture';
 
 const staffRoleLabels = {
   recepcionista: 'Recepcionista',
@@ -32,8 +33,10 @@ const statusColors = {
 export default function StaffList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [isAvatarUploadOpen, setIsAvatarUploadOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [staffForAvatarUpload, setStaffForAvatarUpload] = useState<Staff | null>(null);
   const [formData, setFormData] = useState<StaffCreate>({
     full_name: '',
     document_id: '',
@@ -51,6 +54,12 @@ export default function StaffList() {
   const { data: staff, isLoading } = useQuery({
     queryKey: ['staff'],
     queryFn: staffApi.getAll,
+  });
+
+  // Query for staff photos
+  const { data: staffPhotos } = useQuery({
+    queryKey: ['staff-photos'],
+    queryFn: () => mediaApi.getAll({ category: 'staff_photo' }),
   });
 
   const createMutation = useMutation({
@@ -152,6 +161,16 @@ export default function StaffList() {
     setIsStatusModalOpen(true);
   };
 
+  const openAvatarUploadModal = (member: Staff, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStaffForAvatarUpload(member);
+    setIsAvatarUploadOpen(true);
+  };
+
+  const getStaffPhoto = (staffId: number) => {
+    return staffPhotos?.find((photo) => photo.staff_id === staffId);
+  };
+
   const submitStatusChange = (newStatus: 'active' | 'inactive' | 'on_leave') => {
     if (selectedStaff) {
       changeStatusMutation.mutate({ id: selectedStaff.id, status: newStatus });
@@ -185,10 +204,32 @@ export default function StaffList() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {staff?.map((member) => (
+        {staff?.map((member) => {
+          const photo = getStaffPhoto(member.id);
+          return (
           <Card key={member.id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-lg font-bold">{member.full_name}</CardTitle>
+            <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
+              <div className="relative group cursor-pointer" onClick={(e) => openAvatarUploadModal(member, e)}>
+                {photo ? (
+                  <img
+                    src={photo.url}
+                    alt={member.full_name}
+                    className="w-14 h-14 rounded-full object-cover border-2 border-gray-200 group-hover:opacity-75 transition"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition">
+                    <span className="text-lg font-bold text-blue-600">
+                      {member.full_name.split(' ').map((n) => n[0]).join('')}
+                    </span>
+                  </div>
+                )}
+                <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
+                  <Camera className="h-3 w-3 text-white" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg font-bold">{member.full_name}</CardTitle>
+              </div>
               <div className="flex gap-2">
                 <Button
                   variant="ghost"
@@ -222,6 +263,17 @@ export default function StaffList() {
                 <Badge variant="outline">
                   {staffRoleLabels[member.role as keyof typeof staffRoleLabels] || member.role}
                 </Badge>
+                {member.user_id ? (
+                  <Badge className="bg-blue-500 hover:bg-blue-600 flex gap-1 items-center">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Sistema Asignado
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="flex gap-1 items-center">
+                    <Circle className="h-3 w-3" />
+                    Sin Sistema
+                  </Badge>
+                )}
               </div>
               <div className="space-y-1 text-sm">
                 <p><strong>Documento:</strong> {member.document_id}</p>
@@ -231,7 +283,8 @@ export default function StaffList() {
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Modal de Crear/Editar */}
@@ -404,6 +457,41 @@ export default function StaffList() {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Avatar Upload Modal */}
+      {isAvatarUploadOpen && staffForAvatarUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Foto de Perfil</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsAvatarUploadOpen(false);
+                  setStaffForAvatarUpload(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Captura una foto de rostro para <strong>{staffForAvatarUpload.full_name}</strong>
+            </p>
+
+            <CameraCapture
+              category="staff_photo"
+              staffId={staffForAvatarUpload.id}
+              title="Foto de Rostro"
+              onUploadSuccess={() => {
+                setIsAvatarUploadOpen(false);
+                setStaffForAvatarUpload(null);
+              }}
+            />
           </div>
         </div>
       )}

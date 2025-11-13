@@ -5,16 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { guestsApi, devicesApi, bandwidthApi, mediaApi } from '@/lib/api';
+import { guestsApi, devicesApi, bandwidthApi, mediaApi, occupancyApi, paymentsApi, reservationsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Guest, GuestCreate, GuestUpdate, Device, DeviceCreate } from '@/types';
-import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
+import { CameraCapture } from '@/components/ui/camera-capture';
 
 export default function GuestList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
+  const [isAvatarUploadOpen, setIsAvatarUploadOpen] = useState(false);
+  const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
+  const [guestForAvatarUpload, setGuestForAvatarUpload] = useState<Guest | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'devices' | 'files'>('info');
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
@@ -45,15 +50,38 @@ export default function GuestList() {
     enabled: !!selectedGuest,
   });
 
+  // Fetch bandwidth data for the selected guest when viewing details
   const { data: guestBandwidth } = useQuery({
-    queryKey: ['guest-bandwidth'],
-    queryFn: () => bandwidthApi.getGuestBandwidth(7),
+    queryKey: ['guest-bandwidth', selectedGuest?.id],
+    queryFn: () => selectedGuest ? bandwidthApi.getGuestBandwidth(selectedGuest.id, 30) : Promise.resolve(null),
+    enabled: !!selectedGuest,
   });
 
   // Query for guest photos
   const { data: guestPhotos } = useQuery({
     queryKey: ['guest-photos'],
     queryFn: () => mediaApi.getAll({ category: 'guest_photo' }),
+  });
+
+  // Query for active occupancies of the guest to delete
+  const { data: guestOccupancies } = useQuery({
+    queryKey: ['guest-occupancies', guestToDelete?.id],
+    queryFn: () => guestToDelete ? occupancyApi.getAll({ guest_id: guestToDelete.id, active_only: true }) : Promise.resolve([]),
+    enabled: !!guestToDelete && isDeleteConfirmModalOpen,
+  });
+
+  // Query for guest payments
+  const { data: guestPayments } = useQuery({
+    queryKey: ['guest-payments', guestToDelete?.id],
+    queryFn: () => guestToDelete ? paymentsApi.getByGuest(guestToDelete.id) : Promise.resolve(null),
+    enabled: !!guestToDelete && isDeleteConfirmModalOpen,
+  });
+
+  // Query for guest reservations
+  const { data: guestReservations } = useQuery({
+    queryKey: ['guest-reservations', guestToDelete?.id],
+    queryFn: () => guestToDelete ? reservationsApi.getAll({ guest_id: guestToDelete.id }) : Promise.resolve([]),
+    enabled: !!guestToDelete && isDeleteConfirmModalOpen,
   });
 
   const createMutation = useMutation({
@@ -152,10 +180,22 @@ export default function GuestList() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('¿Está seguro de eliminar este huésped?')) {
-      deleteMutation.mutate(id);
+  const handleDeleteClick = (guest: Guest) => {
+    setGuestToDelete(guest);
+    setIsDeleteConfirmModalOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (guestToDelete) {
+      deleteMutation.mutate(guestToDelete.id);
+      setIsDeleteConfirmModalOpen(false);
+      setGuestToDelete(null);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setIsDeleteConfirmModalOpen(false);
+    setGuestToDelete(null);
   };
 
   const openDeviceModal = (guest: Guest) => {
@@ -171,7 +211,14 @@ export default function GuestList() {
   };
 
   const getGuestBandwidth = (guestId: number) => {
-    return guestBandwidth?.find((gb) => gb.guest_id === guestId);
+    // Only return bandwidth if it's for the selected guest
+    if (selectedGuest?.id === guestId && guestBandwidth) {
+      return {
+        usage_gb: guestBandwidth.total_usage?.total_gb || 0,
+        device_count: guestBandwidth.total_devices || 0,
+      };
+    }
+    return null;
   };
 
   const getGuestPhoto = (guestId: number) => {
@@ -182,6 +229,12 @@ export default function GuestList() {
     setSelectedGuest(guest);
     setActiveTab('info');
     setIsDetailModalOpen(true);
+  };
+
+  const openAvatarUploadModal = (guest: Guest, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setGuestForAvatarUpload(guest);
+    setIsAvatarUploadOpen(true);
   };
 
   if (isLoading) {
@@ -212,18 +265,21 @@ export default function GuestList() {
           return (
           <Card key={guest.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => openDetailModal(guest)}>
             <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
-              <div className="relative">
+              <div className="relative group cursor-pointer" onClick={(e) => openAvatarUploadModal(guest, e)}>
                 {photo ? (
                   <img
                     src={photo.url}
                     alt={guest.full_name}
-                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 group-hover:opacity-75 transition"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center group-hover:bg-gray-300 transition">
                     <User className="h-8 w-8 text-gray-500" />
                   </div>
                 )}
+                <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition">
+                  <Camera className="h-4 w-4 text-white" />
+                </div>
               </div>
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-lg font-bold truncate">
@@ -238,7 +294,7 @@ export default function GuestList() {
                 <Button variant="ghost" size="sm" onClick={() => handleEdit(guest)}>
                   <Edit className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(guest.id)}>
+                <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(guest)}>
                   <Trash2 className="h-4 w-4 text-red-500" />
                 </Button>
               </div>
@@ -735,6 +791,168 @@ export default function GuestList() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmModalOpen && guestToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="h-6 w-6 text-red-600 flex-shrink-0" />
+              <h2 className="text-2xl font-bold text-red-600">Confirmar Eliminación</h2>
+            </div>
+
+            <p className="text-gray-700 mb-6">
+              ¿Está seguro de que desea eliminar al huésped <strong>{guestToDelete.full_name}</strong>?
+            </p>
+
+            {/* Warnings */}
+            <div className="space-y-3 mb-6">
+              {guestReservations && guestReservations.length > 0 && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex gap-3">
+                  <Calendar className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-900">Reservas Pendientes</p>
+                    <p className="text-sm text-red-700">
+                      Este huésped tiene {guestReservations.length} reserva{guestReservations.length > 1 ? 's' : ''}.
+                      {guestReservations.map((res) => (
+                        <div key={res.id} className="text-xs mt-1">
+                          • Habitación {res.room?.number}: {new Date(res.start_date).toLocaleDateString('es-ES')} - {new Date(res.end_date).toLocaleDateString('es-ES')} ({res.status})
+                        </div>
+                      ))}
+                    </p>
+                    <p className="text-xs text-red-600 mt-2 font-semibold">
+                      ⚠️ No se puede eliminar un huésped con reservas activas.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {guestOccupancies && guestOccupancies.length > 0 && (
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 flex gap-3">
+                  <Home className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-orange-900">Habitación Asignada</p>
+                    <p className="text-sm text-orange-700">
+                      Este huésped tiene {guestOccupancies.length} habitación{guestOccupancies.length > 1 ? 's' : ''} activa{guestOccupancies.length > 1 ? 's' : ''}.
+                      {guestOccupancies.map((occ) => (
+                        <span key={occ.id}>
+                          {' '}Habitación {occ.room_number}
+                        </span>
+                      ))}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {guestPayments && guestPayments.total_payments > 0 && (
+                <>
+                  {guestPayments.completed_payments < guestPayments.total_payments && (
+                    <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex gap-3">
+                      <DollarSign className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-red-900">Deudas Pendientes</p>
+                        <p className="text-sm text-red-700">
+                          Este huésped tiene {guestPayments.total_payments - guestPayments.completed_payments} pago{guestPayments.total_payments - guestPayments.completed_payments > 1 ? 's' : ''} pendiente{guestPayments.total_payments - guestPayments.completed_payments > 1 ? 's' : ''}.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {guestPayments.totals && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold">Total pagado:</span>
+                        {guestPayments.totals.usd > 0 && <span> USD {guestPayments.totals.usd.toFixed(2)}</span>}
+                        {guestPayments.totals.eur > 0 && <span> EUR {guestPayments.totals.eur.toFixed(2)}</span>}
+                        {guestPayments.totals.ves > 0 && <span> VES {guestPayments.totals.ves.toFixed(2)}</span>}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {guestOccupancies && guestOccupancies.length === 0 &&
+               (!guestPayments || (guestPayments.completed_payments === guestPayments.total_payments)) &&
+               guestReservations && guestReservations.length === 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-700">
+                    ✓ No hay reservas, habitaciones activas ni deudas pendientes.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-600 mb-6">
+              Esta acción no se puede deshacer.
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelDelete}
+                disabled={deleteMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={
+                  deleteMutation.isPending ||
+                  (guestReservations && guestReservations.length > 0) ||
+                  (guestOccupancies && guestOccupancies.length > 0)
+                }
+                title={
+                  guestReservations && guestReservations.length > 0
+                    ? "No se puede eliminar un huésped con reservas"
+                    : guestOccupancies && guestOccupancies.length > 0
+                    ? "No se puede eliminar un huésped con habitación asignada"
+                    : ""
+                }
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar Huésped'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Avatar Upload Modal */}
+      {isAvatarUploadOpen && guestForAvatarUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Foto de Perfil</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsAvatarUploadOpen(false);
+                  setGuestForAvatarUpload(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Captura una foto de perfil para <strong>{guestForAvatarUpload.full_name}</strong>
+            </p>
+
+            <CameraCapture
+              category="guest_photo"
+              guestId={guestForAvatarUpload.id}
+              title="Foto de Rostro"
+              onUploadSuccess={() => {
+                setIsAvatarUploadOpen(false);
+                setGuestForAvatarUpload(null);
+              }}
+            />
           </div>
         </div>
       )}

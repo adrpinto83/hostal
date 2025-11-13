@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Upload, X, File, Image as ImageIcon, Trash2, Eye } from 'lucide-react';
+import { Upload, File, Image as ImageIcon, Trash2, Eye } from 'lucide-react';
 import { mediaApi } from '@/lib/api';
 import { Button } from './button';
 import { Card, CardContent } from './card';
@@ -113,6 +113,7 @@ export function FileUpload({
     const labels: Record<MediaCategory, string> = {
       room_photo: 'Foto de Habitación',
       guest_photo: 'Foto de Huésped',
+      staff_photo: 'Foto de Personal',
       guest_id: 'Documento de Identidad',
       payment_proof: 'Comprobante de Pago',
       other: 'Otro',

@@ -3,6 +3,12 @@ export interface User {
   id: number;
   email: string;
   role: string;
+  approved?: boolean;
+  full_name?: string;
+  profile_picture?: string;
+  auth_provider?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Guest {
@@ -93,6 +99,7 @@ export interface Staff {
   hire_date?: string;
   salary?: number;
   notes?: string;
+  user_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -339,7 +346,7 @@ export interface GuestBandwidth {
 
 // Media Types
 export type MediaType = 'image' | 'document';
-export type MediaCategory = 'room_photo' | 'guest_photo' | 'guest_id' | 'payment_proof' | 'other';
+export type MediaCategory = 'room_photo' | 'guest_photo' | 'staff_photo' | 'guest_id' | 'payment_proof' | 'other';
 
 export interface Media {
   id: number;
@@ -354,6 +361,7 @@ export interface Media {
   media_type: MediaType;
   category: MediaCategory;
   guest_id?: number;
+  staff_id?: number;
   room_id?: number;
   title?: string;
   description?: string;
@@ -389,16 +397,19 @@ export interface UserCreate {
   email: string;
   password: string;
   role: 'admin' | 'gerente' | 'recepcionista' | 'mantenimiento';
+  full_name?: string;
 }
 
 export interface UserUpdate {
   email?: string;
   password?: string;
   role?: 'admin' | 'gerente' | 'recepcionista' | 'mantenimiento';
+  full_name?: string;
 }
 
 // Reservation Types
-export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+export type ReservationStatus = 'pending' | 'active' | 'checked_out' | 'cancelled';
+export type Period = "day" | "week" | "fortnight" | "month";
 
 export interface Reservation {
   id: number;
@@ -406,32 +417,30 @@ export interface Reservation {
   room_id: number;
   start_date: string;
   end_date: string;
+  period: Period;
+  periods_count: number;
+  price_bs: number;
   status: ReservationStatus;
-  total_amount?: number;
-  currency?: Currency;
   notes?: string;
-  guest_name?: string;
-  room_number?: string;
   created_at: string;
   updated_at: string;
+  guest: Guest;
+  room: Room;
 }
 
 export interface ReservationCreate {
   guest_id: number;
   room_id: number;
   start_date: string;
-  end_date: string;
-  total_amount?: number;
-  currency?: Currency;
+  period: Period;
+  periods_count: number;
+  price_bs?: number;
   notes?: string;
 }
 
 export interface ReservationUpdate {
   start_date?: string;
-  end_date?: string;
   status?: ReservationStatus;
-  total_amount?: number;
-  currency?: Currency;
   notes?: string;
 }
 

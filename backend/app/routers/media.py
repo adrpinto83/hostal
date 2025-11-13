@@ -1,7 +1,7 @@
 # app/routers/media.py
 """Endpoints para carga y gestión de archivos multimedia - VERSIÓN SEGURA."""
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,11 +22,12 @@ log = structlog.get_logger()
 )
 async def upload_file(
     file: UploadFile = File(...),
-    category: str = "other",
-    guest_id: int | None = None,
-    room_id: int | None = None,
-    title: str | None = None,
-    description: str | None = None,
+    category: str = Form("other"),
+    guest_id: int | None = Form(None),
+    staff_id: int | None = Form(None),
+    room_id: int | None = Form(None),
+    title: str | None = Form(None),
+    description: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -44,8 +45,9 @@ async def upload_file(
 
     **Parámetros:**
     - **file**: Archivo a subir (max 10MB documentos, 5MB imágenes)
-    - **category**: room_photo, guest_photo, guest_id, payment_proof, other
+    - **category**: room_photo, guest_photo, staff_photo, guest_id, payment_proof, other
     - **guest_id**: ID del huésped (opcional)
+    - **staff_id**: ID del personal (opcional)
     - **room_id**: ID de la habitación (opcional)
     - **title**: Título descriptivo
     - **description**: Descripción adicional
@@ -91,6 +93,7 @@ async def upload_file(
             media_type=media_type,
             category=category_enum,
             guest_id=guest_id,
+            staff_id=staff_id,
             room_id=room_id,
             title=title,
             description=description,
