@@ -34,7 +34,8 @@ class CurrencyService:
                 response = await client.get(cls.DOLARAPI_URL, timeout=10.0)
                 if response.status_code == 200:
                     data = response.json()
-                    usd_price = data.get("precio")  # Precio oficial del USD en Bs
+                    # dolarapi.com devuelve 'promedio' (tasa oficial)
+                    usd_price = data.get("promedio")
 
                     if usd_price:
                         # También obtener EUR/USD para calcular EUR en Bs
@@ -77,28 +78,18 @@ class CurrencyService:
         return None
 
     @classmethod
-    def update_rates_from_api(cls, db: Session, use_dolarapi: bool = True) -> bool:
+    def save_rates_to_db(cls, db: Session, rates: Dict, source: str) -> bool:
         """
-        Actualiza tasas de cambio en la BD desde API externa (sync wrapper).
+        Guarda tasas de cambio en la base de datos.
 
         Args:
             db: Sesión de base de datos
-            use_dolarapi: Si True, usa dolarapi.com para Venezuela. Si False, usa exchangerate-api.com
+            rates: Dict con tasas {USD: price, EUR: price}
+            source: Fuente de las tasas (ej: "dolarapi.com")
 
         Returns:
-            True si se actualizó exitosamente
+            True si se guardó exitosamente
         """
-        import asyncio
-
-        if use_dolarapi:
-            # Para Venezuela, usar dolarapi como fuente principal
-            rates = asyncio.run(cls.fetch_rates_from_dolarapi())
-            source = "dolarapi.com"
-        else:
-            # Alternativa: usar exchangerate-api
-            rates = asyncio.run(cls.fetch_rates_from_api("USD"))
-            source = "exchangerate-api.com"
-
         if not rates:
             return False
 
@@ -156,6 +147,36 @@ class CurrencyService:
 
         db.commit()
         return True
+
+    @classmethod
+    def update_rates_from_api(cls, db: Session, use_dolarapi: bool = True) -> bool:
+        """
+        Actualiza tasas de cambio en la BD desde API externa (sync wrapper).
+
+        Args:
+            db: Sesión de base de datos
+            use_dolarapi: Si True, usa dolarapi.com para Venezuela. Si False, usa exchangerate-api.com
+
+        Returns:
+            True si se actualizó exitosamente
+        """
+        import asyncio
+
+        try:
+            if use_dolarapi:
+                # Para Venezuela, usar dolarapi como fuente principal
+                rates = asyncio.run(cls.fetch_rates_from_dolarapi())
+                source = "dolarapi.com"
+            else:
+                # Alternativa: usar exchangerate-api
+                rates = asyncio.run(cls.fetch_rates_from_api("USD"))
+                source = "exchangerate-api.com"
+
+            return cls.save_rates_to_db(db, rates, source)
+        except RuntimeError:
+            # Si ya hay un event loop corriendo, retornar False
+            print("Error: Cannot use asyncio.run() from within an event loop")
+            return False
 
     @classmethod
     def convert_amount(
