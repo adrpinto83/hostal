@@ -86,7 +86,7 @@ export default function RoomList() {
     queryFn: roomsApi.getAll,
   });
 
-  const { data: roomPhotos } = useQuery({
+  const { data: roomPhotos, refetch: refetchPhotos } = useQuery({
     queryKey: ['room-photos'],
     queryFn: () => mediaApi.getAll({ category: 'room_photo' }),
   });
@@ -178,7 +178,7 @@ export default function RoomList() {
     setSelectedRoom(room);
     setIsPhotoModalOpen(true);
     // Refrescar fotos cuando se abre el modal
-    queryClient.refetchQueries({ queryKey: ['room-photos'] });
+    refetchPhotos();
   };
 
   if (isLoading) {
@@ -445,7 +445,7 @@ export default function RoomList() {
                 onClick={() => {
                   setIsPhotoModalOpen(false);
                   // Refrescar las fotos cuando se cierra el modal
-                  queryClient.refetchQueries({ queryKey: ['room-photos'] });
+                  setTimeout(() => refetchPhotos(), 100);
                 }}
               >
                 <X className="h-6 w-6" />
@@ -471,13 +471,9 @@ export default function RoomList() {
                 title={`Fotos de habitación ${selectedRoom.number}`}
                 maxSizeMB={5}
                 accept="image/*"
-                onUploadSuccess={async () => {
-                  // Refresh fotos inmediatamente
-                  await queryClient.invalidateQueries({ queryKey: ['room-photos'] });
-                  // Hacer un refetch explícito para asegurar que se actualicen
-                  setTimeout(() => {
-                    queryClient.refetchQueries({ queryKey: ['room-photos'] });
-                  }, 500);
+                onUploadSuccess={() => {
+                  // Refetch fotos después de cargar
+                  setTimeout(() => refetchPhotos(), 800);
                 }}
               />
             </div>

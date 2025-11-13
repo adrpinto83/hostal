@@ -52,19 +52,15 @@ export function FileUpload({
       return mediaApi.upload(formData);
     },
     onSuccess: () => {
-      // Invalidar el query genérico
+      // Invalidar queries de media
       queryClient.invalidateQueries({ queryKey: ['media'] });
-
-      // También invalidar query específico por categoría si es room_photo
-      if (category === 'room_photo') {
-        queryClient.invalidateQueries({ queryKey: ['room-photos'] });
-      }
 
       setSelectedFile(null);
       setPreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      // Llamar el callback del padre para que maneje refetch si es necesario
       onUploadSuccess?.();
     },
   });
