@@ -10,6 +10,7 @@ import { handleApiError } from '@/lib/api/client';
 import type { ReservationCreate, Period } from '@/types';
 import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 interface ExchangeRates {
   USD: number;
@@ -148,6 +149,30 @@ export default function ReservationList() {
       timeZone: 'UTC', // Important for correct date display
     });
   };
+
+  const calculateEndDate = (startDate: string, period: Period, periodsCount: number): string => {
+    const date = new Date(startDate);
+
+    switch (period) {
+      case 'day':
+        date.setDate(date.getDate() + periodsCount - 1);
+        break;
+      case 'week':
+        date.setDate(date.getDate() + (periodsCount * 7) - 1);
+        break;
+      case 'fortnight':
+        date.setDate(date.getDate() + (periodsCount * 14) - 1);
+        break;
+      case 'month':
+        date.setMonth(date.getMonth() + periodsCount);
+        date.setDate(date.getDate() - 1);
+        break;
+    }
+
+    return date.toISOString().split('T')[0];
+  };
+
+  const endDate = calculateEndDate(formData.start_date, formData.period, formData.periods_count);
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -316,123 +341,190 @@ export default function ReservationList() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Nueva Reserva</h2>
-              <Button variant="ghost" size="sm" onClick={closeModal}>
-                <X className="h-4 w-4" />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">📅 Nueva Reserva</h2>
+              <Button variant="ghost" size="sm" onClick={closeModal} className="rounded-full">
+                <X className="h-5 w-5" />
               </Button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="guest_id">Huésped</Label>
-                <select
-                  id="guest_id"
-                  className="w-full px-3 py-2 border rounded-md"
-                  value={formData.guest_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, guest_id: parseInt(e.target.value) })
-                  }
-                  required
-                >
-                  <option value={0} disabled>Seleccionar huésped</option>
-                  {guests?.map((guest) => (
-                    <option key={guest.id} value={guest.id}>
-                      {guest.full_name} ({guest.document_id})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Body */}
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Formulario */}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Huésped */}
+                  <div>
+                    <Label htmlFor="guest_id" className="text-sm font-semibold">
+                      👤 Huésped
+                    </Label>
+                    <select
+                      id="guest_id"
+                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={formData.guest_id}
+                      onChange={(e) =>
+                        setFormData({ ...formData, guest_id: parseInt(e.target.value) })
+                      }
+                      required
+                    >
+                      <option value={0} disabled>Seleccionar huésped</option>
+                      {guests?.map((guest) => (
+                        <option key={guest.id} value={guest.id}>
+                          {guest.full_name} ({guest.document_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <Label htmlFor="room_id">Habitación</Label>
-                <select
-                  id="room_id"
-                  className="w-full px-3 py-2 border rounded-md"
-                  value={formData.room_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, room_id: parseInt(e.target.value) })
-                  }
-                  required
-                >
-                  <option value={0} disabled>Seleccionar habitación</option>
-                  {rooms?.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      Habitación {room.number} ({room.type}) - {room.status}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  {/* Habitación */}
+                  <div>
+                    <Label htmlFor="room_id" className="text-sm font-semibold">
+                      🛏️ Habitación
+                    </Label>
+                    <select
+                      id="room_id"
+                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={formData.room_id}
+                      onChange={(e) =>
+                        setFormData({ ...formData, room_id: parseInt(e.target.value) })
+                      }
+                      required
+                    >
+                      <option value={0} disabled>Seleccionar habitación</option>
+                      {rooms?.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          Habitación {room.number} ({room.type}) - {room.status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <Label htmlFor="start_date">Fecha de inicio</Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  value={formData.start_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, start_date: e.target.value })
-                  }
-                  required
-                />
-              </div>
+                  {/* Fecha de inicio */}
+                  <div>
+                    <Label htmlFor="start_date" className="text-sm font-semibold">
+                      📅 Fecha de Inicio
+                    </Label>
+                    <Input
+                      id="start_date"
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, start_date: e.target.value })
+                      }
+                      className="mt-2 border-gray-300"
+                      required
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="periods_count">Cantidad</Label>
-                  <Input
-                    id="periods_count"
-                    type="number"
-                    min="1"
-                    value={formData.periods_count}
-                    onChange={(e) =>
-                      setFormData({ ...formData, periods_count: parseInt(e.target.value) })
+                  {/* Cantidad y Período */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="periods_count" className="text-sm font-semibold">
+                        📊 Cantidad
+                      </Label>
+                      <Input
+                        id="periods_count"
+                        type="number"
+                        min="1"
+                        value={formData.periods_count}
+                        onChange={(e) =>
+                          setFormData({ ...formData, periods_count: parseInt(e.target.value) })
+                        }
+                        className="mt-2 border-gray-300"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="period" className="text-sm font-semibold">
+                        ⏱️ Período
+                      </Label>
+                      <select
+                        id="period"
+                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={formData.period}
+                        onChange={(e) =>
+                          setFormData({ ...formData, period: e.target.value as Period })
+                        }
+                        required
+                      >
+                        {Object.entries(periodLabels).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Resumen de fechas */}
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-900 font-semibold mb-2">📍 Rango de Reserva:</p>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p>Inicio: <span className="font-semibold">{formatDate(formData.start_date)}</span></p>
+                      <p>Fin: <span className="font-semibold">{formatDate(endDate)}</span></p>
+                      <p>Total: <span className="font-semibold">{formData.periods_count} {periodLabels[formData.period].toLowerCase()}</span></p>
+                    </div>
+                  </div>
+
+                  {/* Notas */}
+                  <div>
+                    <Label htmlFor="notes" className="text-sm font-semibold">
+                      📝 Notas (Opcional)
+                    </Label>
+                    <textarea
+                      id="notes"
+                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      rows={2}
+                      placeholder="Información adicional sobre la reserva..."
+                      value={formData.notes}
+                      onChange={(e) =>
+                        setFormData({ ...formData, notes: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  {/* Botones */}
+                  <div className="flex gap-2 justify-end pt-4">
+                    <Button type="button" variant="outline" onClick={closeModal}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={createMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+                      {createMutation.isPending ? '⏳ Creando...' : '✅ Crear Reserva'}
+                    </Button>
+                  </div>
+                </form>
+
+                {/* Calendario */}
+                <div className="hidden lg:block">
+                  <CalendarComponent
+                    startDate={formData.start_date}
+                    endDate={endDate}
+                    onDateSelect={(date) =>
+                      setFormData({ ...formData, start_date: date })
                     }
-                    required
                   />
                 </div>
-                <div>
-                  <Label htmlFor="period">Período</Label>
-                  <select
-                    id="period"
-                    className="w-full px-3 py-2 border rounded-md"
-                    value={formData.period}
-                    onChange={(e) =>
-                      setFormData({ ...formData, period: e.target.value as Period })
-                    }
-                    required
-                  >
-                    {Object.entries(periodLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
-              <div>
-                <Label htmlFor="notes">Notas (Opcional)</Label>
-                <textarea
-                  id="notes"
-                  className="w-full px-3 py-2 border rounded-md"
-                  rows={3}
-                  value={formData.notes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notes: e.target.value })
+              {/* Calendario móvil (debajo en pantallas pequeñas) */}
+              <div className="lg:hidden border-t border-gray-200 pt-6">
+                <CalendarComponent
+                  startDate={formData.start_date}
+                  endDate={endDate}
+                  onDateSelect={(date) =>
+                    setFormData({ ...formData, start_date: date })
                   }
                 />
               </div>
+            </div>
 
-              <div className="flex gap-2 justify-end pt-4">
-                <Button type="button" variant="ghost" onClick={closeModal}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creando...' : 'Crear Reserva'}
-                </Button>
-              </div>
-            </form>
+            {/* Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4">
+              <p className="text-xs text-gray-600 text-center">
+                💡 El calendario muestra el rango de fechas reservado en azul
+              </p>
+            </div>
           </div>
         </div>
       )}
