@@ -216,6 +216,7 @@ export default function Login() {
                   required
                   disabled={loading}
                   className="border-gray-300"
+                  autoComplete="email"
                 />
               </div>
 
@@ -231,6 +232,7 @@ export default function Login() {
                   required
                   disabled={loading}
                   className="border-gray-300"
+                  autoComplete="current-password"
                 />
                 <Button
                   type="button"
