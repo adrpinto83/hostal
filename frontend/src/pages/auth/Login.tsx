@@ -47,11 +47,23 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [info, setInfo] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
   const navigate = useNavigate();
   const { setAuth } = useAuth();
 
+  const MAX_ATTEMPTS = 5;
+  const LOCKOUT_MESSAGE = `Demasiados intentos fallidos. Intenta nuevamente en 1 minuto.`;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Si está bloqueado, no permitir intentos
+    if (isBlocked) {
+      setError(LOCKOUT_MESSAGE);
+      return;
+    }
+
     setError('');
     setSuccess('');
     setInfo('');
@@ -63,10 +75,33 @@ export default function Login() {
       const user = await authApi.getCurrentUser();
       setAuth(user, response.access_token);
       setSuccess('¡Inicio de sesión exitoso!');
+      setFailedAttempts(0); // Resetear contador
       setTimeout(() => navigate('/dashboard'), 1000);
     } catch (err) {
       localStorage.removeItem('access_token');
-      setError(handleApiError(err));
+      const errorMessage = handleApiError(err);
+
+      // Incrementar contador de intentos fallidos
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+
+      // Si se alcanzó el límite de intentos
+      if (newAttempts >= MAX_ATTEMPTS) {
+        setIsBlocked(true);
+        setError(`${errorMessage} - Se bloqueó la cuenta después de ${MAX_ATTEMPTS} intentos fallidos.`);
+
+        // Desbloquear después de 1 minuto
+        setTimeout(() => {
+          setIsBlocked(false);
+          setFailedAttempts(0);
+          setError('');
+          setInfo('Puedes intentar nuevamente.');
+        }, 60000);
+      } else {
+        // Mostrar error con número de intentos
+        const remainingAttempts = MAX_ATTEMPTS - newAttempts;
+        setError(`${errorMessage} (Intentos restantes: ${remainingAttempts}/${MAX_ATTEMPTS})`);
+      }
     } finally {
       setLoading(false);
     }
@@ -155,19 +190,40 @@ export default function Login() {
                 </Button>
               </div>
 
+              <div className="text-right text-sm">
+                <Link to="/forgot-password" className="text-blue-600 hover:underline">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+
               {/* Alerts */}
               {error && <ErrorAlert message={error} />}
               {success && <SuccessAlert message={success} />}
               {info && <InfoAlert message={info} />}
 
+              {/* Failed Attempts Counter */}
+              {failedAttempts > 0 && !isBlocked && (
+                <div className="bg-yellow-50 border border-yellow-200 text-xs text-yellow-800 rounded-lg p-3 text-center">
+                  <span className="font-semibold">Intentos fallidos: {failedAttempts}/{MAX_ATTEMPTS}</span>
+                </div>
+              )}
+
               {/* Login Button */}
               <Button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-                disabled={loading}
+                className={`w-full text-white font-semibold ${
+                  isBlocked
+                    ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                disabled={loading || isBlocked}
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                {isBlocked
+                  ? 'Cuenta bloqueada (1 minuto)'
+                  : loading
+                    ? 'Iniciando sesión...'
+                    : 'Iniciar Sesión'}
               </Button>
 
               {/* Register Link */}
