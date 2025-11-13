@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { roomsApi, mediaApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Room, RoomUpdate, Media } from '@/types';
-import { Plus, Edit, Trash2, X, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Image as ImageIcon, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
@@ -56,6 +56,8 @@ export default function RoomList() {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
   const [formData, setFormData] = useState<FormData>({
     number: '',
     type: 'single',
@@ -97,11 +99,15 @@ export default function RoomList() {
     mutationFn: roomsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
-      setIsModalOpen(false);
-      resetForm();
+      setFormSuccess('✅ Habitación creada exitosamente');
+      setTimeout(() => {
+        setIsModalOpen(false);
+        resetForm();
+        setFormSuccess('');
+      }, 1500);
     },
     onError: (error) => {
-      alert(handleApiError(error));
+      setFormError(handleApiError(error));
     },
   });
 
@@ -110,12 +116,16 @@ export default function RoomList() {
       roomsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
-      setIsModalOpen(false);
-      setEditingRoom(null);
-      resetForm();
+      setFormSuccess('✅ Habitación actualizada exitosamente');
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setEditingRoom(null);
+        resetForm();
+        setFormSuccess('');
+      }, 1500);
     },
     onError: (error) => {
-      alert(handleApiError(error));
+      setFormError(handleApiError(error));
     },
   });
 
@@ -125,7 +135,7 @@ export default function RoomList() {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
     },
     onError: (error) => {
-      alert(handleApiError(error));
+      alert('Error al eliminar la habitación: ' + handleApiError(error));
     },
   });
 
@@ -135,6 +145,11 @@ export default function RoomList() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     if (editingRoom) {
       updateMutation.mutate({ id: editingRoom.id, data: formData });
     } else {
@@ -170,6 +185,29 @@ export default function RoomList() {
     setIsModalOpen(false);
     setEditingRoom(null);
     resetForm();
+    setFormError('');
+    setFormSuccess('');
+  };
+
+  const validateForm = (): boolean => {
+    setFormError('');
+
+    if (!formData.number.trim()) {
+      setFormError('El número de habitación es obligatorio');
+      return false;
+    }
+
+    if (formData.number.trim().length > 10) {
+      setFormError('El número de habitación no puede exceder 10 caracteres');
+      return false;
+    }
+
+    if (formData.price_amount !== undefined && formData.price_amount < 0) {
+      setFormError('El precio no puede ser negativo');
+      return false;
+    }
+
+    return true;
   };
 
   const getRoomPhotos = (roomId: number) => {
@@ -423,105 +461,181 @@ export default function RoomList() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">
-                {editingRoom ? 'Editar Habitación' : 'Nueva Habitación'}
-              </h2>
-              <Button variant="ghost" size="sm" onClick={closeModal}>
-                <X className="h-4 w-4" />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {editingRoom ? '✏️ Editar Habitación' : '➕ Nueva Habitación'}
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {editingRoom ? `Habitación #${editingRoom.number}` : 'Crear una nueva habitación'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeModal}
+                className="rounded-full"
+              >
+                <X className="h-5 w-5" />
               </Button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="number">Número de Habitación</Label>
-                <Input
-                  id="number"
-                  value={formData.number}
-                  onChange={(e) =>
-                    setFormData({ ...formData, number: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="type">Tipo</Label>
-                <select
-                  id="type"
-                  className="w-full px-3 py-2 border rounded-md"
-                  value={formData.type}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      type: e.target.value as 'single' | 'double' | 'suite',
-                    })
-                  }
-                >
-                  <option value="single">Individual</option>
-                  <option value="double">Doble</option>
-                  <option value="suite">Suite</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <Label htmlFor="price_amount">Precio por Noche</Label>
-                  <Input
-                    id="price_amount"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={formData.price_amount || ''}
-                    onChange={(e) =>
-                      setFormData({ ...formData, price_amount: parseFloat(e.target.value) || undefined })
-                    }
-                  />
+            {/* Body */}
+            <div className="p-6 max-h-[80vh] overflow-y-auto">
+              {/* Error Message */}
+              {formError && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-800">{formError}</p>
                 </div>
+              )}
+
+              {/* Success Message */}
+              {formSuccess && (
+                <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-800">{formSuccess}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Número */}
                 <div>
-                  <Label htmlFor="price_currency">Moneda</Label>
-                  <select
-                    id="price_currency"
-                    className="w-full px-3 py-2 border rounded-md"
-                    value={formData.price_currency || 'VES'}
+                  <Label htmlFor="number" className="text-sm font-semibold text-gray-700">
+                    📌 Número de Habitación
+                  </Label>
+                  <Input
+                    id="number"
+                    placeholder="Ej: 101, A-205, Suite 1"
+                    value={formData.number}
                     onChange={(e) =>
-                      setFormData({ ...formData, price_currency: e.target.value as 'VES' | 'USD' | 'EUR' })
+                      setFormData({ ...formData, number: e.target.value })
+                    }
+                    maxLength={10}
+                    className="mt-2 border-gray-300 focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Máximo 10 caracteres
+                  </p>
+                </div>
+
+                {/* Tipo */}
+                <div>
+                  <Label htmlFor="type" className="text-sm font-semibold text-gray-700">
+                    🛏️ Tipo de Habitación
+                  </Label>
+                  <select
+                    id="type"
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={formData.type}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        type: e.target.value as 'single' | 'double' | 'suite',
+                      })
                     }
                   >
-                    <option value="VES">Bs (VES)</option>
-                    <option value="USD">$ (USD)</option>
-                    <option value="EUR">€ (EUR)</option>
+                    <option value="single">Individual (1 cama)</option>
+                    <option value="double">Doble (2 camas o 1 grande)</option>
+                    <option value="suite">Suite (Premium)</option>
                   </select>
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="notes">Notas</Label>
-                <textarea
-                  id="notes"
-                  className="w-full px-3 py-2 border rounded-md"
-                  rows={3}
-                  value={formData.notes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
-                />
-              </div>
+                {/* Precio */}
+                <div>
+                  <Label className="text-sm font-semibold text-gray-700">
+                    💰 Precio por Noche
+                  </Label>
+                  <div className="grid grid-cols-3 gap-3 mt-2">
+                    <div className="col-span-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.price_amount || ''}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            price_amount: e.target.value ? parseFloat(e.target.value) : undefined,
+                          })
+                        }
+                        className="border-gray-300"
+                      />
+                    </div>
+                    <select
+                      className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={formData.price_currency || 'VES'}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          price_currency: e.target.value as 'VES' | 'USD' | 'EUR',
+                        })
+                      }
+                    >
+                      <option value="VES">Bs</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Opcional - Dejar vacío si no tiene precio
+                  </p>
+                </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button type="button" variant="ghost" onClick={closeModal}>
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                >
-                  {editingRoom ? 'Actualizar' : 'Crear'}
-                </Button>
-              </div>
-            </form>
+                {/* Notas */}
+                <div>
+                  <Label htmlFor="notes" className="text-sm font-semibold text-gray-700">
+                    📝 Notas Adicionales
+                  </Label>
+                  <textarea
+                    id="notes"
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="Ej: Con vista al mar, televisión, WiFi..."
+                    rows={3}
+                    value={formData.notes}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notes: e.target.value })
+                    }
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Describe características especiales de la habitación
+                  </p>
+                </div>
+              </form>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeModal}
+                disabled={createMutation.isPending || updateMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                onClick={handleSubmit}
+                disabled={createMutation.isPending || updateMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {createMutation.isPending || updateMutation.isPending ? (
+                  <>
+                    <span className="inline-block animate-spin mr-2">⏳</span>
+                    Guardando...
+                  </>
+                ) : editingRoom ? (
+                  '✅ Actualizar'
+                ) : (
+                  '✅ Crear'
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}
