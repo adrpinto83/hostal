@@ -31,7 +31,7 @@ export default function GuestList() {
   const [isAvatarUploadOpen, setIsAvatarUploadOpen] = useState(false);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
   const [guestForAvatarUpload, setGuestForAvatarUpload] = useState<Guest | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'devices' | 'files'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'devices' | 'files' | 'account'>('info');
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,6 +109,13 @@ export default function GuestList() {
     queryKey: ['guest-reservations', guestToDelete?.id],
     queryFn: () => guestToDelete ? reservationsApi.getAll({ guest_id: guestToDelete.id }) : Promise.resolve([]),
     enabled: !!guestToDelete && isDeleteConfirmModalOpen,
+  });
+
+  // Query for guest account balance
+  const { data: guestAccountData } = useQuery({
+    queryKey: ['guest-account', selectedGuest?.id],
+    queryFn: () => selectedGuest ? paymentsApi.getByGuest(selectedGuest.id) : Promise.resolve(null),
+    enabled: !!selectedGuest && isDetailModalOpen,
   });
 
   const createMutation = useMutation({
@@ -319,9 +326,18 @@ export default function GuestList() {
         {guests?.map((guest) => {
           const photo = getGuestPhoto(guest.id);
           return (
-          <Card key={guest.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => openDetailModal(guest)}>
+          <Card key={guest.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={(e) => {
+            // Solo abrir detalles si no es un click en un botón interactivo
+            if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('[data-no-detail]')) {
+              return;
+            }
+            openDetailModal(guest);
+          }}>
             <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
-              <div className="relative group cursor-pointer" onClick={(e) => openAvatarUploadModal(guest, e)}>
+              <div className="relative group cursor-pointer" onClick={(e) => {
+                e.stopPropagation();
+                openAvatarUploadModal(guest, e);
+              }} data-no-detail>
                 {photo ? (
                   <img
                     src={`${photo.url}?v=${new Date(photo.uploaded_at).getTime()}`}
@@ -782,6 +798,17 @@ export default function GuestList() {
                   <FileText className="inline h-4 w-4 mr-2" />
                   Archivos
                 </button>
+                <button
+                  className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                    activeTab === 'account'
+                      ? 'border-green-600 text-green-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                  onClick={() => setActiveTab('account' as any)}
+                >
+                  <DollarSign className="inline h-4 w-4 mr-2" />
+                  Cuenta
+                </button>
               </div>
             </div>
 
@@ -971,6 +998,105 @@ export default function GuestList() {
                       queryClient.invalidateQueries({ queryKey: ['media'] });
                     }}
                   />
+                </div>
+              )}
+
+              {activeTab === 'account' && (
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-green-600" />
+                        Cuenta del Huésped
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {guestAccountData ? (
+                        <>
+                          {/* Resumen de Cuenta */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                              <p className="text-xs text-red-600 font-semibold mb-1">DEUDA PENDIENTE</p>
+                              <p className="text-2xl font-bold text-red-700">
+                                {guestAccountData.totals && (guestAccountData.total_payments - guestAccountData.completed_payments) > 0 ?
+                                  `${guestAccountData.total_payments - guestAccountData.completed_payments} pagos`
+                                  : '0 pagos'}
+                              </p>
+                            </div>
+                            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                              <p className="text-xs text-green-600 font-semibold mb-1">PAGADO</p>
+                              <p className="text-2xl font-bold text-green-700">
+                                {guestAccountData.completed_payments || 0} pagos
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Totales por moneda */}
+                          {guestAccountData.totals && (
+                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="font-semibold text-blue-900 mb-3">Montos Totales Pagados:</p>
+                              <div className="space-y-2 text-sm">
+                                {guestAccountData.totals.ves > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-blue-700">Bolívares (VES):</span>
+                                    <span className="font-semibold text-blue-900">Bs {guestAccountData.totals.ves.toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {guestAccountData.totals.usd > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-blue-700">Dólares (USD):</span>
+                                    <span className="font-semibold text-blue-900">USD ${guestAccountData.totals.usd.toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {guestAccountData.totals.eur > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-blue-700">Euros (EUR):</span>
+                                    <span className="font-semibold text-blue-900">EUR €{guestAccountData.totals.eur.toFixed(2)}</span>
+                                  </div>
+                                )}
+                                {guestAccountData.totals.ves === 0 && guestAccountData.totals.usd === 0 && guestAccountData.totals.eur === 0 && (
+                                  <p className="text-gray-500 italic">Sin pagos registrados</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Estado de pagos */}
+                          {guestAccountData.total_payments > 0 ? (
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <p className="font-semibold text-gray-900 mb-3">Historial de Pagos:</p>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-700">Total de pagos:</span>
+                                  <span className="font-semibold text-gray-900">{guestAccountData.total_payments}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-700">Completados:</span>
+                                  <span className="font-semibold text-green-700">{guestAccountData.completed_payments}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-700">Pendientes:</span>
+                                  <span className="font-semibold text-red-700">
+                                    {guestAccountData.total_payments - guestAccountData.completed_payments}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                              <p className="text-gray-600 text-sm">
+                                ✓ Sin deudas pendientes
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="p-4 text-center text-gray-500">
+                          <p>Cargando información de cuenta...</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </div>
