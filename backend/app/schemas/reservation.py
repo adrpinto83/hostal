@@ -35,10 +35,12 @@ class ReservationCreate(ReservationBase):
     )
 
 
+from app.schemas.guest import GuestOut
+from app.schemas.room import RoomOut
+
+
 class ReservationOut(BaseModel):
     id: int
-    guest_id: int
-    room_id: int
     start_date: date
     end_date: date
     periods_count: int
@@ -46,6 +48,7 @@ class ReservationOut(BaseModel):
     price_bs: float
     status: ReservationStatus
     notes: str | None = None
+    guest: GuestOut
+    room: RoomOut
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

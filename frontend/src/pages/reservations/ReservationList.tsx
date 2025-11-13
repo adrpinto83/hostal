@@ -7,35 +7,43 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Reservation, ReservationCreate, Currency } from '@/types';
+import type { Reservation, ReservationCreate, Period } from '@/types';
 import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   pending: 'Pendiente',
-  confirmed: 'Confirmada',
+  active: 'Activa',
+  checked_out: 'Check-out',
   cancelled: 'Cancelada',
-  completed: 'Completada',
 };
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500',
-  confirmed: 'bg-green-500',
+  active: 'bg-green-500',
+  checked_out: 'bg-blue-500',
   cancelled: 'bg-red-500',
-  completed: 'bg-blue-500',
+};
+
+const periodLabels: Record<Period, string> = {
+  day: 'Día(s)',
+  week: 'Semana(s)',
+  fortnight: 'Quincena(s)',
+  month: 'Mes(es)',
+};
+
+const initialFormData: ReservationCreate = {
+  guest_id: 0,
+  room_id: 0,
+  start_date: new Date().toISOString().split('T')[0],
+  period: 'day',
+  periods_count: 1,
+  notes: '',
 };
 
 export default function ReservationList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [formData, setFormData] = useState<ReservationCreate>({
-    guest_id: 0,
-    room_id: 0,
-    start_date: '',
-    end_date: '',
-    total_amount: 0,
-    currency: 'USD',
-    notes: '',
-  });
+  const [formData, setFormData] = useState<ReservationCreate>(initialFormData);
 
   const queryClient = useQueryClient();
 
@@ -46,23 +54,22 @@ export default function ReservationList() {
 
   const { data: guests } = useQuery({
     queryKey: ['guests'],
-    queryFn: guestsApi.getAll,
+    queryFn: () => guestsApi.getAll(),
   });
 
   const { data: rooms } = useQuery({
     queryKey: ['rooms'],
-    queryFn: roomsApi.getAll,
+    queryFn: () => roomsApi.getAll(),
   });
 
   const createMutation = useMutation({
     mutationFn: reservationsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
-      setIsModalOpen(false);
-      resetForm();
+      closeModal();
     },
     onError: (error) => {
-      alert(handleApiError(error));
+      handleApiError(error);
     },
   });
 
@@ -72,35 +79,26 @@ export default function ReservationList() {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
     },
     onError: (error) => {
-      alert(handleApiError(error));
+      handleApiError(error);
     },
   });
 
   const cancelMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-      reservationsApi.cancel(id, reason),
+    mutationFn: (id: number) => reservationsApi.cancel(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
     },
     onError: (error) => {
-      alert(handleApiError(error));
+      handleApiError(error);
     },
   });
 
-  const resetForm = () => {
-    setFormData({
-      guest_id: 0,
-      room_id: 0,
-      start_date: '',
-      end_date: '',
-      total_amount: 0,
-      currency: 'USD',
-      notes: '',
-    });
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.guest_id === 0 || formData.room_id === 0) {
+      alert('Por favor, seleccione un huésped y una habitación.');
+      return;
+    }
     createMutation.mutate(formData);
   };
 
@@ -111,9 +109,8 @@ export default function ReservationList() {
   };
 
   const handleCancel = (id: number) => {
-    const reason = prompt('Motivo de cancelación (opcional):');
-    if (reason !== null) {
-      cancelMutation.mutate({ id, reason });
+    if (confirm('¿Cancelar esta reserva?')) {
+      cancelMutation.mutate(id);
     }
   };
 
@@ -122,12 +119,13 @@ export default function ReservationList() {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: 'UTC', // Important for correct date display
     });
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-    resetForm();
+    setFormData(initialFormData);
   };
 
   if (isLoading) {
@@ -146,7 +144,7 @@ export default function ReservationList() {
 
       <div className="flex gap-4">
         <Input
-          placeholder="Buscar reservas..."
+          placeholder="Buscar en notas de reservas..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-sm"
@@ -161,10 +159,10 @@ export default function ReservationList() {
                 <Calendar className="h-6 w-6 text-blue-500" />
                 <div>
                   <CardTitle className="text-lg font-bold">
-                    {reservation.guest_name || `Huésped #${reservation.guest_id}`}
+                    {reservation.guest.full_name}
                   </CardTitle>
                   <p className="text-sm text-gray-500">
-                    Habitación {reservation.room_number || reservation.room_id}
+                    Habitación {reservation.room.number}
                   </p>
                 </div>
               </div>
@@ -194,7 +192,7 @@ export default function ReservationList() {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-2 pt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm text-gray-500">Check-in: </span>
@@ -205,14 +203,12 @@ export default function ReservationList() {
                   <span className="font-medium">{formatDate(reservation.end_date)}</span>
                 </div>
               </div>
-              {reservation.total_amount && (
-                <div>
-                  <span className="text-sm text-gray-500">Monto: </span>
-                  <span className="font-bold text-lg">
-                    {reservation.total_amount} {reservation.currency}
-                  </span>
-                </div>
-              )}
+              <div>
+                <span className="text-sm text-gray-500">Monto: </span>
+                <span className="font-bold text-lg">
+                  {reservation.price_bs.toFixed(2)} Bs.
+                </span>
+              </div>
               {reservation.notes && (
                 <p className="text-sm text-gray-600">
                   <span className="font-semibold">Notas:</span> {reservation.notes}
@@ -245,7 +241,7 @@ export default function ReservationList() {
                   }
                   required
                 >
-                  <option value={0}>Seleccionar huésped</option>
+                  <option value={0} disabled>Seleccionar huésped</option>
                   {guests?.map((guest) => (
                     <option key={guest.id} value={guest.id}>
                       {guest.full_name} ({guest.document_id})
@@ -265,10 +261,10 @@ export default function ReservationList() {
                   }
                   required
                 >
-                  <option value={0}>Seleccionar habitación</option>
-                  {rooms?.filter(r => r.status === 'available').map((room) => (
+                  <option value={0} disabled>Seleccionar habitación</option>
+                  {rooms?.map((room) => (
                     <option key={room.id} value={room.id}>
-                      Habitación {room.number} ({room.type})
+                      Habitación {room.number} ({room.type}) - {room.status}
                     </option>
                   ))}
                 </select>
@@ -278,7 +274,7 @@ export default function ReservationList() {
                 <Label htmlFor="start_date">Fecha de inicio</Label>
                 <Input
                   id="start_date"
-                  type="datetime-local"
+                  type="date"
                   value={formData.start_date}
                   onChange={(e) =>
                     setFormData({ ...formData, start_date: e.target.value })
@@ -287,51 +283,40 @@ export default function ReservationList() {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="end_date">Fecha de fin</Label>
-                <Input
-                  id="end_date"
-                  type="datetime-local"
-                  value={formData.end_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, end_date: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="total_amount">Monto</Label>
+                  <Label htmlFor="periods_count">Cantidad</Label>
                   <Input
-                    id="total_amount"
+                    id="periods_count"
                     type="number"
-                    step="0.01"
-                    value={formData.total_amount}
+                    min="1"
+                    value={formData.periods_count}
                     onChange={(e) =>
-                      setFormData({ ...formData, total_amount: parseFloat(e.target.value) })
+                      setFormData({ ...formData, periods_count: parseInt(e.target.value) })
                     }
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="currency">Moneda</Label>
+                  <Label htmlFor="period">Período</Label>
                   <select
-                    id="currency"
+                    id="period"
                     className="w-full px-3 py-2 border rounded-md"
-                    value={formData.currency}
+                    value={formData.period}
                     onChange={(e) =>
-                      setFormData({ ...formData, currency: e.target.value as Currency })
+                      setFormData({ ...formData, period: e.target.value as Period })
                     }
+                    required
                   >
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="VES">VES</option>
+                    {Object.entries(periodLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="notes">Notas</Label>
+                <Label htmlFor="notes">Notas (Opcional)</Label>
                 <textarea
                   id="notes"
                   className="w-full px-3 py-2 border rounded-md"
@@ -343,12 +328,12 @@ export default function ReservationList() {
                 />
               </div>
 
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end pt-4">
                 <Button type="button" variant="ghost" onClick={closeModal}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending}>
-                  Crear Reserva
+                  {createMutation.isPending ? 'Creando...' : 'Crear Reserva'}
                 </Button>
               </div>
             </form>

@@ -6,12 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette_prometheus import PrometheusMiddleware, metrics
 
 from app.core.config import settings
 from app.core.limiter import limiter  # <--- Importar desde el nuevo archivo
 from app.core.logging import setup_logging
 from app.core.middleware import LoggingMiddleware
+from app.core.db import ensure_minimum_schema, SessionLocal
+from app.core.audit import set_audit_db_session
 from app.routers import reservations
 from app.routers.api import api_router
 
@@ -23,7 +26,8 @@ app = FastAPI(
 )
 
 # Configurar directorio de uploads para servir archivos estáticos
-UPLOAD_DIR = Path("uploads")
+# Usar ruta absoluta basada en la ubicación del proyecto
+UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
@@ -50,16 +54,22 @@ async def startup_event():
         if "*" in settings.get_cors_origins():
             log.warning("WARNING: CORS allows all origins in production - security risk!")
 
+    # Inicializar sesión de auditoría
+    db = SessionLocal()
+    set_audit_db_session(db)
+    log.info("Audit database session initialized")
+
     log.info("Hostal API started successfully")
 
 
 # Registrar routers y configurar logging después de crear la app
-app.include_router(reservations.router, prefix="/api/v1")
 setup_logging()
+ensure_minimum_schema()
 
 # Asigna el limitador al estado de la app y añade el manejador de excepciones
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Middlewares
 app.add_middleware(LoggingMiddleware)

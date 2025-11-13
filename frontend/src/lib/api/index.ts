@@ -168,14 +168,14 @@ export const maintenanceApi = {
 export const dashboardApi = {
   getStats: async (): Promise<DashboardStats> => {
     const [roomsStats, occupancyStats, maintenanceStats, staffStats] = await Promise.all([
-      api.get('/rooms/stats/summary'),
+      roomsApi.getStats(),
       occupancyApi.getStats(),
       maintenanceApi.getStats(),
       staffApi.getStats(),
     ]);
 
     return {
-      rooms: roomsStats.data,
+      rooms: roomsStats,
       occupancy: occupancyStats,
       maintenance: maintenanceStats,
       staff: staffStats,
@@ -245,7 +245,9 @@ export const devicesApi = {
     await api.delete(`/guests/${guestId}/devices/${deviceId}`);
   },
   suspend: async (deviceId: number, reason?: string) => {
-    await api.post(`/internet-control/devices/${deviceId}/suspend`, { reason });
+    await api.post(`/internet-control/devices/${deviceId}/suspend`, null, {
+      params: reason ? { reason } : {},
+    });
   },
   resume: async (deviceId: number) => {
     await api.post(`/internet-control/devices/${deviceId}/resume`);
@@ -380,8 +382,28 @@ export const usersApi = {
     const response = await api.get<User[]>('/users/');
     return response.data;
   },
+  getById: async (id: number) => {
+    const response = await api.get<User>(`/users/${id}`);
+    return response.data;
+  },
+  update: async (id: number, data: UserUpdate) => {
+    const response = await api.patch<User>(`/users/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/users/${id}`);
+    return response.data;
+  },
   bootstrap: async (data: UserCreate) => {
     const response = await api.post<User>('/users/bootstrap', data);
+    return response.data;
+  },
+  assignStaff: async (userId: number, staffId: number) => {
+    const response = await api.post(`/users/${userId}/assign-staff`, { staff_id: staffId });
+    return response.data;
+  },
+  unassignStaff: async (userId: number) => {
+    const response = await api.post(`/users/${userId}/unassign-staff`);
     return response.data;
   },
 };

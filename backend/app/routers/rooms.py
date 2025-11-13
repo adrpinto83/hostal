@@ -112,3 +112,34 @@ def delete_room(room_id: int, db: Session = Depends(get_db)):
     db.delete(room)
     db.commit()
     return None
+
+
+@router.get(
+    "/stats/summary",
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Obtener estadísticas de las habitaciones",
+)
+def get_room_stats(db: Session = Depends(get_db)):
+    """
+    Obtiene estadísticas sobre el estado de las habitaciones.
+    """
+    from sqlalchemy import func
+
+    stats = (
+        db.query(Room.status, func.count(Room.id).label("count"))
+        .group_by(Room.status)
+        .all()
+    )
+    total = db.query(func.count(Room.id)).scalar()
+
+    # Convert stats to a dictionary for easier access
+    stats_dict = {str(status.value): count for status, count in stats}
+
+    return {
+        "total": total,
+        "available": stats_dict.get("available", 0),
+        "occupied": stats_dict.get("occupied", 0),
+        "cleaning": stats_dict.get("cleaning", 0),
+        "maintenance": stats_dict.get("maintenance", 0),
+        "out_of_service": stats_dict.get("out_of_service", 0),
+    }

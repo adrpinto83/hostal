@@ -10,6 +10,7 @@ import { handleApiError } from '@/lib/api/client';
 import type { Room, RoomCreate, RoomUpdate } from '@/types';
 import { Plus, Edit, Trash2, X, Image as ImageIcon } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
+import { ImageCarousel } from '@/components/ui/image-carousel';
 
 const roomTypeLabels = {
   single: 'Individual',
@@ -133,8 +134,8 @@ export default function RoomList() {
     resetForm();
   };
 
-  const getRoomPhoto = (roomId: number) => {
-    return roomPhotos?.find((photo) => photo.room_id === roomId);
+  const getRoomPhotos = (roomId: number) => {
+    return roomPhotos?.filter((photo) => photo.room_id === roomId) || [];
   };
 
   const openPhotoModal = (room: Room) => {
@@ -157,58 +158,76 @@ export default function RoomList() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {rooms?.map((room) => (
-          <Card key={room.id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xl font-bold">
-                Habitación {room.number}
-              </CardTitle>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openPhotoModal(room)}
-                  title="Gestionar fotos"
-                >
-                  <ImageIcon className="h-4 w-4 text-blue-600" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleEdit(room)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(room.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <span className="text-sm text-gray-500">Tipo: </span>
-                <Badge variant="outline">
-                  {roomTypeLabels[room.type || 'single']}
-                </Badge>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500">Estado: </span>
-                <Badge className={statusColors[room.status]}>
-                  {statusLabels[room.status]}
-                </Badge>
-              </div>
-              {room.notes && (
-                <p className="text-sm text-gray-600">
-                  <span className="font-semibold">Notas:</span> {room.notes}
-                </p>
+        {rooms?.map((room) => {
+          const photos = getRoomPhotos(room.id);
+          return (
+            <Card key={room.id} className="overflow-hidden">
+              {photos.length > 0 && (
+                <div className="relative h-48 bg-gray-100">
+                  <img
+                    src={photos[0].url}
+                    alt={`Habitación ${room.number}`}
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => openPhotoModal(room)}
+                  />
+                  {photos.length > 1 && (
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-white px-2 py-1 rounded text-xs">
+                      +{photos.length - 1} fotos
+                    </div>
+                  )}
+                </div>
               )}
-            </CardContent>
-          </Card>
-        ))}
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xl font-bold">
+                  Habitación {room.number}
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openPhotoModal(room)}
+                    title="Gestionar fotos"
+                  >
+                    <ImageIcon className="h-4 w-4 text-blue-600" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(room)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(room.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div>
+                  <span className="text-sm text-gray-500">Tipo: </span>
+                  <Badge variant="outline">
+                    {roomTypeLabels[room.type || 'single']}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500">Estado: </span>
+                  <Badge className={statusColors[room.status]}>
+                    {statusLabels[room.status]}
+                  </Badge>
+                </div>
+                {room.notes && (
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">Notas:</span> {room.notes}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {isModalOpen && (
@@ -286,8 +305,8 @@ export default function RoomList() {
 
       {/* Modal de Fotos */}
       {isPhotoModalOpen && selectedRoom && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold">
                 Fotos de Habitación {selectedRoom.number}
@@ -297,16 +316,30 @@ export default function RoomList() {
               </Button>
             </div>
 
-            <FileUpload
-              category="room_photo"
-              roomId={selectedRoom.id}
-              title={`Fotos de habitación ${selectedRoom.number}`}
-              maxSizeMB={5}
-              accept="image/*"
-              onUploadSuccess={() => {
-                queryClient.invalidateQueries({ queryKey: ['room-photos'] });
-              }}
-            />
+            <div className="space-y-6">
+              {/* Carrusel de imágenes */}
+              {(() => {
+                const photos = getRoomPhotos(selectedRoom.id);
+                return photos.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold mb-4">Galería de Fotos</h3>
+                    <ImageCarousel images={photos} />
+                  </div>
+                );
+              })()}
+
+              {/* Upload Section */}
+              <FileUpload
+                category="room_photo"
+                roomId={selectedRoom.id}
+                title={`Fotos de habitación ${selectedRoom.number}`}
+                maxSizeMB={5}
+                accept="image/*"
+                onUploadSuccess={() => {
+                  queryClient.invalidateQueries({ queryKey: ['room-photos'] });
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

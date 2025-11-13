@@ -14,16 +14,39 @@ router = APIRouter(prefix="/exchange-rates", tags=["Exchange Rates"])
 @router.post(
     "/update",
     dependencies=[Depends(require_roles("admin"))],
-    summary="Actualizar tasas desde API externa",
+    summary="Actualizar tasas desde dolarapi.com",
 )
-def update_exchange_rates(db: Session = Depends(get_db)):
-    """Actualiza las tasas de cambio desde una API externa."""
-    success = CurrencyService.update_rates_from_api(db, base_currency="USD")
+def update_exchange_rates(use_dolarapi: bool = True, db: Session = Depends(get_db)):
+    """
+    Actualiza las tasas de cambio desde API externa.
+
+    - Si use_dolarapi=True (default): usa dolarapi.com (especializado para Venezuela)
+    - Si use_dolarapi=False: usa exchangerate-api.com
+    """
+    success = CurrencyService.update_rates_from_api(db, use_dolarapi=use_dolarapi)
 
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to fetch exchange rates from API")
+        api_name = "dolarapi.com" if use_dolarapi else "exchangerate-api.com"
+        raise HTTPException(status_code=500, detail=f"Failed to fetch exchange rates from {api_name}")
 
-    return {"message": "Exchange rates updated successfully", "timestamp": "now"}
+    return {
+        "message": "Exchange rates updated successfully",
+        "source": "dolarapi.com" if use_dolarapi else "exchangerate-api.com",
+        "rates": CurrencyService.get_current_rates(db),
+    }
+
+
+@router.get(
+    "/current",
+    summary="Obtener tasas de cambio actuales (simple)",
+)
+def get_current_rates(db: Session = Depends(get_db)):
+    """
+    Obtiene las tasas de cambio actuales en formato simple.
+    Retorna el precio del USD y EUR en Bolívares.
+    """
+    rates = CurrencyService.get_current_rates(db)
+    return rates
 
 
 @router.get(

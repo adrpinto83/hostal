@@ -13,7 +13,8 @@ from fastapi import HTTPException, UploadFile
 from PIL import Image
 
 # Configuración
-UPLOAD_DIR = Path("uploads")
+# Usar ruta absoluta basada en la ubicación del proyecto
+UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB

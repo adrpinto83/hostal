@@ -45,6 +45,7 @@ class StaffUpdate(BaseModel):
 
 class StaffResponse(StaffBase):
     id: int
+    user_id: int | None = None
     created_at: str
     updated_at: str
 
@@ -94,6 +95,7 @@ def create_staff(
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
@@ -147,6 +149,7 @@ def list_staff(
             hire_date=s.hire_date,
             salary=s.salary,
             notes=s.notes,
+            user_id=s.user_id,
             created_at=s.created_at.isoformat(),
             updated_at=s.updated_at.isoformat(),
         )
@@ -177,6 +180,7 @@ def get_staff(staff_id: int, db: Session = Depends(get_db)):
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
@@ -222,6 +226,7 @@ def update_staff(
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
@@ -345,6 +350,7 @@ def change_staff_status(
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )

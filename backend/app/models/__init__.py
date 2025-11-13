@@ -4,6 +4,7 @@ Modelos de base de datos del sistema Hostal.
 """
 
 # Modelos principales
+from .audit_log import AuditLog
 from .device import Device
 from .exchange_rate import ExchangeRate
 from .guest import Guest
@@ -19,6 +20,8 @@ from .staff import Staff, StaffRole, StaffStatus
 from .user import User
 
 __all__ = [
+    # Audit and logging
+    "AuditLog",
     # Core models
     "User",
     "Guest",

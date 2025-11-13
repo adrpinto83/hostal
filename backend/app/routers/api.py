@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 
 from . import (
+    audit,
     auth,
     devices,
     exchange_rates,
@@ -24,6 +25,7 @@ api_router = APIRouter(prefix="/api/v1")
 # Incluir todos los routers individuales bajo el prefijo /api/v1
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
+api_router.include_router(audit.router)  # Auditoría - Solo admin
 api_router.include_router(users.router)
 api_router.include_router(guests.router)
 api_router.include_router(rooms.router)

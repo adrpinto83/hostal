@@ -515,30 +515,11 @@ def get_maintenance_stats(db: Session = Depends(get_db)):
         .scalar()
     )
 
-    # Costos
-    total_estimated = (
-        db.query(func.sum(Maintenance.estimated_cost))
-        .filter(Maintenance.estimated_cost.isnot(None))
-        .scalar()
-        or 0
-    )
-
-    total_actual = (
-        db.query(func.sum(Maintenance.actual_cost))
-        .filter(Maintenance.actual_cost.isnot(None))
-        .scalar()
-        or 0
-    )
-
     return {
         "total": total,
         "pending": pending,
         "by_status": {str(status.value): count for status, count in by_status},
         "by_priority": {str(priority.value): count for priority, count in by_priority},
-        "costs": {
-            "total_estimated": round(total_estimated, 2),
-            "total_actual": round(total_actual, 2),
-        },
     }
 
 

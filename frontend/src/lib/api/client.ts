@@ -21,8 +21,16 @@ api.interceptors.request.use(
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Handle 202 Accepted as successful response (for pending approval)
+    if (response.status === 202) {
+      return response;
+    }
+    return response;
+  },
   (error: AxiosError) => {
+    // Don't redirect for 202 (Accepted) or 403 (Forbidden) in auth endpoints
+    // These are intentional responses that should be handled by the caller
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token');
       window.location.href = '/login';

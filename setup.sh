@@ -83,7 +83,8 @@ if not existing:
     admin = User(
         email="admin@hostal.com",
         hashed_password=get_password_hash("admin123"),
-        role="admin"
+        role="admin",
+        approved=True,
     )
     db.add(admin)
     db.commit()

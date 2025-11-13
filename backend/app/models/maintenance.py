@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
@@ -14,15 +14,15 @@ from ..core.db import Base
 
 class MaintenanceType(str, Enum):
     """Tipos de mantenimiento."""
-    cleaning = "cleaning"  # Limpieza regular
-    deep_cleaning = "deep_cleaning"  # Limpieza profunda
-    plumbing = "plumbing"  # Plomería
-    electrical = "electrical"  # Eléctrico
-    carpentry = "carpentry"  # Carpintería
-    painting = "painting"  # Pintura
-    air_conditioning = "air_conditioning"  # Aire acondicionado
-    furniture = "furniture"  # Muebles
-    other = "other"  # Otro
+    plomeria = "plomeria"  # Plomería
+    electricidad = "electricidad"  # Eléctrico
+    pintura = "pintura"  # Pintura
+    limpieza_profunda = "limpieza_profunda"  # Limpieza profunda
+    reparacion_muebles = "reparacion_muebles"  # Reparación de muebles
+    aire_acondicionado = "aire_acondicionado"  # Aire acondicionado
+    cerrajeria = "cerrajeria"  # Cerrajería
+    electrodomesticos = "electrodomesticos"  # Electrodomésticos
+    otro = "otro"  # Otro
 
 
 class MaintenanceStatus(str, Enum):
@@ -38,7 +38,7 @@ class MaintenancePriority(str, Enum):
     low = "low"  # Baja
     medium = "medium"  # Media
     high = "high"  # Alta
-    urgent = "urgent"  # Urgente
+    critical = "critical"  # Crítico
 
 
 class Maintenance(Base):
@@ -49,7 +49,7 @@ class Maintenance(Base):
 
     # Relaciones
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False, index=True)
-    staff_id = Column(Integer, ForeignKey("staff.id"), nullable=True, index=True)  # Quién lo realiza
+    assigned_to = Column(Integer, ForeignKey("staff.id"), nullable=True)  # Staff asignado
 
     # Información del mantenimiento
     type = Column(
@@ -69,19 +69,23 @@ class Maintenance(Base):
         server_default="medium"
     )
 
-    # Fechas
-    reported_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True, index=True)
-
-    # Descripción y notas
-    description = Column(Text, nullable=False)  # Descripción del problema/tarea
+    # Información de la tarea
+    title = Column(String(200), nullable=False)  # Título del mantenimiento
+    description = Column(Text, nullable=True)  # Descripción del problema/tarea
     notes = Column(Text, nullable=True)  # Notas adicionales o resultado
-    reported_by = Column(String(255), nullable=True)  # Quién reportó (puede ser un huésped)
+
+    # Fechas
+    reported_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Costos
+    estimated_cost = Column(Float, nullable=True)  # Costo estimado
+    actual_cost = Column(Float, nullable=True)  # Costo real
 
     # Relaciones
     room = relationship("Room", back_populates="maintenances")
-    staff = relationship("Staff", back_populates="maintenances")
+    staff = relationship("Staff", foreign_keys=[assigned_to], backref="maintenances")
 
     @property
     def duration_hours(self) -> float | None:

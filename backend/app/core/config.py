@@ -28,6 +28,18 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed origins",
     )
 
+    # --- Google OAuth Settings ---
+    GOOGLE_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        alias="GOOGLE_CLIENT_ID",
+        description="Google OAuth Client ID"
+    )
+    GOOGLE_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        alias="GOOGLE_CLIENT_SECRET",
+        description="Google OAuth Client Secret"
+    )
+
     # --- DB Settings ---
     DATABASE_URL: Optional[str] = Field(default=None)
     POSTGRES_USER: Optional[str] = None

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/layout/Layout';
 import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 import Dashboard from './pages/dashboard/Dashboard';
 import StaffList from './pages/staff/StaffList';
 import OccupancyList from './pages/occupancy/OccupancyList';
@@ -15,6 +16,9 @@ import DeviceList from './pages/devices/DeviceList';
 import ReservationList from './pages/reservations/ReservationList';
 import UserList from './pages/users/UserList';
 import ExchangeRates from './pages/exchange/ExchangeRates';
+import UserApprovals from './pages/admin/UserApprovals';
+import AuditLogs from './pages/admin/AuditLogs';
+import LogAnalytics from './pages/admin/LogAnalytics';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +35,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
@@ -46,6 +51,9 @@ function App() {
             <Route path="devices" element={<DeviceList />} />
             <Route path="users" element={<UserList />} />
             <Route path="exchange-rates" element={<ExchangeRates />} />
+            <Route path="admin/user-approvals" element={<UserApprovals />} />
+            <Route path="admin/audit-logs" element={<AuditLogs />} />
+            <Route path="admin/log-analytics" element={<LogAnalytics />} />
           </Route>
         </Routes>
       </BrowserRouter>
