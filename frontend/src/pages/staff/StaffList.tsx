@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,12 @@ import { handleApiError } from '@/lib/api/client';
 import type { Staff, StaffCreate, StaffUpdate } from '@/types';
 import { Plus, Edit, Trash2, X, UserCheck, CheckCircle2, Circle, Camera } from 'lucide-react';
 import { CameraCapture } from '@/components/ui/camera-capture';
+
+interface ExchangeRates {
+  USD: number;
+  EUR: number;
+  timestamp: string;
+}
 
 const staffRoleLabels = {
   recepcionista: 'Recepcionista',
@@ -37,6 +43,7 @@ export default function StaffList() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [staffForAvatarUpload, setStaffForAvatarUpload] = useState<Staff | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [formData, setFormData] = useState<StaffCreate>({
     full_name: '',
     document_id: '',
@@ -50,6 +57,23 @@ export default function StaffList() {
   });
 
   const queryClient = useQueryClient();
+
+  // Fetch exchange rates on mount
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (response.ok) {
+          const data = await response.json();
+          setExchangeRates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchExchangeRates();
+  }, []);
 
   const { data: staff, isLoading } = useQuery({
     queryKey: ['staff'],
@@ -279,7 +303,18 @@ export default function StaffList() {
                 <p><strong>Documento:</strong> {member.document_id}</p>
                 {member.phone && <p><strong>Teléfono:</strong> {member.phone}</p>}
                 {member.email && <p><strong>Email:</strong> {member.email}</p>}
-                {member.salary && <p><strong>Salario:</strong> ${member.salary}</p>}
+                {member.salary && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded">
+                    <p className="font-semibold text-blue-900 mb-1">Salario:</p>
+                    <p className="text-blue-800">💵 Bs {member.salary.toFixed(2)}</p>
+                    {exchangeRates && exchangeRates.USD > 0 && (
+                      <p className="text-blue-800">💲 USD ${(member.salary / exchangeRates.USD).toFixed(2)}</p>
+                    )}
+                    {exchangeRates && exchangeRates.EUR > 0 && (
+                      <p className="text-blue-800">€ EUR €{(member.salary / exchangeRates.EUR).toFixed(2)}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
