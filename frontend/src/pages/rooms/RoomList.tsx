@@ -177,6 +177,8 @@ export default function RoomList() {
   const openPhotoModal = (room: Room) => {
     setSelectedRoom(room);
     setIsPhotoModalOpen(true);
+    // Refrescar fotos cuando se abre el modal
+    queryClient.refetchQueries({ queryKey: ['room-photos'] });
   };
 
   if (isLoading) {
@@ -437,7 +439,15 @@ export default function RoomList() {
               <h2 className="text-2xl font-bold">
                 Fotos de Habitación {selectedRoom.number}
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => setIsPhotoModalOpen(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsPhotoModalOpen(false);
+                  // Refrescar las fotos cuando se cierra el modal
+                  queryClient.refetchQueries({ queryKey: ['room-photos'] });
+                }}
+              >
                 <X className="h-6 w-6" />
               </Button>
             </div>
@@ -461,8 +471,13 @@ export default function RoomList() {
                 title={`Fotos de habitación ${selectedRoom.number}`}
                 maxSizeMB={5}
                 accept="image/*"
-                onUploadSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ['room-photos'] });
+                onUploadSuccess={async () => {
+                  // Refresh fotos inmediatamente
+                  await queryClient.invalidateQueries({ queryKey: ['room-photos'] });
+                  // Hacer un refetch explícito para asegurar que se actualicen
+                  setTimeout(() => {
+                    queryClient.refetchQueries({ queryKey: ['room-photos'] });
+                  }, 500);
                 }}
               />
             </div>
