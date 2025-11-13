@@ -31,6 +31,12 @@ api.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    // Log 401 errors for debugging
+    if (error.response?.status === 401) {
+      console.error('401 Unauthorized - URL:', error.config?.url);
+      console.error('401 Response data:', error.response.data);
+    }
+
     // Don't redirect for 202 (Accepted) or 403 (Forbidden) in auth endpoints
     // These are intentional responses that should be handled by the caller
     if (error.response?.status === 401 && !isRedirecting) {
