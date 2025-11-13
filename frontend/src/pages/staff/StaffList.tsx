@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { staffApi, mediaApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Staff, StaffCreate, StaffUpdate } from '@/types';
+import type { Staff, StaffCreate, StaffUpdate, Media } from '@/types';
 import { Plus, Edit, Trash2, X, UserCheck, CheckCircle2, Circle, Camera } from 'lucide-react';
-import { CameraCapture } from '@/components/ui/camera-capture';
+import { FileUpload } from '@/components/ui/file-upload';
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 
 interface ExchangeRates {
   USD: number;
@@ -43,6 +44,7 @@ export default function StaffList() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [staffForAvatarUpload, setStaffForAvatarUpload] = useState<Staff | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [formData, setFormData] = useState<StaffCreate>({
     full_name: '',
@@ -85,6 +87,18 @@ export default function StaffList() {
     queryKey: ['staff-photos'],
     queryFn: () => mediaApi.getAll({ category: 'staff_photo' }),
   });
+  const staffPhotoMap = useMemo<Record<number, Media>>(() => {
+    if (!staffPhotos) return {};
+    const map: Record<number, Media> = {};
+    for (const photo of staffPhotos) {
+      if (typeof photo.staff_id !== 'number') continue;
+      const current = map[photo.staff_id];
+      if (!current || (photo.is_primary && !current.is_primary)) {
+        map[photo.staff_id] = photo;
+      }
+    }
+    return map;
+  }, [staffPhotos]);
 
   const createMutation = useMutation({
     mutationFn: staffApi.create,
@@ -191,9 +205,7 @@ export default function StaffList() {
     setIsAvatarUploadOpen(true);
   };
 
-  const getStaffPhoto = (staffId: number) => {
-    return staffPhotos?.find((photo) => photo.staff_id === staffId);
-  };
+  const getStaffPhoto = (staffId: number) => staffPhotoMap[staffId];
 
   const submitStatusChange = (newStatus: 'active' | 'inactive' | 'on_leave') => {
     if (selectedStaff) {
@@ -219,14 +231,18 @@ export default function StaffList() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Personal del Hostal</h1>
-        <Button onClick={openCreateModal}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo Empleado
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <Button onClick={openCreateModal}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Empleado
+          </Button>
+        </div>
       </div>
 
+      {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {staff?.map((member) => {
           const photo = getStaffPhoto(member.id);
@@ -321,6 +337,78 @@ export default function StaffList() {
           );
         })}
       </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Empleado</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Rol</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Contacto</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {staff?.map((member) => {
+                const photo = getStaffPhoto(member.id);
+                return (
+                  <tr key={member.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={(e) => openAvatarUploadModal(member, e)}>
+                          {photo ? (
+                            <img
+                              src={`${photo.url}?thumb=1`}
+                              alt={member.full_name}
+                              className="h-10 w-10 rounded-full object-cover border"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold">
+                              {member.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                            </div>
+                          )}
+                        </button>
+                        <div>
+                          <p className="font-semibold text-gray-900">{member.full_name}</p>
+                          <p className="text-xs text-gray-500">{member.document_id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary">
+                        {staffRoleLabels[member.role as keyof typeof staffRoleLabels] || member.role}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={statusColors[member.status as keyof typeof statusColors]}>
+                        {staffStatusLabels[member.status as keyof typeof staffStatusLabels]}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <p>{member.phone || 'Sin teléfono'}</p>
+                      <p className="text-xs text-gray-500">{member.email || 'Sin email'}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => handleChangeStatus(member)} title="Estado">
+                          <UserCheck className="h-4 w-4 text-blue-600" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(member)} title="Editar">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(member.id)} title="Eliminar">
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal de Crear/Editar */}
       {isModalOpen && (
@@ -515,13 +603,31 @@ export default function StaffList() {
             </div>
 
             <p className="text-sm text-gray-600 mb-4">
-              Captura una foto de rostro para <strong>{staffForAvatarUpload.full_name}</strong>
+              Sube una nueva foto para <strong>{staffForAvatarUpload.full_name}</strong>. Puedes marcarla como
+              principal para que se vea en la tarjeta.
             </p>
 
-            <CameraCapture
+            {getStaffPhoto(staffForAvatarUpload.id) ? (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-2">Foto actual</p>
+                <img
+                  src={getStaffPhoto(staffForAvatarUpload.id)?.url}
+                  alt={`Avatar de ${staffForAvatarUpload.full_name}`}
+                  className="h-40 w-full rounded-lg object-cover border"
+                />
+              </div>
+            ) : (
+              <div className="mb-4 rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500">
+                Aún no hay foto guardada para este miembro del personal.
+              </div>
+            )}
+
+            <FileUpload
               category="staff_photo"
               staffId={staffForAvatarUpload.id}
               title="Foto de Rostro"
+              maxSizeMB={5}
+              accept="image/*"
               onUploadSuccess={() => {
                 setIsAvatarUploadOpen(false);
                 setStaffForAvatarUpload(null);

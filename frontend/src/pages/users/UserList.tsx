@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { usersApi, staffApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { User, UserCreate, UserUpdate, Staff } from '@/types';
-import { Plus, X, UserCircle, Shield, Edit, Trash2, AlertCircle, Users, Link2, Unlink2 } from 'lucide-react';
+import { Plus, X, UserCircle, Shield, Edit, Trash2, AlertCircle, Users, Link2, Unlink2, CheckCircle } from 'lucide-react';
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 
 const roleLabels = {
   admin: 'Administrador',
@@ -50,6 +51,7 @@ export default function UserList() {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const queryClient = useQueryClient();
 
@@ -222,12 +224,15 @@ export default function UserList() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Gestión de Usuarios del Sistema</h1>
-        <Button onClick={openCreateModal}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo Usuario
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <Button onClick={openCreateModal}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Usuario
+          </Button>
+        </div>
       </div>
 
       {error && <ErrorAlert message={error} />}
@@ -238,6 +243,7 @@ export default function UserList() {
         </div>
       )}
 
+      {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {users?.map((user) => (
           <Card key={user.id} className="relative">
@@ -339,6 +345,100 @@ export default function UserList() {
           </Card>
         ))}
       </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Usuario</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Rol</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Empleado</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {users?.map((user) => {
+                const assigned = getAssignedStaff(user.id);
+                return (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900">{user.email}</p>
+                      {user.full_name && <p className="text-xs text-gray-500">{user.full_name}</p>}
+                      <p className="text-xs text-gray-400">ID: {user.id}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={roleColors[user.role as keyof typeof roleColors]}>
+                        {roleLabels[user.role as keyof typeof roleLabels] || user.role}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {assigned ? (
+                        <div>
+                          <p className="font-medium">{assigned.full_name}</p>
+                          <p className="text-xs text-gray-500">{assigned.role}</p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Sin empleado asignado</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {user.approved ? (
+                        <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Aprobado
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+                          Pendiente
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEditModal(user)} title="Editar">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500"
+                          onClick={() => handleDelete(user)}
+                          disabled={deleteMutation.isPending}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openStaffModal(user)}
+                          disabled={assignStaffMutation.isPending}
+                          title="Asignar empleado"
+                        >
+                          <Link2 className="h-4 w-4" />
+                        </Button>
+                        {assigned && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-500"
+                            onClick={() => unassignStaffMutation.mutate(user.id)}
+                            disabled={unassignStaffMutation.isPending}
+                            title="Desasignar"
+                          >
+                            <Unlink2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {users && users.length === 0 && (
         <Card>

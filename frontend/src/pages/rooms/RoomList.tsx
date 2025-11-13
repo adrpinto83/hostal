@@ -11,6 +11,7 @@ import type { Room, RoomUpdate, Media } from '@/types';
 import { Plus, Edit, Trash2, X, Image as ImageIcon } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 
 interface ExchangeRates {
   USD: number;
@@ -53,6 +54,7 @@ export default function RoomList() {
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [formData, setFormData] = useState<FormData>({
     number: '',
@@ -191,14 +193,18 @@ export default function RoomList() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Habitaciones</h1>
-        <Button onClick={openCreateModal}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva Habitación
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <Button onClick={openCreateModal}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva Habitación
+          </Button>
+        </div>
       </div>
 
+      {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {rooms?.map((room) => {
           const photos = getRoomPhotos(room.id);
@@ -343,6 +349,78 @@ export default function RoomList() {
           );
         })}
       </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Habitación</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Tipo</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Precio</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rooms?.map((room) => {
+                const photos = getRoomPhotos(room.id);
+                const primaryPhoto = photos[0];
+                return (
+                  <tr key={room.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {primaryPhoto ? (
+                          <img
+                            src={`${primaryPhoto.url}?thumb=1`}
+                            alt={`Habitación ${room.number}`}
+                            className="h-12 w-16 rounded-md object-cover border"
+                          />
+                        ) : (
+                          <div className="h-12 w-16 rounded-md bg-gray-100 flex items-center justify-center text-gray-400 text-sm">
+                            Sin foto
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-semibold text-gray-900">#{room.number}</p>
+                          <p className="text-xs text-gray-500">{photos.length} foto{photos.length === 1 ? '' : 's'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="secondary">{roomTypeLabels[room.type || 'single']}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={statusColors[room.status]}>
+                        {statusLabels[room.status]}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {room.price_bs ? `Bs ${room.price_bs.toFixed(2)}` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 max-w-sm">
+                      {room.notes ? <span className="line-clamp-2">{room.notes}</span> : <span className="text-gray-400">Sin notas</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openPhotoModal(room)} title="Gestionar fotos">
+                          <ImageIcon className="h-4 w-4 text-blue-600" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(room)} title="Editar">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(room.id)} title="Eliminar">
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

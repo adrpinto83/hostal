@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Maximize2, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Maximize2, Download, Star } from 'lucide-react';
 import { Button } from './button';
 import type { Media } from '@/types';
 
@@ -48,6 +48,16 @@ export function ImageCarousel({ images, onClose }: ImageCarouselProps) {
         alt={currentImage.filename}
         className={`w-full h-full ${isFullscreen ? 'object-contain' : 'object-cover'} transition-transform duration-300`}
       />
+      {currentImage.is_primary && (
+        <div
+          className={`absolute top-4 left-4 z-20 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold shadow ${
+            isFullscreen ? 'bg-black/70 text-white' : 'bg-white/90 text-amber-700'
+          }`}
+        >
+          <Star className="h-3 w-3 fill-current" fill="currentColor" />
+          Foto principal
+        </div>
+      )}
 
       {/* Controles superiores */}
       <div className={`absolute top-4 right-4 flex gap-2 z-20 ${isFullscreen ? 'bg-black/50' : 'bg-white/80'} p-2 rounded-lg`}>

@@ -126,7 +126,7 @@ export interface Occupancy {
 
 export interface Maintenance {
   id: number;
-  room_id: number;
+  room_id?: number | null;
   type: string;
   priority: string;
   status: string;
@@ -140,6 +140,10 @@ export interface Maintenance {
   estimated_cost?: number;
   actual_cost?: number;
   room_number?: string;
+  location_type?: 'room' | 'common_area';
+  location_label?: string;
+  area_name?: string;
+  area_category?: string;
   assigned_staff_name?: string;
   duration_hours?: number;
 }
@@ -547,7 +551,7 @@ export interface OccupancyCheckOut {
 
 // Maintenance Types (Extended)
 export interface MaintenanceCreate {
-  room_id: number;
+  room_id?: number;
   type: 'repair' | 'cleaning' | 'inspection' | 'upgrade' | 'other';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   title: string;
@@ -555,9 +559,14 @@ export interface MaintenanceCreate {
   estimated_cost?: number;
   assigned_to?: number;
   notes?: string;
+  location_type?: 'room' | 'common_area';
+  location_label?: string;
+  area_category?: string;
+  area_name?: string;
 }
 
 export interface MaintenanceUpdate {
+  room_id?: number;
   type?: 'repair' | 'cleaning' | 'inspection' | 'upgrade' | 'other';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -567,6 +576,10 @@ export interface MaintenanceUpdate {
   actual_cost?: number;
   assigned_to?: number;
   notes?: string;
+  location_type?: 'room' | 'common_area';
+  location_label?: string;
+  area_category?: string;
+  area_name?: string;
 }
 
 // Internet Control Types (Extended)

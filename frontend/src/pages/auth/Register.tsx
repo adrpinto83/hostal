@@ -107,7 +107,7 @@ export default function Register() {
         <div className="flex flex-col justify-between h-full bg-gradient-to-br from-zinc-900 via-zinc-800 to-blue-900 p-8 text-white">
           <div className="flex items-center gap-2 text-lg font-medium">
             <Star className="h-6 w-6" />
-            <span>JADs Hostal Manager</span>
+            <span>JADS Hostal Manager</span>
           </div>
           <div className="mt-auto space-y-6">
             <blockquote className="space-y-2">

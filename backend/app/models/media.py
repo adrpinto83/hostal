@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
@@ -75,6 +75,7 @@ class Media(Base):
     # Auditoría
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    is_primary = Column(Boolean, nullable=False, default=False, server_default="0")
 
     # Relaciones
     guest = relationship("Guest")

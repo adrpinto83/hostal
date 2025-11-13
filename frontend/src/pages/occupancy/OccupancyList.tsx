@@ -4,6 +4,7 @@ import { occupancyApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/utils';
 import { CheckCircle, Clock } from 'lucide-react';
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 
 interface ExchangeRates {
   USD: number;
@@ -13,6 +14,7 @@ interface ExchangeRates {
 
 export default function OccupancyList() {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Fetch exchange rates on mount
   useEffect(() => {
@@ -40,8 +42,12 @@ export default function OccupancyList() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Ocupación de Habitaciones</h1>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <h1 className="text-3xl font-bold">Ocupación de Habitaciones</h1>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
+      </div>
 
+      {viewMode === 'grid' ? (
       <div className="grid gap-4">
         {occupancies?.map((occ) => (
           <Card key={occ.id}>
@@ -109,6 +115,50 @@ export default function OccupancyList() {
           </Card>
         ))}
       </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Habitación</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Huésped</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Check-in</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Check-out</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Pagos</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {occupancies?.map((occ) => (
+                <tr key={occ.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-semibold text-gray-900">#{occ.room_number}</td>
+                  <td className="px-4 py-3 text-gray-700">{occ.guest_name}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatDateTime(occ.check_in)}</td>
+                  <td className="px-4 py-3 text-gray-700">{occ.check_out ? formatDateTime(occ.check_out) : '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">
+                    {occ.amount_paid_bs
+                      ? `Bs ${occ.amount_paid_bs.toFixed(2)}`
+                      : occ.amount_paid_usd
+                      ? `USD ${occ.amount_paid_usd.toFixed(2)}`
+                      : 'Sin pagos'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {occ.is_active ? (
+                      <span className="inline-flex items-center text-green-600">
+                        <Clock className="mr-1 h-4 w-4" /> Activa
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-gray-500">
+                        <CheckCircle className="mr-1 h-4 w-4" /> Finalizada
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

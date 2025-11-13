@@ -15,6 +15,72 @@ router = APIRouter(prefix="/media", tags=["Media"])
 log = structlog.get_logger()
 
 
+PRIMARY_CATEGORY_SCOPES: dict[MediaCategory, tuple] = {
+    MediaCategory.room_photo: (Media.room_id, "room_id", "habitación"),
+    MediaCategory.guest_photo: (Media.guest_id, "guest_id", "huésped"),
+    MediaCategory.staff_photo: (Media.staff_id, "staff_id", "miembro del personal"),
+}
+
+
+def _auto_assign_primary_if_needed(db: Session, media: Media) -> None:
+    """Marca automáticamente como principal el primer archivo por entidad/categoría."""
+    scope = PRIMARY_CATEGORY_SCOPES.get(media.category)
+    if not scope:
+        return
+
+    column, attr_name, _ = scope
+    scope_id = getattr(media, attr_name)
+    if not scope_id:
+        return
+
+    existing_primary = (
+        db.query(Media)
+        .filter(
+            column == scope_id,
+            Media.category == media.category,
+            Media.is_primary.is_(True),
+        )
+        .first()
+    )
+    if not existing_primary:
+        media.is_primary = True
+        db.commit()
+        db.refresh(media)
+
+
+def _ensure_category_scope_has_primary(db: Session, category: MediaCategory, scope_id: int | None) -> None:
+    """Garantiza que exista una foto principal para una entidad/categoría dada."""
+    scope = PRIMARY_CATEGORY_SCOPES.get(category)
+    if not scope or not scope_id:
+        return
+
+    column, _, _ = scope
+    candidate = (
+        db.query(Media)
+        .filter(
+            column == scope_id,
+            Media.category == category,
+        )
+        .order_by(Media.is_primary.desc(), Media.uploaded_at.desc())
+        .first()
+    )
+    if candidate and not candidate.is_primary:
+        candidate.is_primary = True
+        db.commit()
+        db.refresh(candidate)
+
+
+def _get_primary_scope_details(media: Media):
+    scope = PRIMARY_CATEGORY_SCOPES.get(media.category)
+    if not scope:
+        return None
+    column, attr_name, entity_label = scope
+    scope_id = getattr(media, attr_name)
+    if not scope_id:
+        return None
+    return column, scope_id, entity_label
+
+
 @router.post(
     "/upload",
     dependencies=[Depends(require_roles("admin", "recepcionista"))],
@@ -103,6 +169,7 @@ async def upload_file(
         db.add(media)
         db.commit()
         db.refresh(media)
+        _auto_assign_primary_if_needed(db, media)
 
         log.info(
             "upload_file_success",
@@ -112,13 +179,20 @@ async def upload_file(
             user_id=current_user.id,
         )
 
+        size_mb = round(media.file_size_mb, 2)
         return {
             "id": media.id,
             "filename": media.filename,
             "url": media.url,
+            "media_type": media.media_type.value,
             "type": media.media_type.value,
-            "size_mb": media.file_size_mb,
+            "category": media.category.value,
+            "file_size_mb": size_mb,
+            "size_mb": size_mb,
             "hash": media.file_hash,
+            "room_id": media.room_id,
+            "is_primary": media.is_primary,
+            "uploaded_at": media.uploaded_at.isoformat(),
         }
 
     except HTTPException:
@@ -139,34 +213,49 @@ async def upload_file(
 def list_media(
     guest_id: int | None = None,
     room_id: int | None = None,
+    staff_id: int | None = None,
     category: str | None = None,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
     """Lista archivos multimedia con filtros opcionales."""
-    query = db.query(Media).order_by(Media.uploaded_at.desc())
+    query = db.query(Media).order_by(Media.is_primary.desc(), Media.uploaded_at.desc())
 
     if guest_id:
         query = query.filter(Media.guest_id == guest_id)
     if room_id:
         query = query.filter(Media.room_id == room_id)
+    if staff_id:
+        query = query.filter(Media.staff_id == staff_id)
     if category:
         query = query.filter(Media.category == category)
 
     media_list = query.limit(limit).all()
 
-    return [
-        {
-            "id": m.id,
-            "filename": m.filename,
-            "url": m.url,
-            "type": m.media_type.value,
-            "category": m.category.value,
-            "size_mb": m.file_size_mb,
-            "uploaded_at": m.uploaded_at.isoformat(),
-        }
-        for m in media_list
-    ]
+    response: list[dict] = []
+    for media in media_list:
+        size_mb = round(media.file_size_mb, 2)
+        response.append(
+            {
+                "id": media.id,
+                "filename": media.filename,
+                "url": media.url,
+                "media_type": media.media_type.value,
+                "type": media.media_type.value,
+                "category": media.category.value,
+                "file_size_mb": size_mb,
+                "size_mb": size_mb,
+                "uploaded_at": media.uploaded_at.isoformat(),
+                "room_id": media.room_id,
+                "guest_id": media.guest_id,
+                "staff_id": media.staff_id,
+                "title": media.title,
+                "description": media.description,
+                "is_primary": media.is_primary,
+            }
+        )
+
+    return response
 
 
 @router.delete(
@@ -191,6 +280,11 @@ def delete_media(
         user_id=current_user.id,
     )
 
+    affected_category = media.category
+    scope_details = _get_primary_scope_details(media)
+    scope_id = scope_details[1] if scope_details else None
+    was_primary = media.is_primary
+
     # Eliminar archivo físico de forma segura
     file_deleted = SecureFileHandler.delete_file_secure(media.file_path)
 
@@ -205,11 +299,64 @@ def delete_media(
     db.delete(media)
     db.commit()
 
+    if was_primary:
+        _ensure_category_scope_has_primary(db, affected_category, scope_id)
+
     log.info("delete_media_success", media_id=media_id, user_id=current_user.id)
 
     return {
         "message": "Media deleted successfully",
         "file_deleted": file_deleted,
+    }
+
+
+@router.post(
+    "/{media_id}/set-primary",
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Definir archivo como principal (habitación / huésped / personal)",
+)
+def set_primary_media(
+    media_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Marca una foto como principal dentro de su categoría/entidad."""
+    media = db.get(Media, media_id)
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    scope_details = _get_primary_scope_details(media)
+    if not scope_details:
+        raise HTTPException(
+            status_code=400,
+            detail="This media category does not support primary selection",
+        )
+
+    column, scope_id, entity_label = scope_details
+
+    db.query(Media).filter(
+        column == scope_id,
+        Media.category == media.category,
+        Media.id != media.id,
+    ).update({Media.is_primary: False})
+
+    media.is_primary = True
+    db.commit()
+    db.refresh(media)
+
+    log.info(
+        "set_primary_media",
+        media_id=media.id,
+        category=media.category.value,
+        scope_id=scope_id,
+        user_id=current_user.id,
+    )
+
+    return {
+        "message": f"Foto principal actualizada para {entity_label}",
+        "media_id": media.id,
+        "category": media.category.value,
+        "is_primary": media.is_primary,
     }
 
 

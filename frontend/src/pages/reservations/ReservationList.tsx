@@ -9,6 +9,7 @@ import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { ReservationCreate, Period } from '@/types';
 import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 
 interface ExchangeRates {
   USD: number;
@@ -51,6 +52,7 @@ export default function ReservationList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState<ReservationCreate>(initialFormData);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const queryClient = useQueryClient();
 
@@ -158,23 +160,27 @@ export default function ReservationList() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Reservas</h1>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva Reserva
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva Reserva
+          </Button>
+        </div>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <Input
           placeholder="Buscar en notas de reservas..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-xs"
         />
       </div>
 
+      {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 gap-4">
         {reservations?.map((reservation) => (
           <Card key={reservation.id}>
@@ -246,6 +252,68 @@ export default function ReservationList() {
           </Card>
         ))}
       </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Reserva</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Fechas</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Monto</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {reservations?.map((reservation) => (
+                <tr key={reservation.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-gray-900">{reservation.guest.full_name}</span>
+                      <span className="text-xs text-gray-500">Hab. {reservation.room.number}</span>
+                      <Badge className={statusColors[reservation.status]}>{statusLabels[reservation.status]}</Badge>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">
+                    <p>Inicio: {formatDate(reservation.start_date)}</p>
+                    <p>Fin: {formatDate(reservation.end_date)}</p>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">
+                    Bs {reservation.price_bs.toFixed(2)}
+                    {exchangeRates && exchangeRates.USD > 0 && (
+                      <p className="text-xs text-gray-500">USD {(reservation.price_bs / exchangeRates.USD).toFixed(2)}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 max-w-sm">
+                    {reservation.notes ? (
+                      <span className="line-clamp-2">{reservation.notes}</span>
+                    ) : (
+                      <span className="text-gray-400">Sin notas</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      {reservation.status === 'pending' && (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => handleConfirm(reservation.id)} title="Confirmar">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleCancel(reservation.id)} title="Cancelar">
+                            <XCircle className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </>
+                      )}
+                      {reservation.status !== 'pending' && (
+                        <span className="text-xs text-gray-500">Sin acciones</span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

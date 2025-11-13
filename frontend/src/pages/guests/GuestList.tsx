@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,10 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { guestsApi, devicesApi, bandwidthApi, mediaApi, occupancyApi, paymentsApi, reservationsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Guest, GuestCreate, GuestUpdate, DeviceCreate } from '@/types';
-import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera } from 'lucide-react';
+import type { Guest, GuestCreate, GuestUpdate, DeviceCreate, Media } from '@/types';
+import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera, Mail, Phone } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
-import { CameraCapture } from '@/components/ui/camera-capture';
+import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
+
+function ErrorAlert({ message }: { message: string }) {
+  return (
+    <div className="bg-red-50 border border-red-200 text-sm text-red-800 rounded-lg p-4 flex items-center" role="alert">
+      <AlertTriangle className="flex-shrink-0 h-4 w-4 mr-2" />
+      <span className="font-medium">{message}</span>
+    </div>
+  );
+}
+
+const NOTES_MAX_LENGTH = 280;
 
 export default function GuestList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,6 +35,8 @@ export default function GuestList() {
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<GuestCreate>({
     full_name: '',
     document_id: '',
@@ -36,6 +49,8 @@ export default function GuestList() {
     name: '',
     vendor: '',
   });
+  const notesValue = formData.notes ?? '';
+  const remainingNotesChars = NOTES_MAX_LENGTH - notesValue.length;
 
   const queryClient = useQueryClient();
 
@@ -62,6 +77,18 @@ export default function GuestList() {
     queryKey: ['guest-photos'],
     queryFn: () => mediaApi.getAll({ category: 'guest_photo' }),
   });
+  const guestPhotoMap = useMemo<Record<number, Media>>(() => {
+    if (!guestPhotos) return {};
+    const map: Record<number, Media> = {};
+    for (const photo of guestPhotos) {
+      if (typeof photo.guest_id !== 'number') continue;
+      const current = map[photo.guest_id];
+      if (!current || (photo.is_primary && !current.is_primary)) {
+        map[photo.guest_id] = photo;
+      }
+    }
+    return map;
+  }, [guestPhotos]);
 
   // Query for active occupancies of the guest to delete
   const { data: guestOccupancies } = useQuery({
@@ -90,8 +117,9 @@ export default function GuestList() {
       queryClient.invalidateQueries({ queryKey: ['guests'] });
       setIsModalOpen(false);
       resetForm();
+      setError(null);
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const updateMutation = useMutation({
@@ -102,8 +130,9 @@ export default function GuestList() {
       setIsModalOpen(false);
       setEditingGuest(null);
       resetForm();
+      setError(null);
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -111,7 +140,7 @@ export default function GuestList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['guests'] });
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const createDeviceMutation = useMutation({
@@ -120,8 +149,9 @@ export default function GuestList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
       setDeviceData({ mac: '', name: '', vendor: '' });
+      setError(null);
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const deleteDeviceMutation = useMutation({
@@ -130,7 +160,7 @@ export default function GuestList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const suspendDeviceMutation = useMutation({
@@ -138,7 +168,7 @@ export default function GuestList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const resumeDeviceMutation = useMutation({
@@ -146,7 +176,7 @@ export default function GuestList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
     },
-    onError: (error) => alert(handleApiError(error)),
+    onError: (error) => setError(handleApiError(error)),
   });
 
   const resetForm = () => {
@@ -157,10 +187,31 @@ export default function GuestList() {
       email: '',
       notes: '',
     });
+    setError(null);
+  };
+
+  const validateForm = () => {
+    if (!formData.full_name.trim()) {
+      setError('El nombre completo es requerido.');
+      return false;
+    }
+    if (!formData.document_id.trim()) {
+      setError('El documento de identidad es requerido.');
+      return false;
+    }
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError('El formato del email no es válido.');
+      return false;
+    }
+    setError(null);
+    return true;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) {
+      return;
+    }
     if (editingGuest) {
       updateMutation.mutate({ id: editingGuest.id, data: formData });
     } else {
@@ -178,6 +229,7 @@ export default function GuestList() {
       notes: guest.notes || '',
     });
     setIsModalOpen(true);
+    setError(null);
   };
 
   const handleDeleteClick = (guest: Guest) => {
@@ -221,9 +273,8 @@ export default function GuestList() {
     return null;
   };
 
-  const getGuestPhoto = (guestId: number) => {
-    return guestPhotos?.find((photo) => photo.guest_id === guestId);
-  };
+  const getGuestPhoto = (guestId: number) => guestPhotoMap[guestId];
+  const avatarPreview = guestForAvatarUpload ? getGuestPhoto(guestForAvatarUpload.id) : null;
 
   const openDetailModal = (guest: Guest) => {
     setSelectedGuest(guest);
@@ -243,15 +294,10 @@ export default function GuestList() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Huéspedes</h1>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Buscar por nombre o documento..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-64"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
           <Button onClick={() => setIsModalOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nuevo Huésped
@@ -259,6 +305,16 @@ export default function GuestList() {
         </div>
       </div>
 
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <Input
+          placeholder="Buscar por nombre o documento..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full sm:max-w-xs"
+        />
+      </div>
+
+      {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {guests?.map((guest) => {
           const photo = getGuestPhoto(guest.id);
@@ -268,8 +324,9 @@ export default function GuestList() {
               <div className="relative group cursor-pointer" onClick={(e) => openAvatarUploadModal(guest, e)}>
                 {photo ? (
                   <img
-                    src={photo.url}
+                    src={`${photo.url}?v=${new Date(photo.uploaded_at).getTime()}`}
                     alt={guest.full_name}
+                    loading="lazy"
                     className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 group-hover:opacity-75 transition"
                   />
                 ) : (
@@ -318,6 +375,20 @@ export default function GuestList() {
                   <span className="font-semibold">Notas:</span> {guest.notes}
                 </p>
               )}
+              <div className="pt-1">
+                {photo ? (
+                  <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-50">
+                    Foto confirmada
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className="border border-dashed border-gray-300 text-gray-600 bg-transparent"
+                  >
+                    Sin foto • toca el avatar para cargar
+                  </Badge>
+                )}
+              </div>
               {(() => {
                 const bandwidth = getGuestBandwidth(guest.id);
                 if (bandwidth) {
@@ -345,6 +416,76 @@ export default function GuestList() {
           );
         })}
       </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Huésped</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Documento</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Teléfono</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {guests?.map((guest) => {
+                const photo = getGuestPhoto(guest.id);
+                return (
+                  <tr key={guest.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          className="relative"
+                          onClick={(e) => openAvatarUploadModal(guest, e)}
+                        >
+                          {photo ? (
+                            <img
+                              src={`${photo.url}?thumb=1`}
+                              alt={guest.full_name}
+                              className="h-10 w-10 rounded-full object-cover border"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <User className="h-5 w-5 text-gray-500" />
+                            </div>
+                          )}
+                        </button>
+                        <div>
+                          <p className="font-semibold text-gray-900">{guest.full_name}</p>
+                          {guest.email && <p className="text-xs text-gray-500">{guest.email}</p>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{guest.document_id}</td>
+                    <td className="px-4 py-3 text-gray-700">{guest.phone || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-xs">
+                      {guest.notes ? <span className="line-clamp-2">{guest.notes}</span> : <span className="text-gray-400">Sin notas</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openDetailModal(guest)}>
+                          Detalles
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => openDeviceModal(guest)}>
+                          <Wifi className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(guest)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(guest)}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal de Guest */}
       {isModalOpen && (
@@ -359,65 +500,107 @@ export default function GuestList() {
               </Button>
             </div>
 
+            {error && <ErrorAlert message={error} />}
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="full_name">Nombre Completo</Label>
-                <Input
-                  id="full_name"
-                  value={formData.full_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, full_name: e.target.value })
-                  }
-                  required
-                />
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                Revisa los datos antes de guardar. El email y teléfono se usarán
+                para enviar confirmaciones automáticas.
               </div>
-
-              <div>
-                <Label htmlFor="document_id">Documento de Identidad</Label>
-                <Input
-                  id="document_id"
-                  value={formData.document_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, document_id: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="notes">Notas</Label>
-                <textarea
-                  id="notes"
-                  className="w-full px-3 py-2 border rounded-md"
-                  rows={3}
-                  value={formData.notes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label htmlFor="full_name">Nombre Completo</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <Input
+                      id="full_name"
+                      placeholder="Ej. María Fernanda Suárez"
+                      value={formData.full_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, full_name: e.target.value })
+                      }
+                      required
+                      className="pl-10"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Usa el nombre tal como aparece en el documento oficial.
+                    </p>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="document_id">Documento de Identidad</Label>
+                  <div className="relative">
+                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <Input
+                      id="document_id"
+                      placeholder="V-12345678 / DNI / Pasaporte"
+                      value={formData.document_id}
+                      onChange={(e) =>
+                        setFormData({ ...formData, document_id: e.target.value })
+                      }
+                      required
+                      className="pl-10"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Acepta letras y números. Se utilizará para búsquedas rápidas.
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="phone">Teléfono</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <Input
+                      id="phone"
+                      placeholder="+58 412-1234567"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      className="pl-10"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Incluye el código de país para WhatsApp o SMS.
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      className="pl-10"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Necesario para notificaciones y recordatorios.
+                    </p>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="notes">Notas</Label>
+                  <textarea
+                    id="notes"
+                    className="w-full px-3 py-2 border rounded-md"
+                    rows={3}
+                    value={notesValue}
+                    placeholder="Preferencias, restricciones alimenticias, contactos de emergencia..."
+                    maxLength={NOTES_MAX_LENGTH}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notes: e.target.value })
+                    }
+                  />
+                  <div className="mt-1 text-xs text-gray-500 flex justify-between">
+                    <span>Información útil para el personal.</span>
+                    <span>{remainingNotesChars} caracteres restantes</span>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-2 justify-end">
@@ -941,13 +1124,31 @@ export default function GuestList() {
             </div>
 
             <p className="text-sm text-gray-600 mb-4">
-              Captura una foto de perfil para <strong>{guestForAvatarUpload.full_name}</strong>
+              Sube una nueva foto para <strong>{guestForAvatarUpload.full_name}</strong>. Puedes marcarla como
+              principal desde la lista si deseas reemplazar la actual.
             </p>
 
-            <CameraCapture
+            {avatarPreview ? (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-2">Foto actual</p>
+                <img
+                  src={avatarPreview.url}
+                  alt={`Avatar de ${guestForAvatarUpload.full_name}`}
+                  className="h-40 w-full rounded-lg object-cover border"
+                />
+              </div>
+            ) : (
+              <div className="mb-4 rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500">
+                Aún no hay foto guardada para este huésped.
+              </div>
+            )}
+
+            <FileUpload
               category="guest_photo"
               guestId={guestForAvatarUpload.id}
               title="Foto de Rostro"
+              maxSizeMB={5}
+              accept="image/*"
               onUploadSuccess={() => {
                 setIsAvatarUploadOpen(false);
                 setGuestForAvatarUpload(null);

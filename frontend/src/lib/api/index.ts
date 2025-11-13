@@ -128,6 +128,8 @@ export const maintenanceApi = {
     status?: string;
     assigned_to?: number;
     pending_only?: boolean;
+    location_type?: 'room' | 'common_area';
+    area_category?: string;
     skip?: number;
     limit?: number;
   }) => {
@@ -350,6 +352,7 @@ export const mediaApi = {
   getAll: async (params?: {
     guest_id?: number;
     room_id?: number;
+    staff_id?: number;
     category?: string;
     limit?: number;
   }) => {
@@ -366,7 +369,7 @@ export const mediaApi = {
     const response = await api.get<MediaStats>('/media/stats');
     return response.data;
   },
-  setPrimaryRoomPhoto: async (mediaId: number) => {
+  setPrimary: async (mediaId: number) => {
     const response = await api.post(`/media/${mediaId}/set-primary`);
     return response.data;
   },
