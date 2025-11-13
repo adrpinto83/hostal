@@ -1,10 +1,36 @@
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { occupancyApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime, formatCurrency } from '@/lib/utils';
 import { CheckCircle, Clock } from 'lucide-react';
 
+interface ExchangeRates {
+  USD: number;
+  EUR: number;
+  timestamp: string;
+}
+
 export default function OccupancyList() {
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+
+  // Fetch exchange rates on mount
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (response.ok) {
+          const data = await response.json();
+          setExchangeRates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchExchangeRates();
+  }, []);
+
   const { data: occupancies, isLoading } = useQuery({
     queryKey: ['occupancies'],
     queryFn: () => occupancyApi.getAll(),
@@ -49,13 +75,34 @@ export default function OccupancyList() {
                     <p className="font-medium">{formatDateTime(occ.check_out)}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-sm text-gray-600">Pagado (VES):</p>
-                  <p className="font-medium">{occ.amount_paid_bs ? formatCurrency(occ.amount_paid_bs, 'VES') : 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Pagado (USD):</p>
-                  <p className="font-medium">{occ.amount_paid_usd ? formatCurrency(occ.amount_paid_usd, 'USD') : 'N/A'}</p>
+                <div className="md:col-span-2">
+                  {occ.amount_paid_bs && (
+                    <div className="p-2 bg-blue-50 rounded">
+                      <p className="text-sm text-blue-600 font-semibold mb-1">Monto Pagado:</p>
+                      <p className="text-blue-800">💵 Bs {occ.amount_paid_bs.toFixed(2)}</p>
+                      {exchangeRates && exchangeRates.USD > 0 && (
+                        <p className="text-blue-800">💲 USD ${(occ.amount_paid_bs / exchangeRates.USD).toFixed(2)}</p>
+                      )}
+                      {exchangeRates && exchangeRates.EUR > 0 && (
+                        <p className="text-blue-800">€ EUR €{(occ.amount_paid_bs / exchangeRates.EUR).toFixed(2)}</p>
+                      )}
+                    </div>
+                  )}
+                  {occ.amount_paid_usd && !occ.amount_paid_bs && (
+                    <div className="p-2 bg-blue-50 rounded">
+                      <p className="text-sm text-blue-600 font-semibold mb-1">Monto Pagado:</p>
+                      <p className="text-blue-800">💲 USD ${occ.amount_paid_usd.toFixed(2)}</p>
+                      {exchangeRates && exchangeRates.USD > 0 && (
+                        <p className="text-blue-800">💵 Bs {(occ.amount_paid_usd * exchangeRates.USD).toFixed(2)}</p>
+                      )}
+                      {exchangeRates && exchangeRates.EUR > 0 && (
+                        <p className="text-blue-800">€ EUR €{(occ.amount_paid_usd * exchangeRates.USD / exchangeRates.EUR).toFixed(2)}</p>
+                      )}
+                    </div>
+                  )}
+                  {!occ.amount_paid_bs && !occ.amount_paid_usd && (
+                    <p className="text-sm text-gray-500">No hay pagos registrados</p>
+                  )}
                 </div>
               </div>
             </CardContent>

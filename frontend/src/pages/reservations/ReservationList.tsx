@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,12 @@ import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Reservation, ReservationCreate, Period } from '@/types';
 import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
+
+interface ExchangeRates {
+  USD: number;
+  EUR: number;
+  timestamp: string;
+}
 
 const statusLabels: Record<string, string> = {
   pending: 'Pendiente',
@@ -44,8 +50,26 @@ export default function ReservationList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState<ReservationCreate>(initialFormData);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
 
   const queryClient = useQueryClient();
+
+  // Fetch exchange rates on mount
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (response.ok) {
+          const data = await response.json();
+          setExchangeRates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchExchangeRates();
+  }, []);
 
   const { data: reservations, isLoading } = useQuery({
     queryKey: ['reservations', searchQuery],
@@ -203,11 +227,15 @@ export default function ReservationList() {
                   <span className="font-medium">{formatDate(reservation.end_date)}</span>
                 </div>
               </div>
-              <div>
-                <span className="text-sm text-gray-500">Monto: </span>
-                <span className="font-bold text-lg">
-                  {reservation.price_bs.toFixed(2)} Bs.
-                </span>
+              <div className="mt-3 p-2 bg-purple-50 rounded">
+                <p className="font-semibold text-purple-900 mb-1">Monto de Reserva:</p>
+                <p className="text-purple-800">💵 Bs {reservation.price_bs.toFixed(2)}</p>
+                {exchangeRates && exchangeRates.USD > 0 && (
+                  <p className="text-purple-800">💲 USD ${(reservation.price_bs / exchangeRates.USD).toFixed(2)}</p>
+                )}
+                {exchangeRates && exchangeRates.EUR > 0 && (
+                  <p className="text-purple-800">€ EUR €{(reservation.price_bs / exchangeRates.EUR).toFixed(2)}</p>
+                )}
               </div>
               {reservation.notes && (
                 <p className="text-sm text-gray-600">
