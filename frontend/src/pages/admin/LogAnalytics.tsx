@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { auditApi, type AuditLog } from '@/lib/api/audit';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { handleApiError } from '@/lib/api/client';
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,14 +16,12 @@ import {
   Filter,
   Save,
   Trash2,
-  Eye,
   Clock,
   User,
   Activity,
   AlertTriangle,
   RefreshCw,
   Download,
-  Plus,
   Zap,
 } from 'lucide-react';
 
@@ -89,7 +86,11 @@ export default function LogAnalytics() {
   // Fetch logs based on filters
   const { data: logs, isLoading, refetch } = useQuery({
     queryKey: ['audit-logs-analytics', filters],
-    queryFn: () => auditApi.getLogs({ ...filters, limit: 500 }),
+    queryFn: () => auditApi.getLogs({
+      ...filters,
+      success: filters.success === null ? undefined : filters.success,
+      limit: 500
+    }),
   });
 
   // Fetch available filters

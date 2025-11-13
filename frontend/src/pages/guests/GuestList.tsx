@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { guestsApi, devicesApi, bandwidthApi, mediaApi, occupancyApi, paymentsApi, reservationsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Guest, GuestCreate, GuestUpdate, Device, DeviceCreate } from '@/types';
+import type { Guest, GuestCreate, GuestUpdate, DeviceCreate } from '@/types';
 import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { CameraCapture } from '@/components/ui/camera-capture';

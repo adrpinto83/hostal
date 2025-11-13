@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, DollarSign, Edit, Trash2, X, Filter, Download } from 'lucide-react';
+import { Plus, Trash2, X, Filter } from 'lucide-react';
 import { paymentsApi, guestsApi } from '@/lib/api';
-import type { Payment, PaymentCreate, Currency, PaymentMethod, Guest } from '@/types';
+import type { PaymentCreate, Currency, PaymentMethod, Guest } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 export default function PaymentList() {
   const [showModal, setShowModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const queryClient = useQueryClient();
 
   // Filters
@@ -69,7 +68,6 @@ export default function PaymentList() {
       currency: 'USD',
       method: 'cash',
     });
-    setEditingPayment(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {

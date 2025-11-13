@@ -41,8 +41,8 @@ import type {
   ConversionResult,
   MultiConversionResult,
   InternetStatus,
-  NetworkActivity,
-  HealthCheck
+  HealthCheck,
+  NetworkActivity
 } from '@/types';
 
 // Staff API (Complete)
@@ -329,7 +329,7 @@ export const bandwidthApi = {
     return response.data;
   },
   getRecentActivity: async (hours: number = 24, activityType?: string, limit: number = 50) => {
-    const response = await api.get('/internet-control/activity/recent', {
+    const response = await api.get<NetworkActivity[]>('/internet-control/activity/recent', {
       params: { hours, activity_type: activityType, limit }
     });
     return response.data;
@@ -364,6 +364,10 @@ export const mediaApi = {
 
   getStats: async () => {
     const response = await api.get<MediaStats>('/media/stats');
+    return response.data;
+  },
+  setPrimaryRoomPhoto: async (mediaId: number) => {
+    const response = await api.post(`/media/${mediaId}/set-primary`);
     return response.data;
   },
 };

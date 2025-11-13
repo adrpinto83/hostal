@@ -68,7 +68,7 @@ export default function DeviceList() {
 
   // Mutation to suspend device
   const suspendMutation = useMutation({
-    mutationFn: devicesApi.suspend,
+    mutationFn: (deviceId: number) => devicesApi.suspend(deviceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices'] });
     },

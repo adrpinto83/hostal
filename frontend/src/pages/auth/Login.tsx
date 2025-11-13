@@ -79,14 +79,14 @@ export default function Login() {
         <div className="flex flex-col justify-between h-full bg-gradient-to-br from-zinc-900 via-zinc-800 to-blue-900 p-8 text-white">
           <div className="flex items-center gap-2 text-lg font-medium">
             <Star className="h-6 w-6" />
-            <span>Hostal Starlight</span>
+            <span>JADs Hostal Manager</span>
           </div>
           <div className="mt-auto space-y-6">
             <blockquote className="space-y-2">
               <p className="text-lg leading-relaxed">
                 "Este sistema ha transformado por completo la gestión de nuestro hostal. Es intuitivo, rápido y nos ahorra horas de trabajo cada día."
               </p>
-              <footer className="text-sm">Sofia Davis, Gerente del Hostal</footer>
+              <footer className="text-sm">Adrian Pinto CEO de Jads Software</footer>
             </blockquote>
             <div className="space-y-3 text-sm border-t border-zinc-700 pt-6">
               <div className="flex items-start gap-3">
@@ -146,7 +146,6 @@ export default function Login() {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
                   className="absolute bottom-1 right-1 h-7 w-7 text-gray-600"
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={loading}

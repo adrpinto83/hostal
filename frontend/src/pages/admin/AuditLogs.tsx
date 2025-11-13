@@ -4,30 +4,17 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { auditApi, type AuditLog, type AuditSummary } from '@/lib/api/audit';
+import { auditApi } from '@/lib/api/audit';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { handleApiError } from '@/lib/api/client';
 import {
-  AlertCircle,
   CheckCircle2,
   XCircle,
   Loader2,
-  Calendar,
-  Search,
   Download,
   Eye,
   Filter,
   TrendingUp,
 } from 'lucide-react';
-
-function ErrorAlert({ message }: { message: string }) {
-  return (
-    <div className="bg-red-50 border border-red-200 text-sm text-red-800 rounded-lg p-4 flex items-center">
-      <AlertCircle className="flex-shrink-0 h-4 w-4 mr-2" />
-      <span className="font-medium">{message}</span>
-    </div>
-  );
-}
 
 export default function AuditLogs() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,7 +24,6 @@ export default function AuditLogs() {
     success: undefined as boolean | undefined,
   });
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
-  const [error, setError] = useState('');
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -131,8 +117,6 @@ export default function AuditLogs() {
         <h1 className="text-3xl font-bold tracking-tight">Auditoría del Sistema</h1>
         <p className="text-gray-600 mt-2">Registro completo de todas las acciones del sistema</p>
       </div>
-
-      {error && <ErrorAlert message={error} />}
 
       {/* Summary Cards */}
       {summary && summary.length > 0 && (

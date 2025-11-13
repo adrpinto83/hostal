@@ -77,7 +77,7 @@ export default function StaffList() {
 
   const { data: staff, isLoading } = useQuery({
     queryKey: ['staff'],
-    queryFn: staffApi.getAll,
+    queryFn: () => staffApi.getAll(),
   });
 
   // Query for staff photos
@@ -284,7 +284,7 @@ export default function StaffList() {
                 <Badge className={statusColors[member.status as keyof typeof statusColors]}>
                   {staffStatusLabels[member.status as keyof typeof staffStatusLabels]}
                 </Badge>
-                <Badge variant="outline">
+                <Badge variant="secondary">
                   {staffRoleLabels[member.role as keyof typeof staffRoleLabels] || member.role}
                 </Badge>
                 {member.user_id ? (

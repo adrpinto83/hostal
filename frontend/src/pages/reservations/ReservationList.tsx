@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Reservation, ReservationCreate, Period } from '@/types';
+import type { ReservationCreate, Period } from '@/types';
 import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
 
 interface ExchangeRates {

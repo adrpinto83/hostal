@@ -370,6 +370,7 @@ export interface Media {
   description?: string;
   uploaded_by: number;
   uploaded_at: string;
+  is_primary?: boolean;
 }
 
 export interface MediaUpload {

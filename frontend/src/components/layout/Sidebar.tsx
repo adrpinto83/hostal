@@ -102,7 +102,7 @@ export default function Sidebar() {
       <div className="flex h-16 items-center justify-between border-b border-gray-700 px-4">
         <Link to="/dashboard" className="flex items-center gap-2">
           <Star className="h-6 w-6 text-yellow-400" />
-          <h1 className={cn("text-xl font-bold whitespace-nowrap", isCollapsed && 'hidden')}>Hostal Starlight</h1>
+          <h1 className={cn("text-xl font-bold whitespace-nowrap", isCollapsed && 'hidden')}>JADs Hostal Manager</h1>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">

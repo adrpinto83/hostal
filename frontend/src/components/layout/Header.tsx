@@ -28,7 +28,6 @@ export default function Header() {
     <header className="flex h-16 items-center gap-4 border-b bg-white px-4 md:px-6">
       <Button
         variant="ghost"
-        size="icon"
         className="lg:hidden"
         onClick={toggle}
         aria-label="Toggle sidebar"
@@ -52,7 +51,7 @@ export default function Header() {
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="rounded-full">
+          <Button variant="ghost" className="rounded-full">
             <UserCircle className="h-6 w-6" />
             <span className="sr-only">Toggle user menu</span>
           </Button>

@@ -60,7 +60,7 @@ export default function UserList() {
 
   const { data: staffList } = useQuery({
     queryKey: ['staff'],
-    queryFn: staffApi.getAll,
+    queryFn: () => staffApi.getAll(),
   });
 
   const createMutation = useMutation({
@@ -213,7 +213,7 @@ export default function UserList() {
   };
 
   const getAssignedStaff = (userId: number): Staff | undefined => {
-    return staffList?.find((s) => s.user_id === userId);
+    return staffList ? staffList.find((s) => s.user_id === userId) : undefined;
   };
 
   if (isLoading) {
@@ -267,7 +267,7 @@ export default function UserList() {
 
               {user.approved && (
                 <div>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
                     ✓ Aprobado
                   </Badge>
                 </div>

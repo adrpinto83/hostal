@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Download, Upload, Wifi, Monitor, Users, TrendingUp } from 'lucide-react';
+import { Activity, Download, Upload, Wifi, Monitor, TrendingUp } from 'lucide-react';
 import { bandwidthApi, guestsApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,18 +12,6 @@ export default function NetworkMonitoring() {
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['bandwidth-summary', days],
     queryFn: () => bandwidthApi.getSummary(days),
-  });
-
-  // Query device bandwidth
-  const { data: deviceBandwidth } = useQuery({
-    queryKey: ['device-bandwidth', days],
-    queryFn: () => bandwidthApi.getDeviceBandwidth(days, 10),
-  });
-
-  // Query guest bandwidth
-  const { data: guestBandwidth } = useQuery({
-    queryKey: ['guest-bandwidth-list', days],
-    queryFn: () => bandwidthApi.getGuestBandwidth(days, 10),
   });
 
   // Query recent activity
@@ -144,8 +132,8 @@ export default function NetworkMonitoring() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {deviceBandwidth && deviceBandwidth.length > 0 ? (
-                deviceBandwidth.map((device, index) => (
+              {summary?.top_devices && summary.top_devices.length > 0 ? (
+                summary.top_devices.map((device, index) => (
                   <div key={device.device_id} className="flex items-center justify-between p-3 border rounded">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold">
@@ -153,7 +141,7 @@ export default function NetworkMonitoring() {
                       </div>
                       <div>
                         <div className="font-medium">
-                          {device.device_name || device.mac}
+                          {device.name || device.mac}
                         </div>
                         <div className="text-sm text-gray-600">{device.mac}</div>
                         <div className="text-xs text-gray-500">
@@ -165,54 +153,11 @@ export default function NetworkMonitoring() {
                       <div className="text-lg font-bold text-blue-600">
                         {device.usage_gb.toFixed(2)} GB
                       </div>
-                      <div className="text-xs text-gray-600">
-                        {device.device_count} sesión{device.device_count > 1 ? 'es' : ''}
-                      </div>
                     </div>
                   </div>
                 ))
               ) : (
                 <p className="text-gray-500 text-center py-4">No hay datos de dispositivos</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Guests */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Huéspedes con Mayor Uso
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {guestBandwidth && guestBandwidth.length > 0 ? (
-                guestBandwidth.map((guest, index) => (
-                  <div key={guest.guest_id} className="flex items-center justify-between p-3 border rounded">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-600 font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-medium">
-                          {getGuestName(guest.guest_id)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {guest.device_count} dispositivo{guest.device_count > 1 ? 's' : ''}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-green-600">
-                        {guest.usage_gb.toFixed(2)} GB
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 text-center py-4">No hay datos de huéspedes</p>
               )}
             </div>
           </CardContent>
@@ -249,33 +194,27 @@ export default function NetworkMonitoring() {
                         <div className="flex items-center gap-2">
                           <Wifi className="h-4 w-4 text-blue-600" />
                           <span className="font-medium">
-                            {activity.device_name || 'Sin nombre'}
+                            {activity.device?.name || 'Sin nombre'}
                           </span>
                         </div>
                       </td>
-                      <td className="p-2">{getGuestName(activity.guest_id)}</td>
+                      <td className="p-2">{getGuestName(activity.device?.guest_id || 0)}</td>
                       <td className="p-2">
-                        <span className="font-mono text-xs">{activity.mac}</span>
+                        <span className="font-mono text-xs">{activity.device?.mac}</span>
                       </td>
                       <td className="p-2">
-                        <span className="font-mono text-xs">{activity.last_ip || '-'}</span>
+                        <span className="font-mono text-xs">{activity.ip_address || '-'}</span>
                       </td>
                       <td className="p-2">
-                        {activity.is_online ? (
-                          <Badge className="bg-green-100 text-green-800">En línea</Badge>
-                        ) : (
-                          <Badge className="bg-gray-100 text-gray-800">Fuera de línea</Badge>
-                        )}
+                        <Badge className="bg-gray-100 text-gray-800">Actividad</Badge>
                       </td>
                       <td className="p-2 text-right">
                         <span className="font-semibold">
-                          {(activity.total_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                          {((activity.downloaded_mb + activity.uploaded_mb) / 1024).toFixed(2)} GB
                         </span>
                       </td>
                       <td className="p-2 text-sm text-gray-600">
-                        {activity.last_seen
-                          ? new Date(activity.last_seen).toLocaleString()
-                          : '-'}
+                        {new Date(activity.timestamp).toLocaleString()}
                       </td>
                     </tr>
                   ))

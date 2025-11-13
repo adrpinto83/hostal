@@ -11,9 +11,9 @@ import { ROLES_DEFINITION, getAvailableRoles } from '@/lib/roles-permissions';
 interface PendingUser {
   id: number;
   email: string;
-  full_name: string | null;
-  created_at: string | null; // ISO format datetime string
-  approved: boolean;
+  full_name?: string;
+  created_at?: string;
+  approved?: boolean;
 }
 
 function ErrorAlert({ message }: { message: string }) {

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { roomsApi, mediaApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Room, RoomCreate, RoomUpdate } from '@/types';
+import type { Room, RoomUpdate, Media } from '@/types';
 import { Plus, Edit, Trash2, X, Image as ImageIcon } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
@@ -86,7 +86,7 @@ export default function RoomList() {
     queryFn: roomsApi.getAll,
   });
 
-  const { data: roomPhotos, refetch: refetchPhotos } = useQuery({
+  const { data: roomPhotos = [], refetch: refetchPhotos } = useQuery<Media[]>({
     queryKey: ['room-photos'],
     queryFn: () => mediaApi.getAll({ category: 'room_photo' }),
   });
@@ -144,7 +144,7 @@ export default function RoomList() {
     setEditingRoom(room);
     setFormData({
       number: room.number,
-      type: room.type,
+      type: room.type || 'single',
       price_amount: room.price_bs || undefined,
       price_currency: 'VES', // Show in VES when editing
       notes: room.notes || '',
@@ -171,7 +171,11 @@ export default function RoomList() {
   };
 
   const getRoomPhotos = (roomId: number) => {
-    return roomPhotos?.filter((photo) => photo.room_id === roomId) || [];
+    return roomPhotos
+      .filter((photo) => photo.room_id === roomId)
+      .sort(
+        (a, b) => Number(b.is_primary ?? false) - Number(a.is_primary ?? false)
+      );
   };
 
   const openPhotoModal = (room: Room) => {
@@ -198,24 +202,32 @@ export default function RoomList() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {rooms?.map((room) => {
           const photos = getRoomPhotos(room.id);
+          const primaryPhoto = photos[0];
           return (
-            <Card key={room.id} className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow">
-              {/* Carrusel de imágenes o área vacía */}
-              <div className="relative h-64 bg-gray-100 group">
-                {photos.length > 0 ? (
-                  <div className="relative h-full">
+            <Card
+              key={room.id}
+              className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow"
+            >
+              {/* Imagen destacada */}
+              <div className="relative aspect-[4/3] bg-gray-100 group order-first">
+                {primaryPhoto ? (
+                  <div className="relative h-full w-full">
                     <img
-                      src={photos[0].url}
+                      src={primaryPhoto.url}
                       alt={`Habitación ${room.number}`}
                       className="w-full h-full object-cover"
                     />
-                    {/* Botones de navegación */}
+                    {primaryPhoto.is_primary && (
+                      <span className="absolute top-4 left-4 bg-white/90 text-amber-700 text-xs font-semibold px-3 py-1 rounded-full shadow">
+                        Foto principal
+                      </span>
+                    )}
                     {photos.length > 1 && (
-                      <>
+                      <div className="absolute inset-0 flex items-center justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => openPhotoModal(room)}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Ver carrusel"
+                          className="bg-white/80 hover:bg-white rounded-full p-2 shadow"
+                          title="Ver galería"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -223,25 +235,30 @@ export default function RoomList() {
                         </button>
                         <button
                           onClick={() => openPhotoModal(room)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Ver carrusel"
+                          className="bg-white/80 hover:bg-white rounded-full p-2 shadow"
+                          title="Ver galería"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </button>
-                      </>
+                      </div>
                     )}
-                    {/* Contador y botón ver galería */}
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-black/80" onClick={() => openPhotoModal(room)}>
+                    <div
+                      className="absolute bottom-3 right-3 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-black/80"
+                      onClick={() => openPhotoModal(room)}
+                    >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      {photos.length} fotos
+                      {photos.length} foto{photos.length === 1 ? '' : 's'}
                     </div>
                   </div>
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer hover:from-gray-200 hover:to-gray-300 transition-colors" onClick={() => openPhotoModal(room)}>
+                  <div
+                    className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer hover:from-gray-200 hover:to-gray-300 transition-colors"
+                    onClick={() => openPhotoModal(room)}
+                  >
                     <svg className="w-16 h-16 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
@@ -288,7 +305,7 @@ export default function RoomList() {
                 <div className="grid grid-cols-2 gap-4 mb-3">
                   <div>
                     <p className="text-xs text-gray-500 font-medium mb-1">TIPO</p>
-                    <Badge variant="outline">
+                    <Badge variant="secondary">
                       {roomTypeLabels[room.type || 'single']}
                     </Badge>
                   </div>

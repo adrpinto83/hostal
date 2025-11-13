@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { occupancyApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatDateTime, formatCurrency } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import { CheckCircle, Clock } from 'lucide-react';
 
 interface ExchangeRates {
