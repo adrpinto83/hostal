@@ -100,6 +100,18 @@ export default function Login() {
     setInfo('');
   };
 
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    // Limpiar error cuando el usuario modifica el email
+    if (error) setError('');
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    // Limpiar error cuando el usuario modifica la contraseña
+    if (error) setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -109,9 +121,6 @@ export default function Login() {
       return;
     }
 
-    setError('');
-    setSuccess('');
-    setInfo('');
     setLoading(true);
 
     try {
@@ -203,7 +212,7 @@ export default function Login() {
                   type="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   required
                   disabled={loading}
                   className="border-gray-300"
@@ -218,7 +227,7 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
                   required
                   disabled={loading}
                   className="border-gray-300"
