@@ -70,6 +70,7 @@ export interface Room {
   number: string;
   type?: 'single' | 'double' | 'suite';
   status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'out_of_service';
+  price_bs?: number;
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -78,6 +79,7 @@ export interface Room {
 export interface RoomCreate {
   number: string;
   type?: 'single' | 'double' | 'suite';
+  price_bs?: number;
   notes?: string;
 }
 
@@ -85,6 +87,7 @@ export interface RoomUpdate {
   number?: string;
   type?: 'single' | 'double' | 'suite';
   status?: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'out_of_service';
+  price_bs?: number;
   notes?: string;
 }
 

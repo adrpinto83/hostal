@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,12 @@ import type { Room, RoomCreate, RoomUpdate } from '@/types';
 import { Plus, Edit, Trash2, X, Image as ImageIcon } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
+
+interface ExchangeRates {
+  USD: number;
+  EUR: number;
+  timestamp: string;
+}
 
 const roomTypeLabels = {
   single: 'Individual',
@@ -39,13 +45,32 @@ export default function RoomList() {
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [formData, setFormData] = useState<RoomCreate>({
     number: '',
     type: 'single',
+    price_bs: 0,
     notes: '',
   });
 
   const queryClient = useQueryClient();
+
+  // Fetch exchange rates on mount
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (response.ok) {
+          const data = await response.json();
+          setExchangeRates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchExchangeRates();
+  }, []);
 
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['rooms'],
@@ -94,7 +119,7 @@ export default function RoomList() {
   });
 
   const resetForm = () => {
-    setFormData({ number: '', type: 'single', notes: '' });
+    setFormData({ number: '', type: 'single', price_bs: 0, notes: '' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -111,6 +136,7 @@ export default function RoomList() {
     setFormData({
       number: room.number,
       type: room.type,
+      price_bs: room.price_bs || 0,
       notes: room.notes || '',
     });
     setIsModalOpen(true);
@@ -219,8 +245,20 @@ export default function RoomList() {
                     {statusLabels[room.status]}
                   </Badge>
                 </div>
+                {room.price_bs && (
+                  <div className="mt-3 p-2 bg-green-50 rounded">
+                    <p className="font-semibold text-green-900 mb-1">Precio por Noche:</p>
+                    <p className="text-green-800">💵 Bs {room.price_bs.toFixed(2)}</p>
+                    {exchangeRates && exchangeRates.USD > 0 && (
+                      <p className="text-green-800">💲 USD ${(room.price_bs / exchangeRates.USD).toFixed(2)}</p>
+                    )}
+                    {exchangeRates && exchangeRates.EUR > 0 && (
+                      <p className="text-green-800">€ EUR €{(room.price_bs / exchangeRates.EUR).toFixed(2)}</p>
+                    )}
+                  </div>
+                )}
                 {room.notes && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 mt-2">
                     <span className="font-semibold">Notas:</span> {room.notes}
                   </p>
                 )}
@@ -272,6 +310,19 @@ export default function RoomList() {
                   <option value="double">Doble</option>
                   <option value="suite">Suite</option>
                 </select>
+              </div>
+
+              <div>
+                <Label htmlFor="price_bs">Precio por Noche (Bs)</Label>
+                <Input
+                  id="price_bs"
+                  type="number"
+                  step="0.01"
+                  value={formData.price_bs}
+                  onChange={(e) =>
+                    setFormData({ ...formData, price_bs: parseFloat(e.target.value) || 0 })
+                  }
+                />
               </div>
 
               <div>
