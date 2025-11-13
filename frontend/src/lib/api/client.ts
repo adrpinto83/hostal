@@ -9,6 +9,8 @@ export const api: AxiosInstance = axios.create({
   },
 });
 
+let isRedirecting = false; // Prevenir múltiples redirects
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
@@ -31,11 +33,19 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     // Don't redirect for 202 (Accepted) or 403 (Forbidden) in auth endpoints
     // These are intentional responses that should be handled by the caller
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isRedirecting) {
       // Only redirect to login if we're not already there
       if (window.location.pathname !== '/login') {
+        isRedirecting = true;
         localStorage.removeItem('access_token');
-        // Use a slight delay to ensure any pending requests are cancelled
+        // Trigger storage event so Zustand can pick it up
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'access_token',
+          newValue: null,
+          oldValue: localStorage.getItem('access_token'),
+          storageArea: localStorage
+        }));
+        // Redirigir al login
         setTimeout(() => {
           window.location.href = '/login';
         }, 100);
