@@ -21,6 +21,16 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
 
 
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    email: EmailStr
+    token: str = Field(min_length=10)
+    new_password: str = Field(min_length=6)
+
+
 class GoogleLoginIn(BaseModel):
     """Schema for Google OAuth login"""
     google_token: str  # ID token from Google

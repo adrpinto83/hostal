@@ -158,6 +158,16 @@ export interface LoginResponse {
   token_type: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  token: string;
+  new_password: string;
+}
+
 export interface DashboardStats {
   rooms: {
     total: number;

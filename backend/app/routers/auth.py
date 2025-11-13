@@ -1,7 +1,8 @@
 # app/routers/auth.py
-from datetime import timedelta
+from datetime import datetime, timedelta
+import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -12,8 +13,9 @@ from app.core.db import get_db
 from app.core.limiter import limiter
 from app.core.security import create_access_token, get_current_user, hash_password, verify_password
 from app.models.user import User
-from app.schemas.auth import TokenOut, UserApprovalIn, RegisterIn
+from app.schemas.auth import TokenOut, UserApprovalIn, RegisterIn, ForgotPasswordIn, ResetPasswordIn
 from app.schemas.user import UserOut, UserPendingApprovalOut
+from app.core.email_service import send_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -121,6 +123,68 @@ def register(
         "email": new_user.email,
         "status": "pending_approval",
     }
+
+
+@router.post("/password/forgot", response_model=dict)
+def forgot_password(
+    payload: ForgotPasswordIn,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Genera un token temporal y envía un enlace de recuperación."""
+    email = payload.email.lower()
+    user = db.query(User).filter(User.email == email).first()
+
+    if user:
+        token = secrets.token_urlsafe(48)
+        user.reset_password_token = hash_password(token)
+        user.reset_password_expires_at = datetime.utcnow() + timedelta(
+            minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+        )
+        db.commit()
+
+        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}&email={user.email}"
+        subject = "Recupera tu contraseña"
+        text_body = (
+            f"Hola {user.full_name or 'usuario'},\n\n"
+            "Recibimos una solicitud para restablecer tu contraseña en Hostal App.\n"
+            f"Abre el siguiente enlace para continuar: {reset_link}\n\n"
+            "Si no realizaste esta solicitud, puedes ignorar este correo."
+        )
+        html_body = (
+            f"<p>Hola <strong>{user.full_name or 'usuario'}</strong>,</p>"
+            "<p>Haz clic en el siguiente botón para crear una nueva contraseña:</p>"
+            f"<p><a href='{reset_link}' target='_blank'>Restablecer contraseña</a></p>"
+            "<p>Si no fuiste tú quien solicitó el cambio, simplemente ignora este mensaje.</p>"
+        )
+        background_tasks.add_task(send_email, subject, user.email, text_body, html_body)
+
+    return {
+        "message": "Si el correo corresponde a un usuario registrado, enviaremos las instrucciones para restablecer la contraseña."
+    }
+
+
+@router.post("/password/reset", response_model=dict)
+def reset_password(payload: ResetPasswordIn, db: Session = Depends(get_db)):
+    """Permite definir una nueva contraseña utilizando el token enviado por correo."""
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    if (
+        not user
+        or not user.reset_password_token
+        or not user.reset_password_expires_at
+        or user.reset_password_expires_at < datetime.utcnow()
+        or not verify_password(payload.token, user.reset_password_token)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido o expirado")
+
+    user.hashed_password = hash_password(payload.new_password)
+    user.reset_password_token = None
+    user.reset_password_expires_at = None
+    db.commit()
+
+    log_action("password_reset", "user", user.id, user, details={"email": user.email})
+
+    return {"message": "Contraseña actualizada correctamente"}
 
 
 @router.get("/me", response_model=UserOut)

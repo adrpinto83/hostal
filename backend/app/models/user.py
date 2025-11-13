@@ -15,3 +15,5 @@ class User(Base):
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    reset_password_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    reset_password_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

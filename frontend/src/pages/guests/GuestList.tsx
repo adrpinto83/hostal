@@ -63,6 +63,8 @@ export default function GuestList() {
     queryKey: ['devices', selectedGuest?.id],
     queryFn: () => devicesApi.getByGuest(selectedGuest!.id),
     enabled: !!selectedGuest,
+    retry: 1,
+    throwOnError: false,
   });
 
   // Fetch bandwidth data for the selected guest when viewing details
@@ -70,6 +72,8 @@ export default function GuestList() {
     queryKey: ['guest-bandwidth', selectedGuest?.id],
     queryFn: () => selectedGuest ? bandwidthApi.getGuestBandwidth(selectedGuest.id, 30) : Promise.resolve(null),
     enabled: !!selectedGuest,
+    retry: 1,
+    throwOnError: false,
   });
 
   // Query for guest photos
@@ -116,6 +120,8 @@ export default function GuestList() {
     queryKey: ['guest-account', selectedGuest?.id],
     queryFn: () => selectedGuest ? paymentsApi.getByGuest(selectedGuest.id) : Promise.resolve(null),
     enabled: !!selectedGuest && isDetailModalOpen,
+    retry: 1,
+    throwOnError: false,
   });
 
   const createMutation = useMutation({

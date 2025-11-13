@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { LoginRequest, LoginResponse, User } from '@/types';
+import type { LoginRequest, LoginResponse, User, ForgotPasswordRequest, ResetPasswordRequest } from '@/types';
 
 export interface RegisterRequest {
   email: string;
@@ -61,5 +61,15 @@ export const authApi = {
 
   logout: () => {
     localStorage.removeItem('access_token');
+  },
+
+  requestPasswordReset: async (payload: ForgotPasswordRequest) => {
+    const response = await api.post('/auth/password/forgot', payload);
+    return response.data;
+  },
+
+  resetPassword: async (payload: ResetPasswordRequest) => {
+    const response = await api.post('/auth/password/reset', payload);
+    return response.data;
   },
 };

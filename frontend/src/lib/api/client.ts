@@ -32,8 +32,14 @@ api.interceptors.response.use(
     // Don't redirect for 202 (Accepted) or 403 (Forbidden) in auth endpoints
     // These are intentional responses that should be handled by the caller
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
+      // Only redirect to login if we're not already there
+      if (window.location.pathname !== '/login') {
+        localStorage.removeItem('access_token');
+        // Use a slight delay to ensure any pending requests are cancelled
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 100);
+      }
     }
     return Promise.reject(error);
   }

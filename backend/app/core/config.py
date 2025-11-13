@@ -13,12 +13,18 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="change-me-in-production", alias="SECRET_KEY")
     ALGORITHM: str = Field(default="HS256", alias="ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=120, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = Field(default=60, alias="PASSWORD_RESET_TOKEN_EXPIRE_MINUTES")
 
     # --- Server Settings ---
     API_URL: str = Field(
         default="http://localhost:8000",
         alias="API_URL",
         description="Base URL of the API server for generating absolute URLs",
+    )
+    FRONTEND_URL: str = Field(
+        default="http://localhost:3000",
+        alias="FRONTEND_URL",
+        description="Base URL of the frontend used to build links in emails",
     )
 
     # --- CORS Settings ---
@@ -47,6 +53,14 @@ class Settings(BaseSettings):
     POSTGRES_DB: Optional[str] = None
     POSTGRES_HOST: Optional[str] = None
     POSTGRES_PORT: Optional[int] = None
+
+    # --- SMTP / Email Settings ---
+    SMTP_HOST: Optional[str] = Field(default=None, alias="SMTP_HOST")
+    SMTP_PORT: Optional[int] = Field(default=587, alias="SMTP_PORT")
+    SMTP_USERNAME: Optional[str] = Field(default=None, alias="SMTP_USERNAME")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, alias="SMTP_PASSWORD")
+    SMTP_TLS: bool = Field(default=True, alias="SMTP_TLS")
+    EMAIL_FROM: Optional[str] = Field(default="no-reply@hostal.local", alias="EMAIL_FROM")
 
     model_config = SettingsConfigDict(
         env_file=".env",
