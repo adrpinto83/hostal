@@ -10,31 +10,64 @@ import { handleApiError } from '@/lib/api/client';
 import { AlertCircle, Eye, EyeOff, Loader2, Star, CheckCircle2 } from 'lucide-react';
 
 // Componente de Alerta para mostrar errores de forma más destacada
-function ErrorAlert({ message }: { message: string }) {
+function ErrorAlert({ message, onClose }: { message: string; onClose?: () => void }) {
   return (
-    <div className="bg-red-50 border border-red-200 text-sm text-red-800 rounded-lg p-4 flex items-center" role="alert">
-      <AlertCircle className="flex-shrink-0 h-4 w-4 mr-2" />
-      <span className="font-medium">{message}</span>
+    <div className="bg-red-50 border border-red-200 text-sm text-red-800 rounded-lg p-4 flex items-center justify-between" role="alert">
+      <div className="flex items-center">
+        <AlertCircle className="flex-shrink-0 h-4 w-4 mr-2" />
+        <span className="font-medium">{message}</span>
+      </div>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="ml-2 text-red-800 hover:text-red-900 font-bold"
+          aria-label="Cerrar alerta"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
 
 // Componente de Alerta para información
-function InfoAlert({ message }: { message: string }) {
+function InfoAlert({ message, onClose }: { message: string; onClose?: () => void }) {
   return (
-    <div className="bg-blue-50 border border-blue-200 text-sm text-blue-800 rounded-lg p-4 flex items-center" role="alert">
-      <AlertCircle className="flex-shrink-0 h-4 w-4 mr-2" />
-      <span className="font-medium">{message}</span>
+    <div className="bg-blue-50 border border-blue-200 text-sm text-blue-800 rounded-lg p-4 flex items-center justify-between" role="alert">
+      <div className="flex items-center">
+        <AlertCircle className="flex-shrink-0 h-4 w-4 mr-2" />
+        <span className="font-medium">{message}</span>
+      </div>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="ml-2 text-blue-800 hover:text-blue-900 font-bold"
+          aria-label="Cerrar alerta"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
 
 // Componente de Alerta de éxito
-function SuccessAlert({ message }: { message: string }) {
+function SuccessAlert({ message, onClose }: { message: string; onClose?: () => void }) {
   return (
-    <div className="bg-green-50 border border-green-200 text-sm text-green-800 rounded-lg p-4 flex items-center" role="alert">
-      <CheckCircle2 className="flex-shrink-0 h-4 w-4 mr-2" />
-      <span className="font-medium">{message}</span>
+    <div className="bg-green-50 border border-green-200 text-sm text-green-800 rounded-lg p-4 flex items-center justify-between" role="alert">
+      <div className="flex items-center">
+        <CheckCircle2 className="flex-shrink-0 h-4 w-4 mr-2" />
+        <span className="font-medium">{message}</span>
+      </div>
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="ml-2 text-green-800 hover:text-green-900 font-bold"
+          aria-label="Cerrar alerta"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
@@ -54,6 +87,18 @@ export default function Login() {
 
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_MESSAGE = `Demasiados intentos fallidos. Intenta nuevamente en 1 minuto.`;
+
+  const handleCloseError = () => {
+    setError('');
+  };
+
+  const handleCloseSuccess = () => {
+    setSuccess('');
+  };
+
+  const handleCloseInfo = () => {
+    setInfo('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,9 +242,9 @@ export default function Login() {
               </div>
 
               {/* Alerts */}
-              {error && <ErrorAlert message={error} />}
-              {success && <SuccessAlert message={success} />}
-              {info && <InfoAlert message={info} />}
+              {error && <ErrorAlert message={error} onClose={handleCloseError} />}
+              {success && <SuccessAlert message={success} onClose={handleCloseSuccess} />}
+              {info && <InfoAlert message={info} onClose={handleCloseInfo} />}
 
               {/* Failed Attempts Counter */}
               {failedAttempts > 0 && !isBlocked && (
