@@ -193,84 +193,131 @@ export default function RoomList() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {rooms?.map((room) => {
           const photos = getRoomPhotos(room.id);
           return (
-            <Card key={room.id} className="overflow-hidden">
-              {photos.length > 0 && (
-                <div className="relative h-48 bg-gray-100">
-                  <img
-                    src={photos[0].url}
-                    alt={`Habitación ${room.number}`}
-                    className="w-full h-full object-cover cursor-pointer"
-                    onClick={() => openPhotoModal(room)}
-                  />
-                  {photos.length > 1 && (
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-white px-2 py-1 rounded text-xs">
-                      +{photos.length - 1} fotos
+            <Card key={room.id} className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow">
+              {/* Carrusel de imágenes o área vacía */}
+              <div className="relative h-64 bg-gray-100 group">
+                {photos.length > 0 ? (
+                  <div className="relative h-full">
+                    <img
+                      src={photos[0].url}
+                      alt={`Habitación ${room.number}`}
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Botones de navegación */}
+                    {photos.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => openPhotoModal(room)}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Ver carrusel"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => openPhotoModal(room)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Ver carrusel"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                    {/* Contador y botón ver galería */}
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-black/80" onClick={() => openPhotoModal(room)}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {photos.length} fotos
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 cursor-pointer hover:from-gray-200 hover:to-gray-300 transition-colors" onClick={() => openPhotoModal(room)}>
+                    <svg className="w-16 h-16 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-gray-500 font-medium text-center">Agregar fotos</p>
+                    <p className="text-gray-400 text-xs text-center mt-1">Haz clic para subir imágenes</p>
+                  </div>
+                )}
+              </div>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <div>
+                  <CardTitle className="text-2xl font-bold">
+                    Habitación {room.number}
+                  </CardTitle>
                 </div>
-              )}
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xl font-bold">
-                  Habitación {room.number}
-                </CardTitle>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => openPhotoModal(room)}
                     title="Gestionar fotos"
+                    className="flex items-center gap-1"
                   >
                     <ImageIcon className="h-4 w-4 text-blue-600" />
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => handleEdit(room)}
+                    title="Editar habitación"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-4 w-4 text-gray-600" />
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => handleDelete(room.id)}
+                    title="Eliminar habitación"
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div>
-                  <span className="text-sm text-gray-500">Tipo: </span>
-                  <Badge variant="outline">
-                    {roomTypeLabels[room.type || 'single']}
-                  </Badge>
+              <CardContent className="flex-grow space-y-3">
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">TIPO</p>
+                    <Badge variant="outline">
+                      {roomTypeLabels[room.type || 'single']}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">ESTADO</p>
+                    <Badge className={statusColors[room.status]}>
+                      {statusLabels[room.status]}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-sm text-gray-500">Estado: </span>
-                  <Badge className={statusColors[room.status]}>
-                    {statusLabels[room.status]}
-                  </Badge>
-                </div>
+
                 {room.price_bs && (
-                  <div className="mt-3 p-2 bg-green-50 rounded">
-                    <p className="font-semibold text-green-900 mb-1">Precio por Noche:</p>
-                    <p className="text-green-800">💵 Bs {room.price_bs.toFixed(2)}</p>
-                    {exchangeRates && exchangeRates.USD > 0 && (
-                      <p className="text-green-800">💲 USD ${(room.price_bs / exchangeRates.USD).toFixed(2)}</p>
-                    )}
-                    {exchangeRates && exchangeRates.EUR > 0 && (
-                      <p className="text-green-800">€ EUR €{(room.price_bs / exchangeRates.EUR).toFixed(2)}</p>
-                    )}
+                  <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                    <p className="font-semibold text-green-900 mb-2 text-sm">Precio por Noche</p>
+                    <div className="space-y-1">
+                      <p className="text-green-800 font-semibold">💵 Bs {room.price_bs.toFixed(2)}</p>
+                      {exchangeRates && exchangeRates.USD > 0 && (
+                        <p className="text-green-700 text-sm">💲 USD ${(room.price_bs / exchangeRates.USD).toFixed(2)}</p>
+                      )}
+                      {exchangeRates && exchangeRates.EUR > 0 && (
+                        <p className="text-green-700 text-sm">€ EUR €{(room.price_bs / exchangeRates.EUR).toFixed(2)}</p>
+                      )}
+                    </div>
                   </div>
                 )}
+
                 {room.notes && (
-                  <p className="text-sm text-gray-600 mt-2">
-                    <span className="font-semibold">Notas:</span> {room.notes}
-                  </p>
+                  <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                    <p className="text-xs text-blue-900 font-medium mb-1">NOTAS</p>
+                    <p className="text-sm text-blue-800">{room.notes}</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
