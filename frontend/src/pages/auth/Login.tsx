@@ -12,15 +12,15 @@ import { AlertCircle, Eye, EyeOff, Loader2, Star, CheckCircle2 } from 'lucide-re
 // Componente de Alerta para mostrar errores de forma más destacada
 function ErrorAlert({ message, onClose }: { message: string; onClose?: () => void }) {
   return (
-    <div className="bg-red-50 border border-red-200 text-sm text-red-800 rounded-lg p-4 flex items-center justify-between" role="alert">
-      <div className="flex items-center">
-        <AlertCircle className="flex-shrink-0 h-4 w-4 mr-2" />
-        <span className="font-medium">{message}</span>
+    <div className="bg-red-100 border-2 border-red-500 text-base text-red-900 rounded-lg p-4 flex items-center justify-between" role="alert">
+      <div className="flex items-center flex-1">
+        <AlertCircle className="flex-shrink-0 h-6 w-6 mr-3 text-red-600" />
+        <span className="font-semibold">{message}</span>
       </div>
       {onClose && (
         <button
           onClick={onClose}
-          className="ml-2 text-red-800 hover:text-red-900 font-bold"
+          className="ml-4 text-red-700 hover:text-red-900 font-bold text-xl"
           aria-label="Cerrar alerta"
         >
           ✕
@@ -142,7 +142,7 @@ export default function Login() {
       // Si se alcanzó el límite de intentos
       if (newAttempts >= MAX_ATTEMPTS) {
         setIsBlocked(true);
-        setError(`${errorMessage} - Se bloqueó la cuenta después de ${MAX_ATTEMPTS} intentos fallidos.`);
+        setError(`❌ USUARIO O CONTRASEÑA INVÁLIDO - Se bloqueó la cuenta después de ${MAX_ATTEMPTS} intentos fallidos.`);
 
         // Desbloquear después de 1 minuto
         setTimeout(() => {
@@ -154,7 +154,7 @@ export default function Login() {
       } else {
         // Mostrar error con número de intentos
         const remainingAttempts = MAX_ATTEMPTS - newAttempts;
-        setError(`${errorMessage} (Intentos restantes: ${remainingAttempts}/${MAX_ATTEMPTS})`);
+        setError(`❌ USUARIO O CONTRASEÑA INVÁLIDO - Intentos restantes: ${remainingAttempts}/${MAX_ATTEMPTS}`);
       }
     } finally {
       setLoading(false);
