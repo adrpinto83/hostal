@@ -18,6 +18,14 @@ interface ExchangeRates {
   timestamp: string;
 }
 
+interface FormData {
+  number: string;
+  type: 'single' | 'double' | 'suite';
+  price_amount?: number;
+  price_currency?: 'VES' | 'USD' | 'EUR';
+  notes: string;
+}
+
 const roomTypeLabels = {
   single: 'Individual',
   double: 'Doble',
@@ -46,10 +54,11 @@ export default function RoomList() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
-  const [formData, setFormData] = useState<RoomCreate>({
+  const [formData, setFormData] = useState<FormData>({
     number: '',
     type: 'single',
-    price_bs: 0,
+    price_amount: undefined,
+    price_currency: 'VES',
     notes: '',
   });
 
@@ -119,7 +128,7 @@ export default function RoomList() {
   });
 
   const resetForm = () => {
-    setFormData({ number: '', type: 'single', price_bs: 0, notes: '' });
+    setFormData({ number: '', type: 'single', price_amount: undefined, price_currency: 'VES', notes: '' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -136,7 +145,8 @@ export default function RoomList() {
     setFormData({
       number: room.number,
       type: room.type,
-      price_bs: room.price_bs || 0,
+      price_amount: room.price_bs || undefined,
+      price_currency: 'VES', // Show in VES when editing
       notes: room.notes || '',
     });
     setIsModalOpen(true);
@@ -312,17 +322,35 @@ export default function RoomList() {
                 </select>
               </div>
 
-              <div>
-                <Label htmlFor="price_bs">Precio por Noche (Bs)</Label>
-                <Input
-                  id="price_bs"
-                  type="number"
-                  step="0.01"
-                  value={formData.price_bs}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price_bs: parseFloat(e.target.value) || 0 })
-                  }
-                />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <Label htmlFor="price_amount">Precio por Noche</Label>
+                  <Input
+                    id="price_amount"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.price_amount || ''}
+                    onChange={(e) =>
+                      setFormData({ ...formData, price_amount: parseFloat(e.target.value) || undefined })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="price_currency">Moneda</Label>
+                  <select
+                    id="price_currency"
+                    className="w-full px-3 py-2 border rounded-md"
+                    value={formData.price_currency || 'VES'}
+                    onChange={(e) =>
+                      setFormData({ ...formData, price_currency: e.target.value as 'VES' | 'USD' | 'EUR' })
+                    }
+                  >
+                    <option value="VES">Bs (VES)</option>
+                    <option value="USD">$ (USD)</option>
+                    <option value="EUR">€ (EUR)</option>
+                  </select>
+                </div>
               </div>
 
               <div>

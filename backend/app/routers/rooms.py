@@ -6,8 +6,21 @@ from ..core.db import get_db
 from ..core.security import require_roles
 from ..models.room import Room, RoomType
 from ..schemas.room import RoomCreate, RoomOut, RoomUpdate
+from ..services.currency import CurrencyService
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+
+def _convert_price_to_bs(price_amount: float | None, price_currency: str | None, db: Session) -> float | None:
+    """Convierte el precio a Bolívares si se proporciona."""
+    if price_amount is None or price_currency is None:
+        return None
+
+    if price_currency == "VES":
+        return price_amount
+
+    # Convertir de USD o EUR a VES
+    return CurrencyService.convert_amount(db, price_amount, price_currency, "VES").get("converted_amount")
 
 
 @router.post(
@@ -19,7 +32,13 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
     description="Crea una nueva habitación en la base de datos. El número de habitación debe ser único.",
 )
 def create_room(data: RoomCreate, db: Session = Depends(get_db)):
-    room = Room(number=data.number, type=RoomType(data.type), notes=data.notes)
+    price_bs = _convert_price_to_bs(data.price_amount, data.price_currency, db)
+    room = Room(
+        number=data.number,
+        type=RoomType(data.type),
+        price_bs=price_bs,
+        notes=data.notes
+    )
     db.add(room)
     try:
         db.commit()
@@ -89,6 +108,10 @@ def update_room(room_id: int, data: RoomUpdate, db: Session = Depends(get_db)):
         room.type = RoomType(data.type)
     if data.notes is not None:
         room.notes = data.notes
+    if data.price_amount is not None or data.price_currency is not None:
+        price_bs = _convert_price_to_bs(data.price_amount, data.price_currency, db)
+        if price_bs is not None:
+            room.price_bs = price_bs
 
     try:
         db.commit()

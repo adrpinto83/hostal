@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from sqlalchemy import Column, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, UniqueConstraint, Float
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
@@ -38,6 +38,7 @@ class Room(Base):
         default=RoomStatus.available,
         server_default="available",
     )
+    price_bs = Column(Float, nullable=True)  # Precio en Bolívares (moneda base)
     notes = Column(Text, nullable=True)
 
     # Relaciones
