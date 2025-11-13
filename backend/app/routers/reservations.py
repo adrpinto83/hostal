@@ -10,6 +10,7 @@ from app.core.dates import compute_end_date
 from app.core.db import get_db
 from app.core.security import require_roles
 from app.models.guest import Guest
+from app.models.payment import Currency, Payment, PaymentStatus
 from app.models.reservation import Period as PeriodEnum
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.room import Room
@@ -109,6 +110,22 @@ def create_reservation(data: ReservationCreate, db: Session = Depends(get_db)):
     db.add(res)
     db.commit()
     db.refresh(res)
+
+    # Crear un Payment automático para acreditar el costo a la cuenta del huésped
+    # El status es "pending" porque aún no se ha pagado
+    payment = Payment(
+        guest_id=data.guest_id,
+        reservation_id=res.id,
+        amount=price_bs,
+        currency=Currency.VES,
+        amount_ves=price_bs,
+        status=PaymentStatus.pending,
+        notes=f"Costo de reserva - Habitación {room.number} ({res.start_date} a {res.end_date})",
+    )
+    db.add(payment)
+    db.commit()
+    db.refresh(res)
+
     return res
 
 
