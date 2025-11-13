@@ -126,7 +126,14 @@ export default function ReservationList() {
       alert('Por favor, seleccione un huésped y una habitación.');
       return;
     }
-    createMutation.mutate(formData);
+
+    // Incluir el precio_bs calculado
+    const dataToSubmit = {
+      ...formData,
+      price_bs: totalCost > 0 ? totalCost : undefined,
+    };
+
+    createMutation.mutate(dataToSubmit);
   };
 
   const handleConfirm = (id: number) => {
@@ -173,6 +180,36 @@ export default function ReservationList() {
   };
 
   const endDate = calculateEndDate(formData.start_date, formData.period, formData.periods_count);
+
+  // Calcular costo total de la reserva
+  const calculateTotalCost = (): number => {
+    if (formData.room_id === 0) return 0;
+
+    const selectedRoom = rooms?.find((r) => r.id === formData.room_id);
+    if (!selectedRoom || !selectedRoom.price_bs) return 0;
+
+    // El precio_bs de la habitación es el precio POR DÍA
+    // Calcular el número total de días
+    let totalDays = formData.periods_count;
+
+    switch (formData.period) {
+      case 'week':
+        totalDays = formData.periods_count * 7;
+        break;
+      case 'fortnight':
+        totalDays = formData.periods_count * 14;
+        break;
+      case 'month':
+        // Aproximar un mes a 30 días
+        totalDays = formData.periods_count * 30;
+        break;
+      // case 'day': totalDays = formData.periods_count (ya está correcto)
+    }
+
+    return selectedRoom.price_bs * totalDays;
+  };
+
+  const totalCost = calculateTotalCost();
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -457,14 +494,56 @@ export default function ReservationList() {
                     </div>
                   </div>
 
-                  {/* Resumen de fechas */}
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-900 font-semibold mb-2">📍 Rango de Reserva:</p>
-                    <div className="space-y-1 text-sm text-blue-800">
-                      <p>Inicio: <span className="font-semibold">{formatDate(formData.start_date)}</span></p>
-                      <p>Fin: <span className="font-semibold">{formatDate(endDate)}</span></p>
-                      <p>Total: <span className="font-semibold">{formData.periods_count} {periodLabels[formData.period].toLowerCase()}</span></p>
+                  {/* Resumen de fechas y costo */}
+                  <div className="space-y-3">
+                    {/* Dates */}
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-900 font-semibold mb-2">📍 Rango de Reserva:</p>
+                      <div className="space-y-1 text-sm text-blue-800">
+                        <p>Inicio: <span className="font-semibold">{formatDate(formData.start_date)}</span></p>
+                        <p>Fin: <span className="font-semibold">{formatDate(endDate)}</span></p>
+                        <p>Total: <span className="font-semibold">{formData.periods_count} {periodLabels[formData.period].toLowerCase()}</span></p>
+                      </div>
                     </div>
+
+                    {/* Cost Calculation */}
+                    {totalCost > 0 && (
+                      <div className="p-4 bg-green-50 border-2 border-green-400 rounded-lg">
+                        <p className="text-sm text-green-900 font-semibold mb-3">💰 Costo de Reserva:</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between text-green-800">
+                            <span>Tarifa por día:</span>
+                            <span className="font-semibold">Bs {rooms?.find(r => r.id === formData.room_id)?.price_bs?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="flex justify-between text-green-800">
+                            <span>Cantidad de días:</span>
+                            <span className="font-semibold">
+                              {formData.period === 'day' ? formData.periods_count :
+                               formData.period === 'week' ? formData.periods_count * 7 :
+                               formData.period === 'fortnight' ? formData.periods_count * 14 :
+                               formData.periods_count * 30} días
+                            </span>
+                          </div>
+                          <div className="border-t border-green-300 pt-2 flex justify-between">
+                            <span className="font-bold text-green-900">TOTAL RESERVA:</span>
+                            <span className="text-lg font-bold text-green-700">Bs {totalCost.toFixed(2)}</span>
+                          </div>
+                          {exchangeRates && exchangeRates.USD > 0 && (
+                            <div className="text-xs text-green-700 text-right">
+                              ≈ USD ${(totalCost / exchangeRates.USD).toFixed(2)}
+                            </div>
+                          )}
+                          {exchangeRates && exchangeRates.EUR > 0 && (
+                            <div className="text-xs text-green-700 text-right">
+                              ≈ EUR €{(totalCost / exchangeRates.EUR).toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-green-700 mt-3 italic">
+                          💡 Este monto será acreditado a la cuenta del huésped y podrá pagarse después
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Notas */}
