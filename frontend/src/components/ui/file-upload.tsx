@@ -52,7 +52,14 @@ export function FileUpload({
       return mediaApi.upload(formData);
     },
     onSuccess: () => {
+      // Invalidar el query genérico
       queryClient.invalidateQueries({ queryKey: ['media'] });
+
+      // También invalidar query específico por categoría si es room_photo
+      if (category === 'room_photo') {
+        queryClient.invalidateQueries({ queryKey: ['room-photos'] });
+      }
+
       setSelectedFile(null);
       setPreview(null);
       if (fileInputRef.current) {
