@@ -286,6 +286,26 @@ export interface GuestPaymentReport {
     eur: number;
     ves: number;
   };
+  reservation_summary?: {
+    count: number;
+    total_bs: number;
+    total_usd: number;
+    total_eur: number;
+    reservations: Array<{
+      id: number;
+      room_number?: string | null;
+      status: string;
+      period: string;
+      start_date: string;
+      end_date: string;
+      price_bs: number;
+    }>;
+  };
+  balance?: {
+    ves: number;
+    usd: number;
+    eur: number;
+  };
   payments: Array<{
     id: number;
     amount: number;

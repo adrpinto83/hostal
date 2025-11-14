@@ -38,14 +38,13 @@ export default function ResetPassword() {
       !newPassword ||
       newPassword.length < 6 ||
       newPassword !== confirmPassword ||
-      mutation.isLoading
+      mutation.isPending
     );
-  }, [email, token, newPassword, confirmPassword, mutation.isLoading]);
+  }, [email, token, newPassword, confirmPassword, mutation.isPending]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isDisabled) return;
-    authApi.resetPassword({ email, token, new_password: newPassword });
     mutation.mutate({ email, token, new_password: newPassword });
   };
 
@@ -112,7 +111,7 @@ export default function ResetPassword() {
               </p>
             )}
             <Button type="submit" className="w-full" disabled={isDisabled}>
-              {mutation.isLoading ? 'Actualizando...' : 'Actualizar contraseña'}
+              {mutation.isPending ? 'Actualizando...' : 'Actualizar contraseña'}
             </Button>
           </form>
           <div className="text-center text-sm text-gray-600">

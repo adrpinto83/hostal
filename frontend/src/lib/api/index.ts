@@ -236,11 +236,11 @@ export const guestsApi = {
 
 export const devicesApi = {
   getByGuest: async (guestId: number) => {
-    const response = await api.get<Device[]>(`/guests/${guestId}/devices`);
+    const response = await api.get<Device[]>(`/guests/${guestId}/devices/`);
     return response.data;
   },
   create: async (guestId: number, data: DeviceCreate) => {
-    const response = await api.post<Device>(`/guests/${guestId}/devices`, data);
+    const response = await api.post<Device>(`/guests/${guestId}/devices/`, data);
     return response.data;
   },
   delete: async (guestId: number, deviceId: number) => {

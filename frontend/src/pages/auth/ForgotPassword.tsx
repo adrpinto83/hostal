@@ -54,8 +54,8 @@ export default function ForgotPassword() {
                 Ocurrió un error al enviar el correo. Inténtalo nuevamente.
               </p>
             )}
-            <Button type="submit" className="w-full" disabled={mutation.isLoading}>
-              {mutation.isLoading ? 'Enviando...' : 'Enviar instrucciones'}
+            <Button type="submit" className="w-full" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Enviando...' : 'Enviar instrucciones'}
             </Button>
           </form>
           <div className="text-center text-sm text-gray-600">

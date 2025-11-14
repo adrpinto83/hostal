@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { roomsApi, mediaApi } from '@/lib/api';
+import { roomsApi, mediaApi, occupancyApi, maintenanceApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Room, RoomUpdate, Media } from '@/types';
-import { Plus, Edit, Trash2, X, Image as ImageIcon, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import type { Room, RoomUpdate, Media, Occupancy, Maintenance } from '@/types';
+import { formatDateTime } from '@/lib/utils';
+import { Plus, Edit, Trash2, X, Image as ImageIcon, CheckCircle, XCircle, UserCircle, Wrench } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
@@ -90,10 +91,41 @@ export default function RoomList() {
     queryFn: roomsApi.getAll,
   });
 
+  const { data: activeOccupancies } = useQuery<Occupancy[]>({
+    queryKey: ['rooms', 'active-occupancies'],
+    queryFn: () => occupancyApi.getAll({ active_only: true }),
+  });
+
+  const { data: pendingMaintenance } = useQuery<Maintenance[]>({
+    queryKey: ['rooms', 'maintenance', 'pending'],
+    queryFn: () => maintenanceApi.getAll({ pending_only: true }),
+  });
+
   const { data: roomPhotos = [], refetch: refetchPhotos } = useQuery<Media[]>({
     queryKey: ['room-photos'],
     queryFn: () => mediaApi.getAll({ category: 'room_photo' }),
   });
+
+  const occupancyMap = useMemo(() => {
+    const map: Record<number, Occupancy> = {};
+    (activeOccupancies ?? []).forEach((occ) => {
+      if (!occ.room_id || map[occ.room_id]) return;
+      map[occ.room_id] = occ;
+    });
+    return map;
+  }, [activeOccupancies]);
+
+  const maintenanceMap = useMemo(() => {
+    const map: Record<number, Maintenance[]> = {};
+    (pendingMaintenance ?? []).forEach((task) => {
+      if (!task.room_id) return;
+      if (!map[task.room_id]) {
+        map[task.room_id] = [];
+      }
+      map[task.room_id].push(task);
+    });
+    return map;
+  }, [pendingMaintenance]);
 
   const createMutation = useMutation({
     mutationFn: roomsApi.create,
@@ -247,6 +279,9 @@ export default function RoomList() {
         {rooms?.map((room) => {
           const photos = getRoomPhotos(room.id);
           const primaryPhoto = photos[0];
+          const activeOccupancy = occupancyMap[room.id];
+          const roomMaintenance = maintenanceMap[room.id] ?? [];
+          const maintenanceSummary = roomMaintenance[0];
           return (
             <Card
               key={room.id}
@@ -382,6 +417,44 @@ export default function RoomList() {
                     <p className="text-sm text-blue-800">{room.notes}</p>
                   </div>
                 )}
+
+                {activeOccupancy && (
+                  <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <p className="text-xs text-purple-700 font-semibold mb-1 flex items-center gap-1">
+                      <UserCircle className="h-3.5 w-3.5" />
+                      Ocupada por
+                    </p>
+                    <p className="text-base font-semibold text-purple-900">
+                      {activeOccupancy.guest_name || 'Huésped en curso'}
+                    </p>
+                    <p className="text-xs text-purple-700 mt-1">
+                      Check-in: {formatDateTime(activeOccupancy.check_in)}
+                    </p>
+                    {activeOccupancy.reservation_id && (
+                      <p className="text-xs text-purple-600">
+                        Reserva #{activeOccupancy.reservation_id}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {maintenanceSummary && (
+                  <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <p className="text-xs text-orange-700 font-semibold mb-1 flex items-center gap-1">
+                      <Wrench className="h-3.5 w-3.5" />
+                      Mantenimiento pendiente
+                    </p>
+                    <p className="text-base font-semibold text-orange-900">
+                      {maintenanceSummary.title}
+                    </p>
+                    <p className="text-xs text-orange-700 mt-1 capitalize">
+                      Estado: {maintenanceSummary.status}
+                    </p>
+                    <p className="text-xs text-orange-700">
+                      Responsable: {maintenanceSummary.assigned_staff_name || 'Sin asignar'}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -397,6 +470,7 @@ export default function RoomList() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Precio</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">Actividad</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
               </tr>
             </thead>
@@ -404,6 +478,9 @@ export default function RoomList() {
               {rooms?.map((room) => {
                 const photos = getRoomPhotos(room.id);
                 const primaryPhoto = photos[0];
+                const activeOccupancy = occupancyMap[room.id];
+                const roomMaintenance = maintenanceMap[room.id] ?? [];
+                const maintenanceSummary = roomMaintenance[0];
                 return (
                   <tr key={room.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
@@ -438,6 +515,34 @@ export default function RoomList() {
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-sm">
                       {room.notes ? <span className="line-clamp-2">{room.notes}</span> : <span className="text-gray-400">Sin notas</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {activeOccupancy ? (
+                        <div>
+                          <p className="font-semibold text-purple-900 flex items-center gap-1">
+                            <UserCircle className="h-4 w-4" />
+                            {activeOccupancy.guest_name || 'Huésped en curso'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Check-in: {formatDateTime(activeOccupancy.check_in)}
+                          </p>
+                        </div>
+                      ) : maintenanceSummary ? (
+                        <div>
+                          <p className="font-semibold text-orange-900 flex items-center gap-1">
+                            <Wrench className="h-4 w-4" />
+                            {maintenanceSummary.title}
+                          </p>
+                          <p className="text-xs text-gray-500 capitalize">
+                            Estado: {maintenanceSummary.status}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Responsable: {maintenanceSummary.assigned_staff_name || 'Sin asignar'}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">Sin actividad</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">

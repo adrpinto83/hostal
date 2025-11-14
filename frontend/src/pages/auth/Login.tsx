@@ -155,7 +155,8 @@ export default function Login() {
       // Si se alcanzó el límite de intentos
       if (newAttempts >= MAX_ATTEMPTS) {
         setIsBlocked(true);
-        setError(`❌ USUARIO O CONTRASEÑA INVÁLIDO - Se bloqueó la cuenta después de ${MAX_ATTEMPTS} intentos fallidos.`);
+        const detail = errorMessage ? ` (${errorMessage})` : '';
+        setError(`❌ USUARIO O CONTRASEÑA INVÁLIDO - Se bloqueó la cuenta después de ${MAX_ATTEMPTS} intentos fallidos.${detail}`);
 
         // Desbloquear después de 1 minuto
         setTimeout(() => {
@@ -167,7 +168,8 @@ export default function Login() {
       } else {
         // Mostrar error con número de intentos
         const remainingAttempts = MAX_ATTEMPTS - newAttempts;
-        setError(`❌ USUARIO O CONTRASEÑA INVÁLIDO - Intentos restantes: ${remainingAttempts}/${MAX_ATTEMPTS}`);
+        const detail = errorMessage ? ` (${errorMessage})` : '';
+        setError(`❌ USUARIO O CONTRASEÑA INVÁLIDO - Intentos restantes: ${remainingAttempts}/${MAX_ATTEMPTS}${detail}`);
       }
     } finally {
       setLoading(false);

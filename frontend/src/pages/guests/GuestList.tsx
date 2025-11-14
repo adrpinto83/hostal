@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -49,6 +51,38 @@ export default function GuestList() {
     name: '',
     vendor: '',
   });
+  const navigate = useNavigate();
+
+  const formatMoney = (
+    value?: number | null,
+    currency: 'VES' | 'USD' | 'EUR' = 'VES'
+  ): string => {
+    const labels = {
+      VES: 'Bs',
+      USD: 'USD $',
+      EUR: 'EUR €',
+    };
+    const amount = value ?? 0;
+    return `${labels[currency]} ${amount.toLocaleString('es-VE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const formatDate = (value: string) =>
+    new Date(value).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+  const reservationStatusLabels: Record<string, string> = {
+    pending: 'Pendiente',
+    active: 'Activa',
+    checked_out: 'Check-out',
+    cancelled: 'Cancelada',
+  };
+
   const notesValue = formData.notes ?? '';
   const remainingNotesChars = NOTES_MAX_LENGTH - notesValue.length;
 
@@ -116,13 +150,69 @@ export default function GuestList() {
   });
 
   // Query for guest account balance
-  const { data: guestAccountData } = useQuery({
+  const {
+    data: guestAccountData,
+    isLoading: isAccountLoading,
+    isError: isAccountError,
+  } = useQuery({
     queryKey: ['guest-account', selectedGuest?.id],
-    queryFn: () => selectedGuest ? paymentsApi.getByGuest(selectedGuest.id) : Promise.resolve(null),
+    queryFn: async () => {
+      if (!selectedGuest) return null;
+      try {
+        return await paymentsApi.getByGuest(selectedGuest.id);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          return null;
+        }
+        throw err;
+      }
+    },
     enabled: !!selectedGuest && isDetailModalOpen,
     retry: 1,
     throwOnError: false,
   });
+
+  const accountSummary = useMemo(() => {
+    if (!guestAccountData) {
+      return {
+        reservations: 0,
+        reservationTotalVES: 0,
+        reservationTotalUSD: 0,
+        reservationTotalEUR: 0,
+        paidVES: 0,
+        paidUSD: 0,
+        paidEUR: 0,
+        outstandingVES: 0,
+        outstandingUSD: 0,
+        outstandingEUR: 0,
+      };
+    }
+    const reservationTotalVES = guestAccountData.reservation_summary?.total_bs ?? 0;
+    const reservationTotalUSD = guestAccountData.reservation_summary?.total_usd ?? 0;
+    const reservationTotalEUR = guestAccountData.reservation_summary?.total_eur ?? 0;
+    const paidVES = guestAccountData.totals?.ves ?? 0;
+    const paidUSD = guestAccountData.totals?.usd ?? 0;
+    const paidEUR = guestAccountData.totals?.eur ?? 0;
+    const outstandingVES =
+      guestAccountData.balance?.ves ?? Math.max(reservationTotalVES - paidVES, 0);
+    const outstandingUSD =
+      guestAccountData.balance?.usd ?? Math.max(reservationTotalUSD - paidUSD, 0);
+    const outstandingEUR =
+      guestAccountData.balance?.eur ?? Math.max(reservationTotalEUR - paidEUR, 0);
+
+    return {
+      reservations: guestAccountData.reservation_summary?.count ?? 0,
+      reservationTotalVES,
+      reservationTotalUSD,
+      reservationTotalEUR,
+      paidVES,
+      paidUSD,
+      paidEUR,
+      outstandingVES,
+      outstandingUSD,
+      outstandingEUR,
+    };
+  }, [guestAccountData]);
 
   const createMutation = useMutation({
     mutationFn: guestsApi.create,
@@ -1010,62 +1100,138 @@ export default function GuestList() {
               {activeTab === 'account' && (
                 <div className="space-y-4">
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <CardTitle className="flex items-center gap-2">
                         <DollarSign className="h-5 w-5 text-green-600" />
                         Cuenta del Huésped
                       </CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => navigate(`/payments?guest=${selectedGuest.id}`)}
+                      >
+                        Ir a Pagos
+                      </Button>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {guestAccountData ? (
+                      {isAccountLoading ? (
+                        <div className="p-4 text-center text-gray-500">
+                          <p>Cargando información de cuenta...</p>
+                        </div>
+                      ) : guestAccountData ? (
                         <>
                           {/* Resumen de Cuenta */}
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                              <p className="text-xs text-red-600 font-semibold mb-1">DEUDA PENDIENTE</p>
-                              <p className="text-2xl font-bold text-red-700">
-                                {guestAccountData.totals && (guestAccountData.total_payments - guestAccountData.completed_payments) > 0 ?
-                                  `${guestAccountData.total_payments - guestAccountData.completed_payments} pagos`
-                                  : '0 pagos'}
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                              <p className="text-xs text-red-600 font-semibold mb-1">SALDO PENDIENTE</p>
+                              <p className="text-3xl font-bold text-red-700">
+                                {formatMoney(accountSummary.outstandingVES, 'VES')}
+                              </p>
+                              <div className="text-sm text-red-700 space-y-1 mt-2">
+                                {accountSummary.outstandingUSD > 0 && (
+                                  <div>{formatMoney(accountSummary.outstandingUSD, 'USD')}</div>
+                                )}
+                                {accountSummary.outstandingEUR > 0 && (
+                                  <div>{formatMoney(accountSummary.outstandingEUR, 'EUR')}</div>
+                                )}
+                              </div>
+                              <p className={`text-xs mt-3 ${accountSummary.outstandingVES > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                                {accountSummary.outstandingVES > 0
+                                  ? 'La deuda corresponde al total de reservas. Registra un pago para cancelarla.'
+                                  : 'Cuenta al día.'}
                               </p>
                             </div>
-                            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                               <p className="text-xs text-green-600 font-semibold mb-1">PAGADO</p>
-                              <p className="text-2xl font-bold text-green-700">
-                                {guestAccountData.completed_payments || 0} pagos
+                              <div className="text-2xl font-bold text-green-700 mb-2">
+                                {guestAccountData.completed_payments || 0} pago{(guestAccountData.completed_payments || 0) === 1 ? '' : 's'}
+                              </div>
+                              <div className="space-y-1 text-sm text-green-900">
+                                {accountSummary.paidVES > 0 && (
+                                  <div>{formatMoney(accountSummary.paidVES, 'VES')}</div>
+                                )}
+                                {accountSummary.paidUSD > 0 && (
+                                  <div>{formatMoney(accountSummary.paidUSD, 'USD')}</div>
+                                )}
+                                {accountSummary.paidEUR > 0 && (
+                                  <div>{formatMoney(accountSummary.paidEUR, 'EUR')}</div>
+                                )}
+                                {guestAccountData.totals.ves === 0 &&
+                                  guestAccountData.totals.usd === 0 &&
+                                  guestAccountData.totals.eur === 0 && (
+                                    <p className="text-gray-600">Sin pagos registrados</p>
+                                  )}
+                              </div>
+                            </div>
+                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-xs text-blue-700 font-semibold mb-1">TOTAL RESERVAS</p>
+                              <p className="text-2xl font-bold text-blue-900">
+                                {accountSummary.reservations
+                                  ? formatMoney(accountSummary.reservationTotalVES, 'VES')
+                                  : 'Sin reservas activas'}
                               </p>
+                              {accountSummary.reservations > 0 && (
+                                <div className="text-sm text-blue-900 space-y-1 mt-2">
+                                  {accountSummary.reservationTotalUSD > 0 && (
+                                    <div>{formatMoney(accountSummary.reservationTotalUSD, 'USD')}</div>
+                                  )}
+                                  {accountSummary.reservationTotalEUR > 0 && (
+                                    <div>{formatMoney(accountSummary.reservationTotalEUR, 'EUR')}</div>
+                                  )}
+                                  <p className="text-xs text-blue-700">
+                                    {accountSummary.reservations} reserva{accountSummary.reservations === 1 ? '' : 's'} considerada{accountSummary.reservations === 1 ? '' : 's'} para la cuenta.
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
 
-                          {/* Totales por moneda */}
-                          {guestAccountData.totals && (
-                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                              <p className="font-semibold text-blue-900 mb-3">Montos Totales Pagados:</p>
-                              <div className="space-y-2 text-sm">
-                                {guestAccountData.totals.ves > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-blue-700">Bolívares (VES):</span>
-                                    <span className="font-semibold text-blue-900">Bs {guestAccountData.totals.ves.toFixed(2)}</span>
-                                  </div>
-                                )}
-                                {guestAccountData.totals.usd > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-blue-700">Dólares (USD):</span>
-                                    <span className="font-semibold text-blue-900">USD ${guestAccountData.totals.usd.toFixed(2)}</span>
-                                  </div>
-                                )}
-                                {guestAccountData.totals.eur > 0 && (
-                                  <div className="flex justify-between">
-                                    <span className="text-blue-700">Euros (EUR):</span>
-                                    <span className="font-semibold text-blue-900">EUR €{guestAccountData.totals.eur.toFixed(2)}</span>
-                                  </div>
-                                )}
-                                {guestAccountData.totals.ves === 0 && guestAccountData.totals.usd === 0 && guestAccountData.totals.eur === 0 && (
-                                  <p className="text-gray-500 italic">Sin pagos registrados</p>
-                                )}
+                          {/* Reservas asociadas */}
+                          {guestAccountData.reservation_summary ? (
+                            guestAccountData.reservation_summary.reservations?.length ? (
+                              <div className="p-4 bg-white rounded-lg border border-gray-200">
+                                <p className="font-semibold text-gray-900 mb-3">Reservas asociadas a la cuenta:</p>
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full text-sm text-left">
+                                    <thead>
+                                      <tr className="text-gray-500 uppercase text-xs">
+                                        <th className="px-2 py-1">Habitación</th>
+                                        <th className="px-2 py-1">Fechas</th>
+                                        <th className="px-2 py-1">Estado</th>
+                                        <th className="px-2 py-1 text-right">Monto</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {guestAccountData.reservation_summary.reservations.map((reservation) => (
+                                        <tr key={reservation.id} className="border-t text-gray-700">
+                                          <td className="px-2 py-1 font-medium">{reservation.room_number || '—'}</td>
+                                          <td className="px-2 py-1">
+                                            {formatDate(reservation.start_date)} - {formatDate(reservation.end_date)}
+                                          </td>
+                                          <td className="px-2 py-1">
+                                            <Badge variant="secondary">
+                                              {reservationStatusLabels[reservation.status] || reservation.status}
+                                            </Badge>
+                                          </td>
+                                          <td className="px-2 py-1 text-right font-semibold">
+                                            {formatMoney(reservation.price_bs, 'VES')}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-3">
+                                  El saldo pendiente se calcula proporcionalmente a estas reservas. Para cancelarlo, registra el pago correspondiente desde la sección de Pagos.
+                                </p>
                               </div>
-                            </div>
-                          )}
+                            ) : (
+                              <div className="p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200 text-sm text-gray-600">
+                                No se encontraron reservas activas para esta cuenta.
+                              </div>
+                            )
+                          ) : null}
 
                           {/* Estado de pagos */}
                           {guestAccountData.total_payments > 0 ? (
@@ -1095,10 +1261,17 @@ export default function GuestList() {
                               </p>
                             </div>
                           )}
+                          {accountSummary.outstandingVES === 0 && (
+                            <div className="p-4 bg-green-50 rounded-lg border border-green-200 text-sm text-green-700">
+                              Este huésped no tiene deudas pendientes en su cuenta.
+                            </div>
+                          )}
                         </>
                       ) : (
-                        <div className="p-4 text-center text-gray-500">
-                          <p>Cargando información de cuenta...</p>
+                        <div className="p-4 text-center text-gray-600 border border-dashed border-gray-300 rounded-lg">
+                          {isAccountError
+                            ? 'No pudimos obtener la información de cuenta. Intenta nuevamente.'
+                            : 'Este huésped no tiene reservas ni pagos registrados, por lo que no existe una cuenta activa.'}
                         </div>
                       )}
                     </CardContent>
