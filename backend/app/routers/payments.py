@@ -16,6 +16,7 @@ from ..core.db import get_db
 from ..core.security import get_current_user, require_roles
 from ..models.guest import Guest
 from ..models.payment import Currency, Payment, PaymentMethod, PaymentStatus
+from ..models.reservation import Reservation, ReservationStatus
 from ..models.user import User
 from ..services.currency import CurrencyService
 
@@ -263,6 +264,14 @@ def update_payment(
 )
 def delete_payment(
     payment_id: int,
+    force: bool = Query(
+        False,
+        description="Permite eliminar pagos confirmados si es estrictamente necesario y autorizado.",
+    ),
+    reason: Optional[str] = Query(
+        None,
+        description="Motivo de la eliminación forzada de un pago confirmado (mínimo 10 caracteres).",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -271,10 +280,32 @@ def delete_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
 
+    if payment.status == PaymentStatus.completed:
+        if not force:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Confirmed payments cannot be deleted without explicit authorization.",
+            )
+        if not reason or len(reason.strip()) < 10:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A detailed reason (at least 10 characters) is required to delete a confirmed payment.",
+            )
+
     db.delete(payment)
     db.commit()
 
-    log_action("delete_payment", "payment", payment_id, current_user)
+    log_action(
+        "delete_payment",
+        "payment",
+        payment_id,
+        current_user,
+        details={
+            "force_delete": force,
+            "reason": reason,
+            "status_at_deletion": payment.status.value,
+        },
+    )
 
     return {"message": "Payment deleted successfully"}
 
@@ -433,14 +464,56 @@ def get_guest_payments_report(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
 
-    payments = db.query(Payment).filter(Payment.guest_id == guest_id).order_by(
-        Payment.payment_date.desc()
-    ).all()
+    payments = (
+        db.query(Payment)
+        .filter(Payment.guest_id == guest_id)
+        .order_by(Payment.payment_date.desc())
+        .all()
+    )
 
-    # Totales
+    # Reservas facturables (pendientes/activas/check-out)
+    chargeable_statuses = [
+        ReservationStatus.pending,
+        ReservationStatus.active,
+        ReservationStatus.checked_out,
+    ]
+    reservations = (
+        db.query(Reservation)
+        .filter(
+            Reservation.guest_id == guest_id,
+            Reservation.status.in_(chargeable_statuses),
+        )
+        .all()
+    )
+
+    # Totales de pagos completados
     total_usd = sum(p.amount_usd or 0 for p in payments if p.status == PaymentStatus.completed)
     total_eur = sum(p.amount_eur or 0 for p in payments if p.status == PaymentStatus.completed)
     total_ves = sum(p.amount_ves or 0 for p in payments if p.status == PaymentStatus.completed)
+
+    reservation_total_bs = sum(res.price_bs or 0 for res in reservations)
+    reservation_converted = {"USD": 0.0, "EUR": 0.0, "VES": reservation_total_bs}
+    if reservation_total_bs > 0:
+        converted = CurrencyService.convert_to_all_currencies(db, reservation_total_bs, "VES")
+        reservation_converted.update(
+            {
+                "USD": converted.get("USD") or 0.0,
+                "EUR": converted.get("EUR") or 0.0,
+                "VES": converted.get("VES") or reservation_total_bs,
+            }
+        )
+
+    balance_bs = max(reservation_total_bs - total_ves, 0)
+    balance_converted = {"USD": 0.0, "EUR": 0.0, "VES": balance_bs}
+    if balance_bs > 0:
+        converted = CurrencyService.convert_to_all_currencies(db, balance_bs, "VES")
+        balance_converted.update(
+            {
+                "USD": converted.get("USD") or 0.0,
+                "EUR": converted.get("EUR") or 0.0,
+                "VES": converted.get("VES") or balance_bs,
+            }
+        )
 
     return {
         "guest_id": guest_id,
@@ -451,6 +524,29 @@ def get_guest_payments_report(
             "usd": round(total_usd, 2),
             "eur": round(total_eur, 2),
             "ves": round(total_ves, 2),
+        },
+        "reservation_summary": {
+            "count": len(reservations),
+            "total_bs": round(reservation_converted["VES"], 2),
+            "total_usd": round(reservation_converted["USD"], 2),
+            "total_eur": round(reservation_converted["EUR"], 2),
+            "reservations": [
+                {
+                    "id": res.id,
+                    "room_number": res.room.number if res.room else None,
+                    "status": res.status.value,
+                    "period": res.period.value,
+                    "start_date": res.start_date.isoformat(),
+                    "end_date": res.end_date.isoformat(),
+                    "price_bs": res.price_bs or 0,
+                }
+                for res in reservations
+            ],
+        },
+        "balance": {
+            "ves": round(balance_converted["VES"], 2),
+            "usd": round(balance_converted["USD"], 2),
+            "eur": round(balance_converted["EUR"], 2),
         },
         "payments": [
             {
