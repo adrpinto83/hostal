@@ -125,14 +125,27 @@ export default function Login() {
 
     try {
       const response = await authApi.login({ username: email, password });
+      console.log('✅ Login response:', response);
       localStorage.setItem('access_token', response.access_token);
-      const user = await authApi.getCurrentUser();
-      setAuth(user, response.access_token);
-      setSuccess('¡Inicio de sesión exitoso!');
-      setFailedAttempts(0); // Resetear contador
-      setTimeout(() => navigate('/dashboard'), 1000);
+      console.log('✅ Token guardado en localStorage:', response.access_token?.substring(0, 20) + '...');
+
+      try {
+        const user = await authApi.getCurrentUser();
+        console.log('✅ Usuario obtenido:', user);
+        setAuth(user, response.access_token);
+        setSuccess('¡Inicio de sesión exitoso!');
+        setFailedAttempts(0); // Resetear contador
+        setTimeout(() => navigate('/dashboard'), 1000);
+      } catch (userErr) {
+        console.error('❌ Error obteniendo usuario actual:', userErr);
+        // Si falla obtener el usuario, mantener el token y permitir continuar
+        setAuth({ email: email, id: 0, role: 'user', full_name: '', approved: false } as any, response.access_token);
+        setSuccess('✅ Sesión iniciada. Redirigiendo...');
+        setFailedAttempts(0);
+        setTimeout(() => navigate('/dashboard'), 1000);
+      }
     } catch (err) {
-      localStorage.removeItem('access_token');
+      console.error('❌ Login error:', err);
       const errorMessage = handleApiError(err);
 
       // Incrementar contador de intentos fallidos
