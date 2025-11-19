@@ -216,7 +216,17 @@ export default function MaintenanceList() {
   const assignMutation = useMutation({
     mutationFn: (payload: { id: number; assigned_to: number | undefined }) =>
       maintenanceApi.update(payload.id, { assigned_to: payload.assigned_to }),
-    onSuccess: () => {
+    onSuccess: (updatedTask) => {
+      // Update the query cache immediately with the response data
+      queryClient.setQueryData<Maintenance[]>(
+        ['maintenances', selectedPriority, selectedStatus, onlyPending],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return oldData.map((task) =>
+            task.id === updatedTask.id ? updatedTask : task
+          );
+        }
+      );
       queryInvalidate();
       setShowAssignDialog(false);
       setSelectedTaskForAssign(null);
