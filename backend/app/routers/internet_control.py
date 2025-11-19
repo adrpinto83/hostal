@@ -7,9 +7,9 @@ Incluye seguimiento de actividad de red y reportes de ancho de banda.
 import structlog
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 
 from ..core.audit import log_action
 from ..core.db import get_db
@@ -19,10 +19,64 @@ from ..models.device import Device
 from ..models.guest import Guest
 from ..models.network_activity import ActivityType, NetworkActivity
 from ..models.user import User
-from ..schemas.device import DeviceOut
+from ..schemas.device import DeviceOut, DeviceSummary
 
 router = APIRouter(prefix="/internet-control", tags=["Internet Control"])
 log = structlog.get_logger()
+
+
+@router.get(
+    "/devices",
+    response_model=list[DeviceSummary],
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Listar dispositivos con búsqueda global",
+    description="Permite buscar dispositivos por MAC, nombre, proveedor o datos del huésped.",
+)
+def list_all_devices(
+    q: str | None = Query(None, description="Buscar por MAC, nombre, proveedor o huésped"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Device).join(Guest, Device.guest_id == Guest.id, isouter=True)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            or_(
+                Device.mac.ilike(like),
+                Device.name.ilike(like),
+                Device.vendor.ilike(like),
+                Guest.full_name.ilike(like),
+                Guest.document_id.ilike(like),
+            )
+        )
+
+    devices = (
+        query.order_by(Device.last_seen.desc().nullslast(), Device.id.asc())
+        .limit(500)
+        .all()
+    )
+
+    results = []
+    for device in devices:
+        results.append(
+            DeviceSummary(
+                id=device.id,
+                guest_id=device.guest_id,
+                guest_name=device.guest.full_name if device.guest else None,
+                mac=device.mac,
+                name=device.name,
+                vendor=device.vendor,
+                allowed=device.allowed,
+                suspended=device.suspended,
+                suspension_reason=device.suspension_reason,
+                is_online=device.is_online,
+                can_access_internet=device.can_access_internet,
+                last_seen=device.last_seen,
+                last_ip=device.last_ip,
+                total_bytes_downloaded=device.total_bytes_downloaded,
+                total_bytes_uploaded=device.total_bytes_uploaded,
+            )
+        )
+    return results
 
 
 @router.post(

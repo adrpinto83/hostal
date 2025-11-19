@@ -36,7 +36,6 @@ export default function GuestList() {
   const [activeTab, setActiveTab] = useState<'info' | 'devices' | 'files' | 'account'>('info');
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<GuestCreate>({
@@ -88,10 +87,16 @@ export default function GuestList() {
 
   const queryClient = useQueryClient();
 
-  const { data: guests, isLoading } = useQuery({
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const { data: guests, isLoading, isFetching } = useQuery<Guest[]>({
     queryKey: ['guests', searchTerm],
     queryFn: () => guestsApi.getAll(searchTerm),
+    placeholderData: (previous) => previous,
   });
+  const guestList = guests ?? [];
+  const isInitialLoading = !guests && isLoading;
+  const hasGuests = guestList.length > 0;
 
   const { data: devices } = useQuery({
     queryKey: ['devices', selectedGuest?.id],
@@ -391,10 +396,6 @@ export default function GuestList() {
     setIsAvatarUploadOpen(true);
   };
 
-  if (isLoading) {
-    return <div className="p-6">Cargando...</div>;
-  }
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -416,186 +417,212 @@ export default function GuestList() {
           className="w-full sm:max-w-xs"
         />
       </div>
+      <div className="text-sm text-muted-foreground min-h-[1.25rem]">
+        {isFetching && !isInitialLoading && <span>Actualizando resultados...</span>}
+      </div>
 
-      {viewMode === 'grid' ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {guests?.map((guest) => {
-          const photo = getGuestPhoto(guest.id);
-          return (
-          <Card key={guest.id} className="cursor-pointer hover:shadow-lg transition-shadow" onClick={(e) => {
-            // Solo abrir detalles si no es un click en un botón interactivo
-            if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('[data-no-detail]')) {
-              return;
-            }
-            openDetailModal(guest);
-          }}>
-            <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
-              <div className="relative group cursor-pointer" onClick={(e) => {
-                e.stopPropagation();
-                openAvatarUploadModal(guest, e);
-              }} data-no-detail>
-                {photo ? (
-                  <img
-                    src={`${photo.url}?v=${new Date(photo.uploaded_at).getTime()}`}
-                    alt={guest.full_name}
-                    loading="lazy"
-                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 group-hover:opacity-75 transition"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center group-hover:bg-gray-300 transition">
-                    <User className="h-8 w-8 text-gray-500" />
-                  </div>
-                )}
-                <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition">
-                  <Camera className="h-4 w-4 text-white" />
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-lg font-bold truncate">
-                  {guest.full_name}
-                </CardTitle>
-                <p className="text-sm text-gray-600">{guest.document_id}</p>
-              </div>
-              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" onClick={() => openDeviceModal(guest)}>
-                  <Wifi className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleEdit(guest)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(guest)}>
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-sm">
-                <span className="font-semibold">Documento:</span> {guest.document_id}
-              </p>
-              {guest.phone && (
-                <p className="text-sm">
-                  <span className="font-semibold">Teléfono:</span> {guest.phone}
-                </p>
-              )}
-              {guest.email && (
-                <p className="text-sm">
-                  <span className="font-semibold">Email:</span> {guest.email}
-                </p>
-              )}
-              {guest.notes && (
-                <p className="text-sm text-gray-600">
-                  <span className="font-semibold">Notas:</span> {guest.notes}
-                </p>
-              )}
-              <div className="pt-1">
-                {photo ? (
-                  <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-50">
-                    Foto confirmada
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="secondary"
-                    className="border border-dashed border-gray-300 text-gray-600 bg-transparent"
-                  >
-                    Sin foto • toca el avatar para cargar
-                  </Badge>
-                )}
-              </div>
-              {(() => {
-                const bandwidth = getGuestBandwidth(guest.id);
-                if (bandwidth) {
-                  return (
-                    <div className="pt-2 mt-2 border-t">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Activity className="h-4 w-4 text-blue-600" />
-                        <span className="font-semibold">Uso Internet (7d):</span>
-                        <span className="text-blue-600 font-bold">
-                          {bandwidth.usage_gb.toFixed(2)} GB
-                        </span>
+      {isInitialLoading ? (
+        <div className="flex items-center justify-center rounded-lg border bg-white p-6 text-sm text-gray-500">
+          Cargando huéspedes...
+        </div>
+      ) : hasGuests ? (
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {guestList.map((guest) => {
+              const photo = getGuestPhoto(guest.id);
+              return (
+                <Card
+                  key={guest.id}
+                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={(e) => {
+                    if (
+                      (e.target as HTMLElement).closest('button') ||
+                      (e.target as HTMLElement).closest('[data-no-detail]')
+                    ) {
+                      return;
+                    }
+                    openDetailModal(guest);
+                  }}
+                >
+                  <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
+                    <div
+                      className="relative group cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAvatarUploadModal(guest, e);
+                      }}
+                      data-no-detail
+                    >
+                      {photo ? (
+                        <img
+                          src={`${photo.url}?v=${new Date(photo.uploaded_at).getTime()}`}
+                          alt={guest.full_name}
+                          loading="lazy"
+                          className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 group-hover:opacity-75 transition"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center group-hover:bg-gray-300 transition">
+                          <User className="h-8 w-8 text-gray-500" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition">
+                        <Camera className="h-4 w-4 text-white" />
                       </div>
-                      {bandwidth.device_count > 0 && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          {bandwidth.device_count} dispositivo{bandwidth.device_count > 1 ? 's' : ''}
-                        </p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg font-bold truncate">{guest.full_name}</CardTitle>
+                      <p className="text-sm text-gray-600">{guest.document_id}</p>
+                    </div>
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" onClick={() => openDeviceModal(guest)}>
+                        <Wifi className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(guest)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(guest)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm">
+                      <span className="font-semibold">Documento:</span> {guest.document_id}
+                    </p>
+                    {guest.phone && (
+                      <p className="text-sm">
+                        <span className="font-semibold">Teléfono:</span> {guest.phone}
+                      </p>
+                    )}
+                    {guest.email && (
+                      <p className="text-sm">
+                        <span className="font-semibold">Email:</span> {guest.email}
+                      </p>
+                    )}
+                    {guest.notes && (
+                      <p className="text-sm text-gray-600">
+                        <span className="font-semibold">Notas:</span> {guest.notes}
+                      </p>
+                    )}
+                    <div className="pt-1">
+                      {photo ? (
+                        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-50">
+                          Foto confirmada
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="border border-dashed border-gray-300 text-gray-600 bg-transparent"
+                        >
+                          Sin foto • toca el avatar para cargar
+                        </Badge>
                       )}
                     </div>
-                  );
-                }
-                return null;
-              })()}
-            </CardContent>
-          </Card>
-          );
-        })}
-      </div>
-      ) : (
-        <div className="bg-white border rounded-lg overflow-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Huésped</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Documento</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Teléfono</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {guests?.map((guest) => {
-                const photo = getGuestPhoto(guest.id);
-                return (
-                  <tr key={guest.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          className="relative"
-                          onClick={(e) => openAvatarUploadModal(guest, e)}
-                        >
-                          {photo ? (
-                            <img
-                              src={`${photo.url}?thumb=1`}
-                              alt={guest.full_name}
-                              className="h-10 w-10 rounded-full object-cover border"
-                            />
-                          ) : (
-                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                              <User className="h-5 w-5 text-gray-500" />
+                    {(() => {
+                      const bandwidth = getGuestBandwidth(guest.id);
+                      if (bandwidth) {
+                        return (
+                          <div className="pt-2 mt-2 border-t">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Activity className="h-4 w-4 text-blue-600" />
+                              <span className="font-semibold">Uso Internet (7d):</span>
+                              <span className="text-blue-600 font-bold">
+                                {bandwidth.usage_gb.toFixed(2)} GB
+                              </span>
                             </div>
-                          )}
-                        </button>
-                        <div>
-                          <p className="font-semibold text-gray-900">{guest.full_name}</p>
-                          {guest.email && <p className="text-xs text-gray-500">{guest.email}</p>}
+                            {bandwidth.device_count > 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {bandwidth.device_count} dispositivo
+                                {bandwidth.device_count > 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-white border rounded-lg overflow-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Huésped</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Documento</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Teléfono</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+              {guestList.map((guest) => {
+                  const photo = getGuestPhoto(guest.id);
+                  return (
+                    <tr key={guest.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="relative"
+                            onClick={(e) => openAvatarUploadModal(guest, e)}
+                          >
+                            {photo ? (
+                              <img
+                                src={`${photo.url}?thumb=1`}
+                                alt={guest.full_name}
+                                className="h-10 w-10 rounded-full object-cover border"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                <User className="h-5 w-5 text-gray-500" />
+                              </div>
+                            )}
+                          </button>
+                          <div>
+                            <p className="font-semibold text-gray-900">{guest.full_name}</p>
+                            {guest.email && <p className="text-xs text-gray-500">{guest.email}</p>}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{guest.document_id}</td>
-                    <td className="px-4 py-3 text-gray-700">{guest.phone || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 max-w-xs">
-                      {guest.notes ? <span className="line-clamp-2">{guest.notes}</span> : <span className="text-gray-400">Sin notas</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openDetailModal(guest)}>
-                          Detalles
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openDeviceModal(guest)}>
-                          <Wifi className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(guest)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(guest)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{guest.document_id}</td>
+                      <td className="px-4 py-3 text-gray-700">{guest.phone || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 max-w-xs">
+                        {guest.notes ? (
+                          <span className="line-clamp-2">{guest.notes}</span>
+                        ) : (
+                          <span className="text-gray-400">Sin notas</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openDetailModal(guest)}>
+                            Detalles
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => openDeviceModal(guest)}>
+                            <Wifi className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(guest)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(guest)}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+        <div className="rounded-lg border border-dashed bg-white p-6 text-center text-gray-500">
+          No se encontraron huéspedes para “{searchTerm || 'la búsqueda actual'}”.
         </div>
       )}
 

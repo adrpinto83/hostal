@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Star,
   CheckCircle2,
+  HardDrive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/lib/hooks/useSidebar';
@@ -40,6 +41,7 @@ const navigation = [
   { name: 'Tasas de Cambio', href: '/exchange-rates', icon: TrendingUp },
   { name: 'Red', href: '/network', icon: Wifi },
   { name: 'Dispositivos', href: '/devices', icon: Monitor },
+  { name: 'Config. Red', href: '/network-devices', icon: Wifi },
   { name: 'Personal', href: '/staff', icon: UserCog },
   { name: 'Mantenimiento', href: '/maintenance', icon: Wrench },
   { name: 'Usuarios', href: '/users', icon: Shield },
@@ -49,6 +51,7 @@ const adminNavigation = [
   { name: 'Aprobaciones', href: '/admin/user-approvals', icon: CheckCircle2 },
   { name: 'Auditoría', href: '/admin/audit-logs', icon: BarChart3 },
   { name: 'Análisis de Logs', href: '/admin/log-analytics', icon: TrendingUp },
+  { name: 'Respaldos', href: '/admin/backups', icon: HardDrive },
 ];
 
 const NavLink = ({ item, isCollapsed }: { item: typeof navigation[0], isCollapsed: boolean }) => {

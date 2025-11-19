@@ -130,7 +130,7 @@ def create_maintenance(
         estimated_cost=maintenance.estimated_cost,
         actual_cost=maintenance.actual_cost,
         room_number=room.number,
-        assigned_staff_name=maintenance.assigned_staff.full_name if maintenance.assigned_staff else None,
+        assigned_staff_name=None,
         duration_hours=None,
     )
 
@@ -216,7 +216,7 @@ def list_maintenance(
                 estimated_cost=m.estimated_cost,
                 actual_cost=m.actual_cost,
                 room_number=m.room.number if m.room else None,
-                assigned_staff_name=m.assigned_staff.full_name if m.assigned_staff else None,
+                assigned_staff_name=None,
                 duration_hours=round(duration_hours, 2) if duration_hours else None,
             )
         )
@@ -256,7 +256,7 @@ def get_maintenance(maintenance_id: int, db: Session = Depends(get_db)):
         estimated_cost=maintenance.estimated_cost,
         actual_cost=maintenance.actual_cost,
         room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=maintenance.assigned_staff.full_name if maintenance.assigned_staff else None,
+        assigned_staff_name=None,
         duration_hours=round(duration_hours, 2) if duration_hours else None,
     )
 
@@ -341,7 +341,7 @@ def update_maintenance(
         estimated_cost=maintenance.estimated_cost,
         actual_cost=maintenance.actual_cost,
         room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=maintenance.assigned_staff.full_name if maintenance.assigned_staff else None,
+        assigned_staff_name=None,
         duration_hours=round(duration_hours, 2) if duration_hours else None,
     )
 
@@ -395,8 +395,123 @@ def start_maintenance(
         estimated_cost=maintenance.estimated_cost,
         actual_cost=maintenance.actual_cost,
         room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=maintenance.assigned_staff.full_name if maintenance.assigned_staff else None,
+        assigned_staff_name=None,
         duration_hours=None,
+    )
+
+
+@router.post(
+    "/{maintenance_id}/pause",
+    response_model=MaintenanceResponse,
+    dependencies=[Depends(require_roles("admin", "gerente", "mantenimiento"))],
+    summary="Pausar tarea de mantenimiento",
+)
+def pause_maintenance(
+    maintenance_id: int,
+    notes: str | None = Query(None, description="Razón de la pausa"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Pausa una tarea de mantenimiento en progreso.
+
+    - Cambia el estado a 'cancelled' para marcar como pausada
+    - Permite reanudar después
+    """
+    maintenance = db.get(Maintenance, maintenance_id)
+    if not maintenance:
+        raise HTTPException(status_code=404, detail="Tarea de mantenimiento no encontrada")
+
+    if maintenance.status not in [MaintenanceStatus.in_progress, MaintenanceStatus.pending]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La tarea debe estar en progreso o pendiente para ser pausada. Estado actual: '{maintenance.status.value}'",
+        )
+
+    maintenance.status = MaintenanceStatus.cancelled
+
+    if notes:
+        current_notes = maintenance.notes or ""
+        maintenance.notes = f"{current_notes}\n[Pausada] {notes}".strip()
+
+    db.commit()
+    db.refresh(maintenance)
+
+    duration_hours = None
+    if maintenance.started_at and maintenance.completed_at:
+        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
+
+    return MaintenanceResponse(
+        id=maintenance.id,
+        room_id=maintenance.room_id,
+        type=maintenance.type.value,
+        priority=maintenance.priority.value,
+        status=maintenance.status.value,
+        title=maintenance.title,
+        description=maintenance.description,
+        notes=maintenance.notes,
+        assigned_to=maintenance.assigned_to,
+        reported_at=maintenance.reported_at.isoformat(),
+        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
+        completed_at=maintenance.completed_at.isoformat() if maintenance.completed_at else None,
+        estimated_cost=maintenance.estimated_cost,
+        actual_cost=maintenance.actual_cost,
+        room_number=maintenance.room.number if maintenance.room else None,
+        assigned_staff_name=None,
+        duration_hours=round(duration_hours, 2) if duration_hours else None,
+    )
+
+
+@router.post(
+    "/{maintenance_id}/resume",
+    response_model=MaintenanceResponse,
+    dependencies=[Depends(require_roles("admin", "gerente", "mantenimiento"))],
+    summary="Reanudar tarea de mantenimiento pausada",
+)
+def resume_maintenance(
+    maintenance_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Reanuda una tarea de mantenimiento que estaba pausada.
+
+    - Cambia el estado de 'cancelled' de vuelta a 'pending'
+    """
+    maintenance = db.get(Maintenance, maintenance_id)
+    if not maintenance:
+        raise HTTPException(status_code=404, detail="Tarea de mantenimiento no encontrada")
+
+    if maintenance.status != MaintenanceStatus.cancelled:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo tareas pausadas pueden ser reanudadas. Estado actual: '{maintenance.status.value}'",
+        )
+
+    maintenance.status = MaintenanceStatus.pending
+    db.commit()
+    db.refresh(maintenance)
+
+    duration_hours = None
+    if maintenance.started_at and maintenance.completed_at:
+        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
+
+    return MaintenanceResponse(
+        id=maintenance.id,
+        room_id=maintenance.room_id,
+        type=maintenance.type.value,
+        priority=maintenance.priority.value,
+        status=maintenance.status.value,
+        title=maintenance.title,
+        description=maintenance.description,
+        notes=maintenance.notes,
+        estimated_cost=maintenance.estimated_cost,
+        actual_cost=maintenance.actual_cost,
+        reported_at=maintenance.reported_at,
+        started_at=maintenance.started_at,
+        completed_at=maintenance.completed_at,
+        assigned_staff_name=None,
+        duration_hours=round(duration_hours, 2) if duration_hours else None,
     )
 
 
@@ -473,7 +588,7 @@ def complete_maintenance(
         estimated_cost=maintenance.estimated_cost,
         actual_cost=maintenance.actual_cost,
         room_number=room.number if room else None,
-        assigned_staff_name=maintenance.assigned_staff.full_name if maintenance.assigned_staff else None,
+        assigned_staff_name=None,
         duration_hours=round(duration_hours, 2) if duration_hours else None,
     )
 
@@ -515,11 +630,25 @@ def get_maintenance_stats(db: Session = Depends(get_db)):
         .scalar()
     )
 
+    # Costos
+    total_estimated = (
+        db.query(func.coalesce(func.sum(Maintenance.estimated_cost), 0.0)).scalar()
+    )
+    total_actual = (
+        db.query(func.coalesce(func.sum(Maintenance.actual_cost), 0.0))
+        .filter(Maintenance.status == MaintenanceStatus.completed)
+        .scalar()
+    )
+
     return {
         "total": total,
         "pending": pending,
         "by_status": {str(status.value): count for status, count in by_status},
         "by_priority": {str(priority.value): count for priority, count in by_priority},
+        "costs": {
+            "total_estimated": float(total_estimated),
+            "total_actual": float(total_actual),
+        },
     }
 
 

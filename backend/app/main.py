@@ -15,6 +15,7 @@ from app.core.logging import setup_logging
 from app.core.middleware import LoggingMiddleware
 from app.core.db import ensure_minimum_schema, SessionLocal
 from app.core.audit import set_audit_db_session
+from app.core.scheduler import start_background_tasks, stop_background_tasks
 from app.routers import reservations
 from app.routers.api import api_router
 
@@ -59,7 +60,24 @@ async def startup_event():
     set_audit_db_session(db)
     log.info("Audit database session initialized")
 
+    # Iniciar tareas de background
+    await start_background_tasks()
+
     log.info("Hostal API started successfully")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Limpieza y cierre de recursos al apagar la aplicación."""
+    import structlog
+
+    log = structlog.get_logger()
+    log.info("Shutting down Hostal API")
+
+    # Detener tareas de background
+    await stop_background_tasks()
+
+    log.info("Hostal API shutdown complete")
 
 
 # Registrar routers y configurar logging después de crear la app

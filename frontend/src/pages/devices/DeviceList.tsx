@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Monitor, Wifi, WifiOff, Trash2, Search, Activity, Download, Upload } from 'lucide-react';
-import { devicesApi, guestsApi, bandwidthApi } from '@/lib/api';
+import { devicesApi, bandwidthApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Device, Guest } from '@/types';
+import type { Device } from '@/types';
 
 export default function DeviceList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,57 +14,42 @@ export default function DeviceList() {
   const [filterSuspended, setFilterSuspended] = useState<'all' | 'active' | 'suspended'>('all');
   const queryClient = useQueryClient();
 
-  // Query all devices (we'll need to fetch from all guests)
-  const { data: guests = [] } = useQuery<Guest[]>({
-    queryKey: ['guests'],
-    queryFn: () => guestsApi.getAll(),
+  const {
+    data: devicesData,
+    isLoading,
+    isFetching,
+  } = useQuery<Device[]>({
+    queryKey: ['devices', searchTerm],
+    queryFn: () => devicesApi.getAll({ q: searchTerm || undefined }),
+    placeholderData: (previous) => previous,
   });
+  const devices = devicesData ?? [];
+  const isInitialLoading = !devicesData && isLoading;
 
-  // Query bandwidth summary to get device usage
   const { data: bandwidthSummary } = useQuery({
     queryKey: ['bandwidth-summary'],
     queryFn: () => bandwidthApi.getSummary(7),
   });
+  const visibleDevices = devices.filter((device) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch =
+      term.length === 0 ||
+      device.name?.toLowerCase().includes(term) ||
+      device.mac.toLowerCase().includes(term) ||
+      device.guest_name?.toLowerCase().includes(term);
 
-  // Fetch devices for all guests
-  const deviceQueries = guests.map((guest) =>
-    useQuery({
-      queryKey: ['devices', guest.id],
-      queryFn: () => devicesApi.getByGuest(guest.id),
-      enabled: !!guest,
-    })
-  );
+    const matchesStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'online' && device.is_online) ||
+      (filterStatus === 'offline' && !device.is_online);
 
-  // Combine all devices
-  const allDevices: (Device & { guest_name: string })[] = deviceQueries
-    .flatMap((query, index) => {
-      if (!query.data) return [];
-      return query.data.map((device: Device) => ({
-        ...device,
-        guest_name: guests[index]?.full_name || 'Unknown',
-      }));
-    })
-    .filter((device) => {
-      // Filter by search term
-      const matchesSearch =
-        device.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        device.mac.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        device.guest_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSuspended =
+      filterSuspended === 'all' ||
+      (filterSuspended === 'active' && !device.suspended) ||
+      (filterSuspended === 'suspended' && device.suspended);
 
-      // Filter by online status
-      const matchesStatus =
-        filterStatus === 'all' ||
-        (filterStatus === 'online' && device.is_online) ||
-        (filterStatus === 'offline' && !device.is_online);
-
-      // Filter by suspended status
-      const matchesSuspended =
-        filterSuspended === 'all' ||
-        (filterSuspended === 'active' && !device.suspended) ||
-        (filterSuspended === 'suspended' && device.suspended);
-
-      return matchesSearch && matchesStatus && matchesSuspended;
-    });
+    return matchesSearch && matchesStatus && matchesSuspended;
+  });
 
   // Mutation to suspend device
   const suspendMutation = useMutation({
@@ -111,7 +96,7 @@ export default function DeviceList() {
         <div>
           <h1 className="text-2xl font-bold">Dispositivos de Red</h1>
           <p className="text-gray-600">
-            {allDevices.length} dispositivo{allDevices.length !== 1 ? 's' : ''} registrado{allDevices.length !== 1 ? 's' : ''}
+            {visibleDevices.length} dispositivo{visibleDevices.length !== 1 ? 's' : ''} encontrado
           </p>
         </div>
       </div>
@@ -157,6 +142,16 @@ export default function DeviceList() {
         </CardContent>
       </Card>
 
+      <div className="text-sm text-muted-foreground min-h-[1.25rem] mb-2">
+        {isFetching && !isInitialLoading && <span>Actualizando resultados...</span>}
+      </div>
+
+      {isInitialLoading ? (
+        <div className="flex items-center justify-center rounded-lg border bg-white p-6 text-sm text-gray-500 mb-6">
+          Cargando dispositivos...
+        </div>
+      ) : (
+        <>
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
@@ -165,7 +160,7 @@ export default function DeviceList() {
             <Monitor className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{allDevices.length}</div>
+            <div className="text-2xl font-bold">{visibleDevices.length}</div>
             <p className="text-xs text-gray-600">Dispositivos registrados</p>
           </CardContent>
         </Card>
@@ -177,7 +172,7 @@ export default function DeviceList() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {allDevices.filter((d) => d.is_online).length}
+              {visibleDevices.filter((d) => d.is_online).length}
             </div>
             <p className="text-xs text-gray-600">Conectados ahora</p>
           </CardContent>
@@ -190,7 +185,7 @@ export default function DeviceList() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {allDevices.filter((d) => d.suspended).length}
+              {visibleDevices.filter((d) => d.suspended).length}
             </div>
             <p className="text-xs text-gray-600">Sin acceso a internet</p>
           </CardContent>
@@ -228,14 +223,14 @@ export default function DeviceList() {
                 </tr>
               </thead>
               <tbody>
-                {allDevices.length === 0 ? (
+                {visibleDevices.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center p-8 text-gray-500">
                       No se encontraron dispositivos
                     </td>
                   </tr>
                 ) : (
-                  allDevices.map((device) => {
+                  visibleDevices.map((device) => {
                     const usage = getDeviceBandwidth(device.id);
                     return (
                       <tr key={device.id} className="border-b hover:bg-gray-50">
@@ -360,6 +355,8 @@ export default function DeviceList() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

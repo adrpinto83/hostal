@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
 import Layout from './components/layout/Layout';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -21,6 +22,9 @@ import ExchangeRates from './pages/exchange/ExchangeRates';
 import UserApprovals from './pages/admin/UserApprovals';
 import AuditLogs from './pages/admin/AuditLogs';
 import LogAnalytics from './pages/admin/LogAnalytics';
+import BackupManager from './pages/admin/BackupManager';
+import NetworkDevicesList from './pages/network-admin/NetworkDevicesList';
+import NetworkDeviceForm from './pages/network-admin/NetworkDeviceForm';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,11 +59,16 @@ function App() {
             <Route path="devices" element={<DeviceList />} />
             <Route path="users" element={<UserList />} />
             <Route path="exchange-rates" element={<ExchangeRates />} />
+            <Route path="network-devices" element={<NetworkDevicesList />} />
+            <Route path="network-devices/new" element={<NetworkDeviceForm />} />
+            <Route path="network-devices/:id/edit" element={<NetworkDeviceForm />} />
             <Route path="admin/user-approvals" element={<UserApprovals />} />
             <Route path="admin/audit-logs" element={<AuditLogs />} />
             <Route path="admin/log-analytics" element={<LogAnalytics />} />
+            <Route path="admin/backups" element={<BackupManager />} />
           </Route>
         </Routes>
+        <Toaster />
       </BrowserRouter>
     </QueryClientProvider>
   );

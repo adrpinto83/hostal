@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { ReservationCreate, Period } from '@/types';
+import type { Reservation, ReservationCreate, Period } from '@/types';
 import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -74,10 +74,14 @@ export default function ReservationList() {
     fetchExchangeRates();
   }, []);
 
-  const { data: reservations, isLoading } = useQuery({
+  const { data: reservations, isLoading, isFetching } = useQuery<Reservation[]>({
     queryKey: ['reservations', searchQuery],
     queryFn: () => reservationsApi.getAll({ q: searchQuery || undefined }),
+    placeholderData: (previous) => previous,
   });
+  const reservationList = reservations ?? [];
+  const isInitialLoading = !reservations && isLoading;
+  const hasReservations = reservationList.length > 0;
 
   const { data: guests } = useQuery({
     queryKey: ['guests'],
@@ -216,10 +220,6 @@ export default function ReservationList() {
     setFormData(initialFormData);
   };
 
-  if (isLoading) {
-    return <div className="p-6">Cargando...</div>;
-  }
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -241,10 +241,18 @@ export default function ReservationList() {
           className="w-full sm:max-w-xs"
         />
       </div>
+      <div className="text-sm text-muted-foreground min-h-[1.25rem]">
+        {isFetching && !isInitialLoading && <span>Actualizando resultados...</span>}
+      </div>
 
-      {viewMode === 'grid' ? (
-      <div className="grid grid-cols-1 gap-4">
-        {reservations?.map((reservation) => (
+      {isInitialLoading ? (
+        <div className="flex items-center justify-center rounded-lg border bg-white p-6 text-sm text-gray-500">
+          Cargando reservas...
+        </div>
+      ) : hasReservations ? (
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 gap-4">
+        {reservationList.map((reservation) => (
           <Card key={reservation.id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-4">
@@ -314,8 +322,8 @@ export default function ReservationList() {
           </Card>
         ))}
       </div>
-      ) : (
-        <div className="bg-white border rounded-lg overflow-auto">
+        ) : (
+          <div className="bg-white border rounded-lg overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -327,7 +335,7 @@ export default function ReservationList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {reservations?.map((reservation) => (
+              {reservationList.map((reservation) => (
                 <tr key={reservation.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div className="flex flex-col">
@@ -374,6 +382,11 @@ export default function ReservationList() {
               ))}
             </tbody>
           </table>
+          </div>
+        )
+      ) : (
+        <div className="rounded-lg border border-dashed bg-white p-6 text-center text-gray-500">
+          No se encontraron reservas para “{searchQuery || 'la búsqueda actual'}”.
         </div>
       )}
 

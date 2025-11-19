@@ -41,6 +41,7 @@ export interface GuestUpdate {
 export interface Device {
   id: number;
   guest_id: number;
+  guest_name?: string;
   mac: string;
   name?: string;
   vendor?: string;
@@ -635,6 +636,187 @@ export interface NetworkActivity {
     name?: string;
     guest_id: number;
   };
+}
+
+// Network Device Types
+export type DeviceBrand = 'ubiquiti' | 'mikrotik' | 'cisco' | 'tp_link' | 'asus' | 'dlink' | 'netgear' | 'aruba' | 'fortinet' | 'other';
+export type DeviceType = 'switch' | 'router' | 'access_point' | 'firewall' | 'controller' | 'modem';
+export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'testing';
+export type AuthType = 'username_password' | 'api_key' | 'token' | 'certificate' | 'ssh_key';
+
+export interface NetworkDevice {
+  id: number;
+  name: string;
+  description?: string;
+  brand: DeviceBrand;
+  device_type: DeviceType;
+  ip_address: string;
+  mac_address?: string;
+  network_interface?: string;
+  is_active: boolean;
+  connection_status: ConnectionStatus;
+  is_connected: boolean;
+  auth_type: AuthType;
+  port: number;
+  use_ssl: boolean;
+  verify_ssl: boolean;
+  timeout_seconds: number;
+  last_connection_attempt?: string;
+  last_successful_connection?: string;
+  last_error_message?: string;
+  total_operations: number;
+  failed_operations: number;
+  success_rate: number;
+  health_percentage: number;
+  supports_mac_blocking: boolean;
+  supports_bandwidth_control: boolean;
+  supports_vlan: boolean;
+  supports_firewall_rules: boolean;
+  supports_traffic_shaping: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NetworkDeviceCreate {
+  name: string;
+  description?: string;
+  brand: DeviceBrand;
+  device_type: DeviceType;
+  ip_address: string;
+  mac_address?: string;
+  network_interface?: string;
+  auth_type: AuthType;
+  username?: string;
+  password?: string;
+  api_key?: string;
+  api_secret?: string;
+  certificate_path?: string;
+  port?: number;
+  use_ssl?: boolean;
+  verify_ssl?: boolean;
+  timeout_seconds?: number;
+  supports_mac_blocking?: boolean;
+  supports_bandwidth_control?: boolean;
+  supports_vlan?: boolean;
+  supports_firewall_rules?: boolean;
+  supports_traffic_shaping?: boolean;
+  vendor_config?: string;
+}
+
+export interface NetworkDeviceUpdate {
+  name?: string;
+  description?: string;
+  ip_address?: string;
+  mac_address?: string;
+  network_interface?: string;
+  username?: string;
+  password?: string;
+  api_key?: string;
+  api_secret?: string;
+  certificate_path?: string;
+  port?: number;
+  use_ssl?: boolean;
+  verify_ssl?: boolean;
+  timeout_seconds?: number;
+  supports_mac_blocking?: boolean;
+  supports_bandwidth_control?: boolean;
+  supports_vlan?: boolean;
+  supports_firewall_rules?: boolean;
+  supports_traffic_shaping?: boolean;
+  is_active?: boolean;
+  vendor_config?: string;
+}
+
+export interface NetworkDeviceTestConnection {
+  device_id: number;
+  is_connected: boolean;
+  status: ConnectionStatus;
+  message: string;
+  timestamp: string;
+  response_time_ms?: number;
+}
+
+// Usage Ticket Types
+export type TicketType = 'block' | 'unblock' | 'suspension' | 'quota_exceeded' | 'bandwidth_limit' | 'device_registration' | 'network_incident' | 'manual_intervention' | 'automatic_action' | 'other';
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed' | 'pending' | 'cancelled';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
+export type ActionStatus = 'pending' | 'in_progress' | 'success' | 'failed' | 'partial';
+
+export interface UsageTicket {
+  id: number;
+  ticket_number: string;
+  title: string;
+  description?: string;
+  ticket_type: TicketType;
+  status: TicketStatus;
+  priority: TicketPriority;
+  mac_address?: string;
+  device_name?: string;
+  guest_id?: number;
+  device_id?: number;
+  network_device_id?: number;
+  action_type: string;
+  action_status: ActionStatus;
+  affected_devices_count: number;
+  bandwidth_limit_mbps?: number;
+  quota_limit_gb?: number;
+  duration_minutes?: number;
+  is_temporary: boolean;
+  created_by?: number;
+  assigned_to?: number;
+  resolved_by?: number;
+  created_at: string;
+  updated_at: string;
+  scheduled_action_time?: string;
+  action_executed_at?: string;
+  resolved_at?: string;
+  reason?: string;
+  resolution_notes?: string;
+  error_message?: string;
+  metadata_json?: Record<string, unknown>;
+  is_active: boolean;
+  is_actionable: boolean;
+  days_open: number;
+  time_until_execution?: number;
+}
+
+export interface UsageTicketCreate {
+  title: string;
+  description?: string;
+  ticket_type: TicketType;
+  priority?: TicketPriority;
+  mac_address?: string;
+  device_name?: string;
+  guest_id?: number;
+  device_id?: number;
+  network_device_id?: number;
+  action_type: string;
+  affected_devices_count?: number;
+  bandwidth_limit_mbps?: number;
+  quota_limit_gb?: number;
+  duration_minutes?: number;
+  is_temporary?: boolean;
+  scheduled_action_time?: string;
+  reason?: string;
+}
+
+export interface UsageTicketUpdate {
+  title?: string;
+  description?: string;
+  reason?: string;
+  status?: TicketStatus;
+  priority?: TicketPriority;
+  action_type?: string;
+  bandwidth_limit_mbps?: number;
+  quota_limit_gb?: number;
+  duration_minutes?: number;
+  assigned_to?: number;
+  resolution_notes?: string;
+}
+
+export interface UsageTicketResolve {
+  status: TicketStatus;
+  resolution_notes: string;
 }
 
 // Health Check Types

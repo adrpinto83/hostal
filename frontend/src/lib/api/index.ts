@@ -88,6 +88,7 @@ export const occupancyApi = {
     room_id?: number;
     guest_id?: number;
     active_only?: boolean;
+    q?: string;
     skip?: number;
     limit?: number;
   }) => {
@@ -158,6 +159,16 @@ export const maintenanceApi = {
     });
     return response.data;
   },
+  pause: async (id: number, notes?: string) => {
+    const response = await api.post<Maintenance>(`/maintenance/${id}/pause`, null, {
+      params: { notes }
+    });
+    return response.data;
+  },
+  resume: async (id: number) => {
+    const response = await api.post<Maintenance>(`/maintenance/${id}/resume`);
+    return response.data;
+  },
   delete: async (id: number) => {
     await api.delete(`/maintenance/${id}`);
   },
@@ -186,8 +197,8 @@ export const dashboardApi = {
 };
 
 export const roomsApi = {
-  getAll: async () => {
-    const response = await api.get<Room[]>('/rooms/');
+  getAll: async (params?: { q?: string; room_type?: string }) => {
+    const response = await api.get<Room[]>('/rooms/', { params });
     return response.data;
   },
   getById: async (id: number) => {
@@ -213,7 +224,7 @@ export const roomsApi = {
 
 export const guestsApi = {
   getAll: async (search?: string) => {
-    const params = search ? { search } : {};
+    const params = search ? { q: search } : {};
     const response = await api.get<Guest[]>('/guests/', { params });
     return response.data;
   },
@@ -235,6 +246,12 @@ export const guestsApi = {
 };
 
 export const devicesApi = {
+  getAll: async (params?: { q?: string }) => {
+    const response = await api.get<(Device & { guest_name?: string })[]>('/internet-control/devices', {
+      params,
+    });
+    return response.data;
+  },
   getByGuest: async (guestId: number) => {
     const response = await api.get<Device[]>(`/guests/${guestId}/devices/`);
     return response.data;
@@ -538,3 +555,46 @@ export const metricsApi = {
     return response.data;
   },
 };
+
+// Network Devices API (NEW)
+export const networkDevicesApi = {
+  getAll: async (params?: { skip?: number; limit?: number; active_only?: boolean }) => {
+    const response = await api.get('/network-devices/', { params });
+    return response.data;
+  },
+  getById: async (id: number) => {
+    const response = await api.get(`/network-devices/${id}`);
+    return response.data;
+  },
+  create: async (data: any) => {
+    const response = await api.post('/network-devices/', data);
+    return response.data;
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.patch(`/network-devices/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    await api.delete(`/network-devices/${id}`);
+  },
+  testConnection: async (deviceId: number) => {
+    const response = await api.post(`/network-devices/${deviceId}/test-connection`);
+    return response.data;
+  },
+  blockMacAddress: async (macAddress: string, deviceId?: number, notes?: string) => {
+    const response = await api.post('/internet-control/block-by-mac', {
+      mac_address: macAddress,
+      network_device_id: deviceId,
+      reason: notes,
+    });
+    return response.data;
+  },
+  unblockMacAddress: async (macAddress: string, deviceId?: number) => {
+    const response = await api.post('/internet-control/unblock-by-mac', {
+      mac_address: macAddress,
+      network_device_id: deviceId,
+    });
+    return response.data;
+  },
+};
+

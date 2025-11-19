@@ -7,6 +7,7 @@ from enum import Enum
 
 from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import relationship
 
 from ..core.db import Base
 
@@ -65,3 +66,6 @@ class Staff(Base):
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default="now()")
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default="now()", onupdate=datetime.utcnow)
+
+    # Relaciones
+    devices = relationship("Device", back_populates="staff", cascade="all, delete-orphan")

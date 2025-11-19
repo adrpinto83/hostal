@@ -5,7 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
@@ -236,6 +236,7 @@ def list_occupancies(
     room_id: int | None = None,
     guest_id: int | None = None,
     active_only: bool = Query(False, description="Solo ocupaciones activas (sin check-out)"),
+    q: str | None = Query(None, description="Buscar por nombre/documento del huésped o número de habitación"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -255,6 +256,20 @@ def list_occupancies(
         query = query.filter(Occupancy.guest_id == guest_id)
     if active_only:
         query = query.filter(Occupancy.check_out.is_(None))
+    if q:
+        like = f"%{q}%"
+        query = (
+            query.join(Guest, Occupancy.guest_id == Guest.id, isouter=True)
+            .join(Room, Occupancy.room_id == Room.id, isouter=True)
+            .filter(
+                or_(
+                    Guest.full_name.ilike(like),
+                    Guest.document_id.ilike(like),
+                    Room.number.ilike(like),
+                    Occupancy.notes.ilike(like),
+                )
+            )
+        )
 
     query = query.order_by(Occupancy.check_in.desc())
     occupancies = query.offset(skip).limit(limit).all()

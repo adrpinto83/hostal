@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { LogOut, Menu, Search, UserCircle } from 'lucide-react';
+import { LogOut, Menu, UserCircle } from 'lucide-react';
 import { useSidebar } from '@/lib/hooks/useSidebar';
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { ExchangeRatesInline } from '@/components/ui/exchange-rates';
 
 export default function Header() {
@@ -34,22 +33,11 @@ export default function Header() {
       >
         <Menu className="h-6 w-6" />
       </Button>
-      <div className="w-full flex-1">
-        <form>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar..."
-              className="w-full appearance-none bg-background pl-8 shadow-none md:w-2/3 lg:w-1/3"
-            />
-          </div>
-        </form>
-      </div>
-      <div className="hidden md:flex items-center px-4">
+      <div className="flex-1 hidden md:flex items-center justify-center">
         <ExchangeRatesInline />
       </div>
-      <DropdownMenu>
+      <div className="ml-auto">
+        <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="rounded-full">
             <UserCircle className="h-6 w-6" />
@@ -70,6 +58,7 @@ export default function Header() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   );
 }

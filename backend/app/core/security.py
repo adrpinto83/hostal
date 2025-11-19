@@ -11,16 +11,24 @@ from app.core.config import settings  # Asegúrate de que importa de config
 from app.core.db import get_db
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt", "pbkdf2_sha256"],
+    deprecated="auto",
+    bcrypt__rounds=12
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # Truncate password to 72 bytes for bcrypt compatibility
+    truncated_password = plain_password[:72]
+    return pwd_context.verify(truncated_password, hashed_password)
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Truncate password to 72 bytes for bcrypt compatibility
+    truncated_password = password[:72]
+    return pwd_context.hash(truncated_password)
 
 
 # Alias para compatibilidad

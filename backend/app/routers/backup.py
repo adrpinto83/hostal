@@ -1,0 +1,269 @@
+# app/routers/backup.py
+"""Endpoints para gestión de respaldos y restauración del sistema."""
+from fastapi import APIRouter, Depends, HTTPException, status
+from starlette.responses import FileResponse
+from sqlalchemy.orm import Session
+from pathlib import Path
+
+from app.core.db import get_db
+from app.core.security import get_current_user
+from app.models.user import User
+from app.services.backup import BackupService
+from app.schemas.backup import (
+    BackupCreate,
+    BackupOut,
+    BackupListOut,
+    RestoreRequest,
+    RestoreResponse,
+    DeleteBackupRequest,
+    SystemHealthOut,
+)
+from app.core.audit import log_action
+
+router = APIRouter(prefix="/admin/backup", tags=["Admin - Backup"])
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Verifica que el usuario sea administrador."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden acceder a esta función",
+        )
+    return current_user
+
+
+@router.get("/health", response_model=SystemHealthOut)
+def system_health(current_user: User = Depends(require_admin)):
+    """Obtiene el estado de salud del sistema."""
+    try:
+        backups = BackupService.list_backups()
+        total_size = sum(b["size_bytes"] for b in backups)
+        latest = backups[0]["created_at"] if backups else None
+
+        return SystemHealthOut(
+            database="online",
+            backups_available=len(backups),
+            latest_backup=latest,
+            total_backup_size_mb=round(total_size / (1024 * 1024), 2),
+            timestamp=__import__("datetime").datetime.now().isoformat(),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo estado del sistema: {str(e)}",
+        )
+
+
+@router.post("/create", response_model=BackupOut)
+def create_backup(
+    request: BackupCreate,
+    current_user: User = Depends(require_admin),
+):
+    """Crea un nuevo respaldo de la base de datos.
+
+    ⚠️ Esta operación puede tomar varios minutos dependiendo del tamaño de la BD.
+    """
+    try:
+        backup_info = BackupService.create_backup(request.description)
+
+        log_action(
+            "backup_created",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "backup_id": backup_info["id"],
+                "size_mb": backup_info["size_mb"],
+                "description": request.description,
+            },
+        )
+
+        return BackupOut(**backup_info)
+    except Exception as e:
+        log_action(
+            "backup_creation_failed",
+            "system",
+            current_user.id,
+            current_user,
+            details={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creando respaldo: {str(e)}",
+        )
+
+
+@router.get("/list", response_model=BackupListOut)
+def list_backups(current_user: User = Depends(require_admin)):
+    """Lista todos los respaldos disponibles."""
+    try:
+        backups = BackupService.list_backups()
+        return BackupListOut(backups=backups, total=len(backups))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listando respaldos: {str(e)}",
+        )
+
+
+@router.get("/{backup_id}", response_model=BackupOut)
+def get_backup(
+    backup_id: str,
+    current_user: User = Depends(require_admin),
+):
+    """Obtiene información de un respaldo específico."""
+    try:
+        backup = BackupService.get_backup(backup_id)
+        if not backup:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Respaldo no encontrado",
+            )
+        return BackupOut(**backup)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo información del respaldo: {str(e)}",
+        )
+
+
+@router.post("/restore", response_model=RestoreResponse)
+def restore_backup(
+    request: RestoreRequest,
+    current_user: User = Depends(require_admin),
+):
+    """Restaura la base de datos desde un respaldo.
+
+    ⚠️ ADVERTENCIA: Esta operación ELIMINARÁ todos los datos actuales y los
+    reemplazará con los del respaldo. Asegúrate de tener un respaldo reciente
+    antes de proceder.
+
+    Requiere confirmación explícita (confirm=true).
+    """
+    if not request.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debes confirmar la restauración (confirm=true)",
+        )
+
+    try:
+        result = BackupService.restore_backup(request.backup_id)
+
+        log_action(
+            "database_restored",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "backup_id": request.backup_id,
+                "restored_by": current_user.email,
+            },
+        )
+
+        return RestoreResponse(**result)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Respaldo no encontrado",
+        )
+    except Exception as e:
+        log_action(
+            "database_restore_failed",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "backup_id": request.backup_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error restaurando respaldo: {str(e)}",
+        )
+
+
+@router.post("/delete/{backup_id}")
+def delete_backup(
+    backup_id: str,
+    current_user: User = Depends(require_admin),
+):
+    """Elimina un respaldo.
+
+    ⚠️ ADVERTENCIA: Esta operación es irreversible. Asegúrate de que no
+    necesitarás este respaldo en el futuro.
+    """
+    try:
+        result = BackupService.delete_backup(backup_id)
+
+        log_action(
+            "backup_deleted",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "backup_id": backup_id,
+                "deleted_by": current_user.email,
+            },
+        )
+
+        return result
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Respaldo no encontrado",
+        )
+    except Exception as e:
+        log_action(
+            "backup_deletion_failed",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "backup_id": backup_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error eliminando respaldo: {str(e)}",
+        )
+
+
+@router.get("/download/{backup_id}")
+def download_backup(
+    backup_id: str,
+    current_user: User = Depends(require_admin),
+):
+    """Descarga un respaldo para almacenamiento externo."""
+    try:
+        backup_file: Path = BackupService.download_backup(backup_id)
+        if not backup_file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Respaldo no encontrado",
+            )
+
+        log_action(
+            "backup_downloaded",
+            "system",
+            current_user.id,
+            current_user,
+            details={"backup_id": backup_id},
+        )
+
+        return FileResponse(
+            path=backup_file,
+            filename=backup_id,
+            media_type="application/octet-stream",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error descargando respaldo: {str(e)}",
+        )
