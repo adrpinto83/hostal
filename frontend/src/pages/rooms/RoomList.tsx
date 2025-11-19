@@ -103,7 +103,7 @@ export default function RoomList() {
 
   const { data: pendingMaintenance } = useQuery<Maintenance[]>({
     queryKey: ['rooms', 'maintenance', 'pending'],
-    queryFn: () => maintenanceApi.getAll({ pending_only: true }),
+    queryFn: () => maintenanceApi.getAll(),
   });
 
   const { data: roomPhotos = [], refetch: refetchPhotos } = useQuery<Media[]>({
