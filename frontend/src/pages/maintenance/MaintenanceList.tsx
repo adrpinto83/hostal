@@ -15,9 +15,11 @@ import {
   Hammer,
   ListChecks,
   MapPin,
+  Pause,
   Plus,
   ShieldAlert,
   Timer,
+  User,
   Wrench,
 } from 'lucide-react';
 import {
@@ -76,10 +78,10 @@ export default function MaintenanceList() {
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [selectedPriority, setSelectedPriority] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('pending');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedLocationScope, setSelectedLocationScope] = useState<'all' | 'rooms' | 'areas'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [onlyPending, setOnlyPending] = useState(true);
+  const [onlyPending, setOnlyPending] = useState(false);
   const [formData, setFormData] = useState<MaintenanceCreate>({
     room_id: undefined,
     type: 'repair',
@@ -94,6 +96,11 @@ export default function MaintenanceList() {
   const [commonAreaCategory, setCommonAreaCategory] = useState('areas_comunes');
   const [commonAreaLabel, setCommonAreaLabel] = useState('');
 
+  // New states for assignment and pause dialogs
+  const [selectedTaskForAssign, setSelectedTaskForAssign] = useState<Maintenance | null>(null);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState<number | undefined>(undefined);
+
   const { data: maintenanceStats } = useQuery({
     queryKey: ['maintenance-stats'],
     queryFn: maintenanceApi.getStats,
@@ -105,7 +112,7 @@ export default function MaintenanceList() {
       maintenanceApi.getAll({
         priority: selectedPriority !== 'all' ? selectedPriority : undefined,
         status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        pending_only: onlyPending || undefined,
+        pending_only: onlyPending ? true : undefined,
       }),
   });
 
@@ -193,6 +200,31 @@ export default function MaintenanceList() {
     onError: (error) => alert(handleApiError(error)),
   });
 
+  const pauseMutation = useMutation({
+    mutationFn: (payload: { id: number; notes?: string }) =>
+      maintenanceApi.pause(payload.id, payload.notes),
+    onSuccess: queryInvalidate,
+    onError: (error) => alert(handleApiError(error)),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: (id: number) => maintenanceApi.resume(id),
+    onSuccess: queryInvalidate,
+    onError: (error) => alert(handleApiError(error)),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (payload: { id: number; assigned_to: number | undefined }) =>
+      maintenanceApi.update(payload.id, { assigned_to: payload.assigned_to }),
+    onSuccess: () => {
+      queryInvalidate();
+      setShowAssignDialog(false);
+      setSelectedTaskForAssign(null);
+      setSelectedStaffId(undefined);
+    },
+    onError: (error) => alert(handleApiError(error)),
+  });
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (locationType === 'room' && !formData.room_id) {
@@ -237,6 +269,27 @@ export default function MaintenanceList() {
       const actualCost = prompt('Costo final (opcional):', task.estimated_cost?.toString() ?? '');
       const parsedCost = actualCost ? Number(actualCost) : undefined;
       completeMutation.mutate({ id: task.id, actual_cost: parsedCost });
+    }
+  };
+
+  const handlePause = (task: Maintenance) => {
+    const notes = prompt('Razón de la pausa (opcional):');
+    pauseMutation.mutate({ id: task.id, notes: notes || undefined });
+  };
+
+  const handleResume = (task: Maintenance) => {
+    resumeMutation.mutate(task.id);
+  };
+
+  const handleOpenAssignDialog = (task: Maintenance) => {
+    setSelectedTaskForAssign(task);
+    setSelectedStaffId(task.assigned_to);
+    setShowAssignDialog(true);
+  };
+
+  const handleAssign = () => {
+    if (selectedTaskForAssign) {
+      assignMutation.mutate({ id: selectedTaskForAssign.id, assigned_to: selectedStaffId });
     }
   };
 
@@ -407,7 +460,17 @@ export default function MaintenanceList() {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-2 mt-auto">
+                <div className="flex gap-2 mt-auto flex-wrap">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenAssignDialog(task)}
+                    disabled={assignMutation.isPending}
+                    title="Asignar personal"
+                  >
+                    <User className="h-4 w-4 mr-1" />
+                    Asignar
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -417,6 +480,30 @@ export default function MaintenanceList() {
                     <Hammer className="h-4 w-4 mr-1" />
                     Iniciar
                   </Button>
+                  {task.status === 'cancelled' ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleResume(task)}
+                      disabled={resumeMutation.isPending}
+                      title="Reanudar"
+                      className="text-amber-600 hover:text-amber-700"
+                    >
+                      <Pause className="h-4 w-4 mr-1" />
+                      Reanudar
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handlePause(task)}
+                      disabled={!['pending', 'in_progress'].includes(task.status) || pauseMutation.isPending}
+                      title="Pausar"
+                    >
+                      <Pause className="h-4 w-4 mr-1" />
+                      Pausar
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -469,7 +556,16 @@ export default function MaintenanceList() {
                     {task.assigned_staff_name || <span className="text-xs text-gray-400">Sin asignar</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-1 flex-wrap">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenAssignDialog(task)}
+                        disabled={assignMutation.isPending}
+                        title="Asignar"
+                      >
+                        <User className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -479,6 +575,28 @@ export default function MaintenanceList() {
                       >
                         <Hammer className="h-4 w-4" />
                       </Button>
+                      {task.status === 'cancelled' ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleResume(task)}
+                          disabled={resumeMutation.isPending}
+                          title="Reanudar"
+                          className="text-amber-600 hover:text-amber-700"
+                        >
+                          <Pause className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handlePause(task)}
+                          disabled={!['pending', 'in_progress'].includes(task.status) || pauseMutation.isPending}
+                          title="Pausar"
+                        >
+                          <Pause className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -780,6 +898,65 @@ export default function MaintenanceList() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Assignment Dialog Modal */}
+      {showAssignDialog && selectedTaskForAssign && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style={{ display: 'flex' }}>
+          <Card className="w-full max-w-md relative z-50 bg-white shadow-lg">
+            <CardHeader>
+              <CardTitle>Asignar personal a la tarea</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Tarea:</p>
+                <p className="font-semibold text-gray-900">{selectedTaskForAssign.title}</p>
+              </div>
+              <div>
+                <Label htmlFor="staff_select">Técnico de mantenimiento</Label>
+                <select
+                  id="staff_select"
+                  className="w-full border rounded-md px-3 py-2"
+                  value={selectedStaffId?.toString() ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value ? Number(e.target.value) : undefined;
+                    setSelectedStaffId(value);
+                  }}
+                  autoFocus
+                >
+                  <option value="">Sin asignar</option>
+                  {staff
+                    ?.filter((member: Staff) => member.role === 'mantenimiento' || member.role === 'limpieza')
+                    .map((member) => (
+                      <option key={member.id} value={member.id.toString()}>
+                        {member.full_name} • {member.role}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowAssignDialog(false);
+                    setSelectedTaskForAssign(null);
+                    setSelectedStaffId(undefined);
+                  }}
+                  disabled={assignMutation.isPending}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleAssign}
+                  disabled={assignMutation.isPending}
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {assignMutation.isPending ? 'Guardando...' : 'Confirmar'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
