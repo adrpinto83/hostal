@@ -468,7 +468,7 @@ export default function MaintenanceList() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleOpenAssignDialog(task)}
-                    disabled={assignMutation.isPending}
+                    disabled={task.status === 'completed' || assignMutation.isPending}
                     title="Asignar personal"
                   >
                     <User className="h-4 w-4 mr-1" />
@@ -564,7 +564,7 @@ export default function MaintenanceList() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleOpenAssignDialog(task)}
-                        disabled={assignMutation.isPending}
+                        disabled={task.status === 'completed' || assignMutation.isPending}
                         title="Asignar"
                       >
                         <User className="h-4 w-4" />
