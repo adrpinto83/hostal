@@ -325,6 +325,13 @@ def update_maintenance(
     if maintenance.started_at and maintenance.completed_at:
         duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
 
+    # Get assigned staff name if assigned_to is set
+    assigned_staff_name = None
+    if maintenance.assigned_to:
+        staff = db.get(Staff, maintenance.assigned_to)
+        if staff:
+            assigned_staff_name = staff.full_name
+
     return MaintenanceResponse(
         id=maintenance.id,
         room_id=maintenance.room_id,
@@ -341,7 +348,7 @@ def update_maintenance(
         estimated_cost=maintenance.estimated_cost,
         actual_cost=maintenance.actual_cost,
         room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=None,
+        assigned_staff_name=assigned_staff_name,
         duration_hours=round(duration_hours, 2) if duration_hours else None,
     )
 

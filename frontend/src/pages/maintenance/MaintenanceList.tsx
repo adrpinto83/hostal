@@ -288,9 +288,12 @@ export default function MaintenanceList() {
   };
 
   const handleAssign = () => {
-    if (selectedTaskForAssign) {
-      assignMutation.mutate({ id: selectedTaskForAssign.id, assigned_to: selectedStaffId });
+    if (!selectedTaskForAssign) {
+      alert('Error: No task selected');
+      return;
     }
+    console.log('Assigning task:', selectedTaskForAssign.id, 'to staff:', selectedStaffId);
+    assignMutation.mutate({ id: selectedTaskForAssign.id, assigned_to: selectedStaffId });
   };
 
   if (isLoading) {
@@ -901,8 +904,18 @@ export default function MaintenanceList() {
 
       {/* Assignment Dialog Modal */}
       {showAssignDialog && selectedTaskForAssign && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style={{ display: 'flex' }}>
-          <Card className="w-full max-w-md relative z-50 bg-white shadow-lg">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => {
+            setShowAssignDialog(false);
+            setSelectedTaskForAssign(null);
+            setSelectedStaffId(undefined);
+          }}
+        >
+          <Card
+            className="w-full max-w-md relative z-50 bg-white shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <CardHeader>
               <CardTitle>Asignar personal a la tarea</CardTitle>
             </CardHeader>
