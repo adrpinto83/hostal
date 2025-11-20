@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { dashboardApi, bandwidthApi, occupancyApi, reservationsApi } from '@/lib/api';
@@ -61,6 +62,8 @@ const CircularProgress = ({ percentage, size = 120 }: { percentage: number; size
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: dashboardApi.getStats,
@@ -227,20 +230,36 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4">
-        <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-2">
-          <ArrowDown className="h-5 w-5" />
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300"
+          onClick={() => navigate('/occupancy')}
+        >
+          <ArrowDown className="h-5 w-5 text-blue-600" />
           <span className="text-xs">Check-in</span>
         </Button>
-        <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-2">
-          <ArrowUp className="h-5 w-5" />
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-2 hover:bg-orange-50 hover:border-orange-300"
+          onClick={() => navigate('/occupancy')}
+        >
+          <ArrowUp className="h-5 w-5 text-orange-600" />
           <span className="text-xs">Check-out</span>
         </Button>
-        <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-2">
-          <CalendarDays className="h-5 w-5" />
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-2 hover:bg-green-50 hover:border-green-300"
+          onClick={() => navigate('/reservations')}
+        >
+          <CalendarDays className="h-5 w-5 text-green-600" />
           <span className="text-xs">Reserva</span>
         </Button>
-        <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-2">
-          <Wrench className="h-5 w-5" />
+        <Button
+          variant="outline"
+          className="h-auto py-3 flex flex-col items-center gap-2 hover:bg-red-50 hover:border-red-300"
+          onClick={() => navigate('/maintenance')}
+        >
+          <Wrench className="h-5 w-5 text-red-600" />
           <span className="text-xs">Mantenimiento</span>
         </Button>
       </div>
