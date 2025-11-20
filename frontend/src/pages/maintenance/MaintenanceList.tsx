@@ -106,7 +106,7 @@ export default function MaintenanceList() {
     queryFn: maintenanceApi.getStats,
   });
 
-  const { data: maintenances = [], isLoading } = useQuery({
+  const { data: rawMaintenances = [], isLoading } = useQuery({
     queryKey: ['maintenances', selectedPriority, selectedStatus, onlyPending],
     queryFn: () =>
       maintenanceApi.getAll({
@@ -115,6 +115,18 @@ export default function MaintenanceList() {
         pending_only: onlyPending ? true : undefined,
       }),
   });
+
+  // Enrich maintenance tasks with assigned staff names from the staff list
+  const maintenances = useMemo(() => {
+    if (!staff) return rawMaintenances;
+    return rawMaintenances.map((task) => ({
+      ...task,
+      assigned_staff_name:
+        task.assigned_to && !task.assigned_staff_name
+          ? staff.find((s) => s.id === task.assigned_to)?.full_name
+          : task.assigned_staff_name,
+    }));
+  }, [rawMaintenances, staff]);
 
   const { data: rooms } = useQuery({
     queryKey: ['rooms'],
@@ -217,33 +229,13 @@ export default function MaintenanceList() {
     mutationFn: (payload: { id: number; assigned_to: number | undefined }) =>
       maintenanceApi.update(payload.id, { assigned_to: payload.assigned_to }),
     onSuccess: (updatedTask) => {
-      // Get the assigned staff name from the staff list
-      const assignedStaffName = selectedStaffId
-        ? staff?.find((s) => s.id === selectedStaffId)?.full_name
-        : undefined;
-
-      // Update the query cache with complete task data including staff name
+      // Update the raw maintenances cache - the useMemo will handle enrichment
       queryClient.setQueryData<Maintenance[]>(
         ['maintenances', selectedPriority, selectedStatus, onlyPending],
         (oldData) => {
           if (!oldData) return oldData;
           return oldData.map((task) =>
-            task.id === updatedTask.id
-              ? { ...updatedTask, assigned_staff_name: assignedStaffName }
-              : task
-          );
-        }
-      );
-
-      // Also update all other maintenance queries for consistency
-      queryClient.setQueryData<Maintenance[]>(
-        ['maintenances', selectedPriority, selectedStatus, false],
-        (oldData) => {
-          if (!oldData) return oldData;
-          return oldData.map((task) =>
-            task.id === updatedTask.id
-              ? { ...updatedTask, assigned_staff_name: assignedStaffName }
-              : task
+            task.id === updatedTask.id ? updatedTask : task
           );
         }
       );
@@ -252,7 +244,7 @@ export default function MaintenanceList() {
       setSelectedTaskForAssign(null);
       setSelectedStaffId(undefined);
 
-      // Only invalidate stats, not the main list
+      // Invalidate stats to refresh counters
       queryClient.invalidateQueries({ queryKey: ['maintenance-stats'] });
     },
     onError: (error) => alert(handleApiError(error)),
