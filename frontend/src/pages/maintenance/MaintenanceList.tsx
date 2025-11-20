@@ -106,6 +106,16 @@ export default function MaintenanceList() {
     queryFn: maintenanceApi.getStats,
   });
 
+  const { data: rooms } = useQuery({
+    queryKey: ['rooms'],
+    queryFn: () => roomsApi.getAll(),
+  });
+
+  const { data: staff } = useQuery({
+    queryKey: ['staff'],
+    queryFn: () => staffApi.getAll(),
+  });
+
   const { data: rawMaintenances = [], isLoading } = useQuery({
     queryKey: ['maintenances', selectedPriority, selectedStatus, onlyPending],
     queryFn: () =>
@@ -127,16 +137,6 @@ export default function MaintenanceList() {
           : task.assigned_staff_name,
     }));
   }, [rawMaintenances, staff]);
-
-  const { data: rooms } = useQuery({
-    queryKey: ['rooms'],
-    queryFn: () => roomsApi.getAll(),
-  });
-
-  const { data: staff } = useQuery({
-    queryKey: ['staff'],
-    queryFn: () => staffApi.getAll(),
-  });
 
   const filteredTasks = useMemo(() => {
     return maintenances.filter((task) => {
