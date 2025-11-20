@@ -440,27 +440,15 @@ export default function MaintenanceList() {
                 </div>
 
                 {/* Assigned Staff - Prominent Display */}
-                {task.assigned_staff_name ? (
+                {task.assigned_staff_name && (
                   <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <div className="bg-blue-500 text-white rounded-full p-2 flex-shrink-0">
                         <User className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="text-xs text-blue-600 font-semibold uppercase">Responsable</p>
                         <p className="text-sm font-bold text-blue-900">{task.assigned_staff_name}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <div className="bg-gray-300 text-gray-600 rounded-full p-2 flex-shrink-0">
-                        <User className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold uppercase">Responsable</p>
-                        <p className="text-sm font-semibold text-gray-500">Sin asignar</p>
                       </div>
                     </div>
                   </div>
