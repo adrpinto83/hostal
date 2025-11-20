@@ -217,20 +217,43 @@ export default function MaintenanceList() {
     mutationFn: (payload: { id: number; assigned_to: number | undefined }) =>
       maintenanceApi.update(payload.id, { assigned_to: payload.assigned_to }),
     onSuccess: (updatedTask) => {
-      // Update the query cache immediately with the response data
+      // Get the assigned staff name from the staff list
+      const assignedStaffName = selectedStaffId
+        ? staff?.find((s) => s.id === selectedStaffId)?.full_name
+        : undefined;
+
+      // Update the query cache with complete task data including staff name
       queryClient.setQueryData<Maintenance[]>(
         ['maintenances', selectedPriority, selectedStatus, onlyPending],
         (oldData) => {
           if (!oldData) return oldData;
           return oldData.map((task) =>
-            task.id === updatedTask.id ? updatedTask : task
+            task.id === updatedTask.id
+              ? { ...updatedTask, assigned_staff_name: assignedStaffName }
+              : task
           );
         }
       );
-      queryInvalidate();
+
+      // Also update all other maintenance queries for consistency
+      queryClient.setQueryData<Maintenance[]>(
+        ['maintenances', selectedPriority, selectedStatus, false],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return oldData.map((task) =>
+            task.id === updatedTask.id
+              ? { ...updatedTask, assigned_staff_name: assignedStaffName }
+              : task
+          );
+        }
+      );
+
       setShowAssignDialog(false);
       setSelectedTaskForAssign(null);
       setSelectedStaffId(undefined);
+
+      // Only invalidate stats, not the main list
+      queryClient.invalidateQueries({ queryKey: ['maintenance-stats'] });
     },
     onError: (error) => alert(handleApiError(error)),
   });
