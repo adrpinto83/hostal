@@ -427,15 +427,47 @@ export default function MaintenanceList() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredTasks.map((task) => (
             <Card key={task.id} className="flex flex-col">
-              <CardHeader className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-xl">{task.title}</CardTitle>
-                  <div className="flex gap-2 items-center">
+              <CardHeader className="space-y-3 pb-3">
+                {/* Top Row: Title and Status Badges */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg leading-tight">{task.title}</CardTitle>
+                  </div>
+                  <div className="flex gap-1 items-center flex-shrink-0">
                     <Badge className={getMaintenancePriorityColor(task.priority)}>{task.priority}</Badge>
                     <Badge className={getMaintenanceStatusColor(task.status)}>{task.status}</Badge>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500 flex items-center gap-2">
+
+                {/* Assigned Staff - Prominent Display */}
+                {task.assigned_staff_name ? (
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-blue-500 text-white rounded-full p-2 flex-shrink-0">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-600 font-semibold uppercase">Responsable</p>
+                        <p className="text-sm font-bold text-blue-900">{task.assigned_staff_name}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-gray-300 text-gray-600 rounded-full p-2 flex-shrink-0">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase">Responsable</p>
+                        <p className="text-sm font-semibold text-gray-500">Sin asignar</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Location */}
+                <p className="text-sm text-gray-600 flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-gray-400" />
                   {resolveLocationLabel(task)}
                 </p>
@@ -448,8 +480,10 @@ export default function MaintenanceList() {
                     <span className="font-medium">{formatDate(task.reported_at)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Ubicación</span>
-                    <span className="font-medium">{resolveLocationLabel(task)}</span>
+                    <span className="text-gray-500">Tipo</span>
+                    <Badge variant="outline">
+                      {maintenanceTypes.find((t) => t.value === task.type)?.label || task.type}
+                    </Badge>
                   </div>
                   {task.location_type === 'common_area' && (
                     <div className="flex items-center justify-between">
@@ -458,12 +492,6 @@ export default function MaintenanceList() {
                         {areaCategoryOptions.find((opt) => opt.value === task.area_category)?.label ??
                           'Área común'}
                       </Badge>
-                    </div>
-                  )}
-                  {task.assigned_staff_name && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-500">Asignado a</span>
-                      <span className="font-medium">{task.assigned_staff_name}</span>
                     </div>
                   )}
                   {task.estimated_cost && (
@@ -565,8 +593,17 @@ export default function MaintenanceList() {
                   <td className="px-4 py-3">
                     <Badge className={getMaintenanceStatusColor(task.status)}>{task.status}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">
-                    {task.assigned_staff_name || <span className="text-xs text-gray-400">Sin asignar</span>}
+                  <td className="px-4 py-3">
+                    {task.assigned_staff_name ? (
+                      <div className="flex items-center gap-2">
+                        <div className="bg-blue-500 text-white rounded-full p-1.5">
+                          <User className="h-3 w-3" />
+                        </div>
+                        <span className="font-medium text-gray-900">{task.assigned_staff_name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Sin asignar</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1 flex-wrap">
