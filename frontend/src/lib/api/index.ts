@@ -461,8 +461,8 @@ export const reservationsApi = {
     const response = await api.post<Reservation>(`/reservations/${id}/confirm`);
     return response.data;
   },
-  cancel: async (id: number, reason?: string) => {
-    const response = await api.post<Reservation>(`/reservations/${id}/cancel`, { reason });
+  cancel: async (id: number, cancellation_reason: string) => {
+    const response = await api.post<Reservation>(`/reservations/${id}/cancel`, { cancellation_reason });
     return response.data;
   },
 };

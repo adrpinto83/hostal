@@ -461,6 +461,7 @@ export interface Reservation {
   price_bs: number;
   status: ReservationStatus;
   notes?: string;
+  cancellation_reason?: string;
   created_at: string;
   updated_at: string;
   guest: Guest;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Reservation, ReservationCreate, Period } from '@/types';
-import { Plus, CheckCircle, XCircle, X, Calendar } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Calendar, TrendingUp, AlertCircle, CheckCheck, Archive } from 'lucide-react';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { ReservationFormModal } from '@/components/reservations/ReservationFormModal';
+import { CancellationDialog } from '@/components/reservations/CancellationDialog';
+import ReservationHistory from './ReservationHistory';
+import { toast } from 'sonner';
 
 interface ExchangeRates {
   USD: number;
@@ -54,6 +58,25 @@ export default function ReservationList() {
   const [formData, setFormData] = useState<ReservationCreate>(initialFormData);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<'guest' | 'room' | 'date'>('guest');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [cancellationDialog, setCancellationDialog] = useState<{
+    isOpen: boolean;
+    reservationId: number | null;
+    reservationNumber: string;
+    guestName: string;
+    roomNumber: string;
+  }>({
+    isOpen: false,
+    reservationId: null,
+    reservationNumber: '',
+    guestName: '',
+    roomNumber: '',
+  });
 
   const queryClient = useQueryClient();
 
@@ -77,11 +100,86 @@ export default function ReservationList() {
   const { data: reservations, isLoading, isFetching } = useQuery<Reservation[]>({
     queryKey: ['reservations', searchQuery],
     queryFn: () => reservationsApi.getAll({ q: searchQuery || undefined }),
-    placeholderData: (previous) => previous,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
   const reservationList = reservations ?? [];
   const isInitialLoading = !reservations && isLoading;
-  const hasReservations = reservationList.length > 0;
+
+  // Filtrar reservas no procesadas (excluir checked_out y cancelled)
+  const activeReservations = useMemo(() => {
+    let filtered = reservationList.filter(r => r.status !== 'checked_out' && r.status !== 'cancelled');
+
+    // Si se seleccionó un status específico del dashboard, filtrar por ese status
+    if (selectedStatus) {
+      filtered = filtered.filter(r => r.status === selectedStatus);
+    }
+
+    return filtered;
+  }, [reservationList, selectedStatus]);
+
+  // Calcular estadísticas
+  const stats = useMemo(() => {
+    return {
+      pending: reservationList.filter(r => r.status === 'pending').length,
+      active: reservationList.filter(r => r.status === 'active').length,
+      checkedOut: reservationList.filter(r => r.status === 'checked_out').length,
+      cancelled: reservationList.filter(r => r.status === 'cancelled').length,
+      total: reservationList.length,
+    };
+  }, [reservationList]);
+
+  const hasReservations = activeReservations.length > 0;
+
+  // Sorting logic - usar activeReservations (sin completadas)
+  const sortedReservations = useMemo(() => {
+    const sorted = [...activeReservations];
+    sorted.sort((a, b) => {
+      let aValue: string = '';
+      let bValue: string = '';
+
+      switch (sortBy) {
+        case 'guest':
+          aValue = a.guest.full_name.toLowerCase();
+          bValue = b.guest.full_name.toLowerCase();
+          break;
+        case 'room':
+          aValue = a.room.number.toLowerCase();
+          bValue = b.room.number.toLowerCase();
+          break;
+        case 'date':
+          aValue = a.start_date;
+          bValue = b.start_date;
+          break;
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue.localeCompare(bValue);
+      } else {
+        return bValue.localeCompare(aValue);
+      }
+    });
+
+    return sorted;
+  }, [activeReservations, sortBy, sortOrder, selectedStatus]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedReservations.length / itemsPerPage);
+  const paginatedReservations = useMemo(() => {
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
+    return sortedReservations.slice(startIdx, endIdx);
+  }, [sortedReservations, currentPage, itemsPerPage]);
+
+  const handleSort = (column: 'guest' | 'room' | 'date') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
 
   const { data: guests } = useQuery({
     queryKey: ['guests'],
@@ -95,11 +193,16 @@ export default function ReservationList() {
 
   const createMutation = useMutation({
     mutationFn: reservationsApi.create,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
-      closeModal();
+      toast.success('✅ Reserva creada exitosamente', {
+        description: `Reserva para ${data.guest.full_name} en habitación ${data.room.number}`,
+      });
     },
     onError: (error) => {
+      toast.error('❌ Error al crear la reserva', {
+        description: error instanceof Error ? error.message : 'Intenta de nuevo',
+      });
       handleApiError(error);
     },
   });
@@ -108,21 +211,76 @@ export default function ReservationList() {
     mutationFn: reservationsApi.confirm,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
+      toast.success('✅ Reserva confirmada', {
+        description: 'La reserva ha sido confirmada exitosamente',
+      });
     },
     onError: (error) => {
+      toast.error('❌ Error al confirmar la reserva', {
+        description: error instanceof Error ? error.message : 'Intenta de nuevo',
+      });
       handleApiError(error);
     },
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: number) => reservationsApi.cancel(id),
+    mutationFn: (variables: { reservationId: number; reason: string }) =>
+      reservationsApi.cancel(variables.reservationId, variables.reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
+      toast.success('✅ Reserva cancelada', {
+        description: 'La reserva ha sido cancelada con justificación',
+      });
     },
     onError: (error) => {
+      toast.error('❌ Error al cancelar la reserva', {
+        description: error instanceof Error ? error.message : 'Intenta de nuevo',
+      });
       handleApiError(error);
     },
   });
+
+  const handleFormSubmit = async (data: ReservationCreate) => {
+    // Calcular el totalCost basado en los datos que se envían
+    const selectedRoom = rooms?.find((r) => r.id === data.room_id);
+    let totalDays = data.periods_count;
+
+    switch (data.period) {
+      case 'week':
+        totalDays = data.periods_count * 7;
+        break;
+      case 'fortnight':
+        totalDays = data.periods_count * 14;
+        break;
+      case 'month':
+        totalDays = data.periods_count * 30;
+        break;
+    }
+
+    const calculatedCost = selectedRoom && selectedRoom.price_bs ? selectedRoom.price_bs * totalDays : 0;
+
+    const dataToSubmit = {
+      ...data,
+      price_bs: calculatedCost > 0 ? calculatedCost : undefined,
+    };
+
+    const result = await createMutation.mutateAsync(dataToSubmit);
+
+    // Actualizar el cache manualmente
+    if (result) {
+      // Actualizar TODAS las queries de reservations
+      queryClient.setQueryData(['reservations', searchQuery], (oldData: Reservation[] | undefined) => {
+        if (!oldData) return undefined;
+        // Agregar la nueva reservación al inicio
+        return [result, ...oldData];
+      });
+
+      // Refetch de todas formas para asegurar sincronización
+      await queryClient.refetchQueries({
+        queryKey: ['reservations', searchQuery]
+      });
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,9 +304,43 @@ export default function ReservationList() {
     }
   };
 
-  const handleCancel = (id: number) => {
-    if (confirm('¿Cancelar esta reserva?')) {
-      cancelMutation.mutate(id);
+  const handleDashboardCardClick = (status: string) => {
+    // Si intenta filtrar por check-out o canceladas, mostrar sugerencia
+    if (status === 'checked_out' || status === 'cancelled') {
+      toast.info('📋 Historial de Reservas', {
+        description: 'Las reservas completadas y canceladas están en el historial. ¿Quieres verlas?',
+        action: {
+          label: 'Ir al historial',
+          onClick: () => setShowHistory(true),
+        },
+      });
+      return;
+    }
+
+    // Para pendientes y activas, hacer el filtro normal
+    setSelectedStatus(selectedStatus === status ? null : status);
+  };
+
+  const handleCancelClick = (reservation: Reservation) => {
+    setCancellationDialog({
+      isOpen: true,
+      reservationId: reservation.id,
+      reservationNumber: `RES-${String(reservation.id).padStart(6, '0')}`,
+      guestName: reservation.guest.full_name,
+      roomNumber: reservation.room.number,
+    });
+  };
+
+  const handleCancellationSubmit = async (reason: string) => {
+    if (!cancellationDialog.reservationId) return;
+    try {
+      await cancelMutation.mutateAsync({
+        reservationId: cancellationDialog.reservationId,
+        reason,
+      });
+      setCancellationDialog({ isOpen: false, reservationId: null, reservationNumber: '', guestName: '', roomNumber: '' });
+    } catch (error) {
+      console.error('Error al cancelar:', error);
     }
   };
 
@@ -159,6 +351,10 @@ export default function ReservationList() {
       day: 'numeric',
       timeZone: 'UTC', // Important for correct date display
     });
+  };
+
+  const formatReservationNumber = (id: number) => {
+    return `RES-${String(id).padStart(6, '0')}`;
   };
 
   const calculateEndDate = (startDate: string, period: Period, periodsCount: number): string => {
@@ -220,18 +416,126 @@ export default function ReservationList() {
     setFormData(initialFormData);
   };
 
+  // Show history if requested
+  if (showHistory) {
+    return <ReservationHistory onBack={() => setShowHistory(false)} />;
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-3xl font-bold">Reservas</h1>
         <div className="flex flex-wrap items-center gap-2">
           <ViewToggle value={viewMode} onChange={setViewMode} />
+          <Button variant="outline" onClick={() => setShowHistory(true)}>
+            <Archive className="mr-2 h-4 w-4" />
+            Historial
+          </Button>
           <Button onClick={() => setIsModalOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Nueva Reserva
           </Button>
         </div>
       </div>
+
+      {/* Dashboard de Estadísticas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Pendientes */}
+        <Card
+          onClick={() => handleDashboardCardClick('pending')}
+          className={`cursor-pointer transition-all ${
+            selectedStatus === 'pending'
+              ? 'border-2 border-yellow-400 bg-yellow-50 shadow-lg'
+              : 'hover:shadow-md'
+          }`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Pendientes</CardTitle>
+            <AlertCircle className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <p className="text-xs text-gray-500">Aguardando confirmación</p>
+          </CardContent>
+        </Card>
+
+        {/* Activas */}
+        <Card
+          onClick={() => handleDashboardCardClick('active')}
+          className={`cursor-pointer transition-all ${
+            selectedStatus === 'active'
+              ? 'border-2 border-green-400 bg-green-50 shadow-lg'
+              : 'hover:shadow-md'
+          }`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Activas</CardTitle>
+            <CheckCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+            <p className="text-xs text-gray-500">Reservas confirmadas</p>
+          </CardContent>
+        </Card>
+
+        {/* Check-out */}
+        <Card
+          onClick={() => handleDashboardCardClick('checked_out')}
+          className={`cursor-pointer transition-all ${
+            selectedStatus === 'checked_out'
+              ? 'border-2 border-blue-400 bg-blue-50 shadow-lg'
+              : 'hover:shadow-md'
+          }`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Check-out</CardTitle>
+            <CheckCircle className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.checkedOut}</div>
+            <p className="text-xs text-gray-500">Completadas</p>
+          </CardContent>
+        </Card>
+
+        {/* Canceladas */}
+        <Card
+          onClick={() => handleDashboardCardClick('cancelled')}
+          className={`cursor-pointer transition-all ${
+            selectedStatus === 'cancelled'
+              ? 'border-2 border-red-400 bg-red-50 shadow-lg'
+              : 'hover:shadow-md'
+          }`}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Canceladas</CardTitle>
+            <XCircle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
+            <p className="text-xs text-gray-500">Anuladas</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filtro Activo Indicator */}
+      {selectedStatus && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+            <span className="text-sm font-medium text-blue-900">
+              Filtrado por: <span className="font-bold">{statusLabels[selectedStatus]}</span>
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedStatus(null)}
+            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+          >
+            Limpiar filtro ✕
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <Input
@@ -251,18 +555,51 @@ export default function ReservationList() {
         </div>
       ) : hasReservations ? (
         viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 gap-4">
-        {reservationList.map((reservation) => (
-          <Card key={reservation.id}>
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="items-per-page" className="text-sm font-medium">Registros por página:</Label>
+                <select
+                  id="items-per-page"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+        {paginatedReservations.map((reservation) => (
+          <Card
+            key={reservation.id}
+            className={reservation.status === 'pending' ? 'border-2 border-yellow-400 bg-yellow-50' : ''}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-4">
                 <Calendar className="h-6 w-6 text-blue-500" />
                 <div>
-                  <CardTitle className="text-lg font-bold">
+                  <CardTitle className="text-lg font-bold flex items-center gap-2">
                     {reservation.guest.full_name}
+                    {reservation.status === 'pending' && (
+                      <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded font-semibold">
+                        ⚠ PENDIENTE
+                      </span>
+                    )}
                   </CardTitle>
                   <p className="text-sm text-gray-500">
-                    Habitación {reservation.room.number}
+                    <span className="font-mono font-semibold">{formatReservationNumber(reservation.id)}</span> · Habitación {reservation.room.number}
                   </p>
                 </div>
               </div>
@@ -283,12 +620,23 @@ export default function ReservationList() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleCancel(reservation.id)}
+                      onClick={() => handleCancelClick(reservation)}
                       title="Cancelar"
                     >
                       <XCircle className="h-4 w-4 text-red-600" />
                     </Button>
                   </>
+                )}
+                {reservation.status === 'active' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCancelClick(reservation)}
+                    title="Cancelar (con justificación)"
+                    className="text-red-600 hover:bg-red-50"
+                  >
+                    <XCircle className="h-4 w-4 text-red-600" />
+                  </Button>
                 )}
               </div>
             </CardHeader>
@@ -321,26 +669,94 @@ export default function ReservationList() {
             </CardContent>
           </Card>
         ))}
-      </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+              </div>
+            </div>
+          </>
         ) : (
-          <div className="bg-white border rounded-lg overflow-auto">
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="items-per-page-table" className="text-sm font-medium">Registros por página:</Label>
+                <select
+                  id="items-per-page-table"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-lg overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Reserva</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Fechas</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('guest')}>
+                  Reserva {sortBy === 'guest' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('date')}>
+                  Fechas {sortBy === 'date' && (sortOrder === 'asc' ? '↑' : '↓')}
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Monto</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {reservationList.map((reservation) => (
-                <tr key={reservation.id} className="hover:bg-gray-50">
+              {paginatedReservations.map((reservation) => (
+                <tr
+                  key={reservation.id}
+                  className={reservation.status === 'pending' ? 'bg-yellow-50 hover:bg-yellow-100 border-l-4 border-yellow-400' : 'hover:bg-gray-50'}
+                >
                   <td className="px-4 py-3">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-gray-900">{reservation.guest.full_name}</span>
-                      <span className="text-xs text-gray-500">Hab. {reservation.room.number}</span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-900">{reservation.guest.full_name}</span>
+                        {reservation.status === 'pending' && (
+                          <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded font-semibold">⚠ PENDIENTE</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        <span className="font-mono font-semibold">{formatReservationNumber(reservation.id)}</span> · Hab. {reservation.room.number}
+                      </span>
                       <Badge className={statusColors[reservation.status]}>{statusLabels[reservation.status]}</Badge>
                     </div>
                   </td>
@@ -368,21 +784,55 @@ export default function ReservationList() {
                           <Button variant="ghost" size="sm" onClick={() => handleConfirm(reservation.id)} title="Confirmar">
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleCancel(reservation.id)} title="Cancelar">
+                          <Button variant="ghost" size="sm" onClick={() => handleCancelClick(reservation)} title="Cancelar">
                             <XCircle className="h-4 w-4 text-red-600" />
                           </Button>
                         </>
                       )}
-                      {reservation.status !== 'pending' && (
-                        <span className="text-xs text-gray-500">Sin acciones</span>
+                      {reservation.status === 'active' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleCancelClick(reservation)} title="Cancelar (con justificación)">
+                          <XCircle className="h-4 w-4 text-red-600" />
+                        </Button>
                       )}
+                      {reservation.status === 'checked_out' || reservation.status === 'cancelled' ? (
+                        <span className="text-xs text-gray-500">Sin acciones</span>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+              </div>
+            </div>
+          </>
         )
       ) : (
         <div className="rounded-lg border border-dashed bg-white p-6 text-center text-gray-500">
@@ -390,236 +840,33 @@ export default function ReservationList() {
         </div>
       )}
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-2xl font-bold text-gray-900">📅 Nueva Reserva</h2>
-              <Button variant="ghost" size="sm" onClick={closeModal} className="rounded-full">
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+      <ReservationFormModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onSubmit={handleFormSubmit}
+        guests={guests}
+        rooms={rooms}
+        existingReservations={reservationList}
+        isLoading={createMutation.isPending}
+      />
 
-            {/* Body */}
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Formulario */}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Huésped */}
-                  <div>
-                    <Label htmlFor="guest_id" className="text-sm font-semibold">
-                      👤 Huésped
-                    </Label>
-                    <select
-                      id="guest_id"
-                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      value={formData.guest_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, guest_id: parseInt(e.target.value) })
-                      }
-                      required
-                    >
-                      <option value={0} disabled>Seleccionar huésped</option>
-                      {guests?.map((guest) => (
-                        <option key={guest.id} value={guest.id}>
-                          {guest.full_name} ({guest.document_id})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Habitación */}
-                  <div>
-                    <Label htmlFor="room_id" className="text-sm font-semibold">
-                      🛏️ Habitación
-                    </Label>
-                    <select
-                      id="room_id"
-                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      value={formData.room_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, room_id: parseInt(e.target.value) })
-                      }
-                      required
-                    >
-                      <option value={0} disabled>Seleccionar habitación</option>
-                      {rooms?.map((room) => (
-                        <option key={room.id} value={room.id}>
-                          Habitación {room.number} ({room.type}) - {room.status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Fecha de inicio */}
-                  <div>
-                    <Label htmlFor="start_date" className="text-sm font-semibold">
-                      📅 Fecha de Inicio
-                    </Label>
-                    <Input
-                      id="start_date"
-                      type="date"
-                      value={formData.start_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, start_date: e.target.value })
-                      }
-                      className="mt-2 border-gray-300"
-                      required
-                    />
-                  </div>
-
-                  {/* Cantidad y Período */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="periods_count" className="text-sm font-semibold">
-                        📊 Cantidad
-                      </Label>
-                      <Input
-                        id="periods_count"
-                        type="number"
-                        min="1"
-                        value={formData.periods_count}
-                        onChange={(e) =>
-                          setFormData({ ...formData, periods_count: parseInt(e.target.value) })
-                        }
-                        className="mt-2 border-gray-300"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="period" className="text-sm font-semibold">
-                        ⏱️ Período
-                      </Label>
-                      <select
-                        id="period"
-                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        value={formData.period}
-                        onChange={(e) =>
-                          setFormData({ ...formData, period: e.target.value as Period })
-                        }
-                        required
-                      >
-                        {Object.entries(periodLabels).map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Resumen de fechas y costo */}
-                  <div className="space-y-3">
-                    {/* Dates */}
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-900 font-semibold mb-2">📍 Rango de Reserva:</p>
-                      <div className="space-y-1 text-sm text-blue-800">
-                        <p>Inicio: <span className="font-semibold">{formatDate(formData.start_date)}</span></p>
-                        <p>Fin: <span className="font-semibold">{formatDate(endDate)}</span></p>
-                        <p>Total: <span className="font-semibold">{formData.periods_count} {periodLabels[formData.period].toLowerCase()}</span></p>
-                      </div>
-                    </div>
-
-                    {/* Cost Calculation */}
-                    {totalCost > 0 && (
-                      <div className="p-4 bg-green-50 border-2 border-green-400 rounded-lg">
-                        <p className="text-sm text-green-900 font-semibold mb-3">💰 Costo de Reserva:</p>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between text-green-800">
-                            <span>Tarifa por día:</span>
-                            <span className="font-semibold">Bs {rooms?.find(r => r.id === formData.room_id)?.price_bs?.toFixed(2) || '0.00'}</span>
-                          </div>
-                          <div className="flex justify-between text-green-800">
-                            <span>Cantidad de días:</span>
-                            <span className="font-semibold">
-                              {formData.period === 'day' ? formData.periods_count :
-                               formData.period === 'week' ? formData.periods_count * 7 :
-                               formData.period === 'fortnight' ? formData.periods_count * 14 :
-                               formData.periods_count * 30} días
-                            </span>
-                          </div>
-                          <div className="border-t border-green-300 pt-2 flex justify-between">
-                            <span className="font-bold text-green-900">TOTAL RESERVA:</span>
-                            <span className="text-lg font-bold text-green-700">Bs {totalCost.toFixed(2)}</span>
-                          </div>
-                          {exchangeRates && exchangeRates.USD > 0 && (
-                            <div className="text-xs text-green-700 text-right">
-                              ≈ USD ${(totalCost / exchangeRates.USD).toFixed(2)}
-                            </div>
-                          )}
-                          {exchangeRates && exchangeRates.EUR > 0 && (
-                            <div className="text-xs text-green-700 text-right">
-                              ≈ EUR €{(totalCost / exchangeRates.EUR).toFixed(2)}
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-xs text-green-700 mt-3 italic">
-                          💡 Este monto será acreditado a la cuenta del huésped y podrá pagarse después
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Notas */}
-                  <div>
-                    <Label htmlFor="notes" className="text-sm font-semibold">
-                      📝 Notas (Opcional)
-                    </Label>
-                    <textarea
-                      id="notes"
-                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                      rows={2}
-                      placeholder="Información adicional sobre la reserva..."
-                      value={formData.notes}
-                      onChange={(e) =>
-                        setFormData({ ...formData, notes: e.target.value })
-                      }
-                    />
-                  </div>
-
-                  {/* Botones */}
-                  <div className="flex gap-2 justify-end pt-4">
-                    <Button type="button" variant="outline" onClick={closeModal}>
-                      Cancelar
-                    </Button>
-                    <Button type="submit" disabled={createMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
-                      {createMutation.isPending ? '⏳ Creando...' : '✅ Crear Reserva'}
-                    </Button>
-                  </div>
-                </form>
-
-                {/* Calendario */}
-                <div className="hidden lg:block">
-                  <CalendarComponent
-                    startDate={formData.start_date}
-                    endDate={endDate}
-                    onDateSelect={(date) =>
-                      setFormData({ ...formData, start_date: date })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Calendario móvil (debajo en pantallas pequeñas) */}
-              <div className="lg:hidden border-t border-gray-200 pt-6">
-                <CalendarComponent
-                  startDate={formData.start_date}
-                  endDate={endDate}
-                  onDateSelect={(date) =>
-                    setFormData({ ...formData, start_date: date })
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <p className="text-xs text-gray-600 text-center">
-                💡 El calendario muestra el rango de fechas reservado en azul
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <CancellationDialog
+        isOpen={cancellationDialog.isOpen}
+        onClose={() =>
+          setCancellationDialog({
+            isOpen: false,
+            reservationId: null,
+            reservationNumber: '',
+            guestName: '',
+            roomNumber: '',
+          })
+        }
+        onSubmit={handleCancellationSubmit}
+        reservationNumber={cancellationDialog.reservationNumber}
+        guestName={cancellationDialog.guestName}
+        roomNumber={cancellationDialog.roomNumber}
+        isLoading={cancelMutation.isPending}
+      />
     </div>
   );
 }
