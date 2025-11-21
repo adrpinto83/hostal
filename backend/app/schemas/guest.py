@@ -38,3 +38,10 @@ class GuestUpdate(BaseModel):
 class GuestOut(GuestBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
+
+class GuestListResponse(BaseModel):
+    items: list[GuestOut]
+    total: int
+
+    model_config = ConfigDict(from_attributes=True)

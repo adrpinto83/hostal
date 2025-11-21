@@ -1,13 +1,15 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export const api: AxiosInstance = axios.create({
-  baseURL: `${API_BASE_URL}/api/v1`,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+let isRedirecting = false; // Prevenir múltiples redirects
 
 api.interceptors.request.use(
   (config) => {
@@ -21,11 +23,39 @@ api.interceptors.request.use(
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Handle 202 Accepted as successful response (for pending approval)
+    if (response.status === 202) {
+      return response;
+    }
+    return response;
+  },
   (error: AxiosError) => {
+    // Log 401 errors for debugging
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
+      console.error('401 Unauthorized - URL:', error.config?.url);
+      console.error('401 Response data:', error.response.data);
+    }
+
+    // Don't redirect for 202 (Accepted) or 403 (Forbidden) in auth endpoints
+    // These are intentional responses that should be handled by the caller
+    if (error.response?.status === 401 && !isRedirecting) {
+      // Only redirect to login if we're not already there
+      if (window.location.pathname !== '/login') {
+        isRedirecting = true;
+        localStorage.removeItem('access_token');
+        // Trigger storage event so Zustand can pick it up
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'access_token',
+          newValue: null,
+          oldValue: localStorage.getItem('access_token'),
+          storageArea: localStorage
+        }));
+        // Redirigir al login
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 100);
+      }
     }
     return Promise.reject(error);
   }

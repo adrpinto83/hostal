@@ -49,6 +49,9 @@ Contraseña: admin123
 
 Después de ejecutar `./create_test_data.sh` tendrás:
 
+- El script detecta automáticamente la configuración activa del backend (`backend/.env`). Si tienes `POSTGRES_*` configurados, sembrará directamente en esa base PostgreSQL; solo cae a SQLite local cuando no hay datos de conexión.
+- El resumen final debe mostrar `✅ Datos de prueba creados exitosamente` junto a la lista de entidades creadas. Úsalo para validar que la carga terminó sin errores.
+
 ### Habitaciones (5)
 - 101 - Disponible (con vista al jardín)
 - 102 - Disponible (estándar)
@@ -100,11 +103,20 @@ Después de ejecutar `./create_test_data.sh` tendrás:
 - [ ] Estados son claros
 - [ ] Información detallada disponible
 
-### 6. Navegación
+### 6. Pagos
+- [ ] Crear un pago (UI o `POST /payments`) refleja conversiones y status `completed`
+- [ ] Listado muestra método, referencia y montos convertidos
+- [ ] Intentar `DELETE /payments/{id}` sobre pagos `completed` sin parámetros extras devuelve `403`
+- [ ] Eliminar pagos confirmados solo funciona con `DELETE /payments/{id}?force=true&reason=<motivo>=10 chars` y debe registrarse en auditoría
+- [ ] Pagos pendientes (si cambias `status` vía `PATCH`) pueden eliminarse sin `force`
+
+### 7. Navegación
 - [ ] Sidebar funciona en todas las páginas
 - [ ] Rutas protegidas (requieren login)
 - [ ] Breadcrumbs/navegación clara
 - [ ] Responsive en mobile
+
+> 💡 Si necesitas resetear el entorno de pruebas (por ejemplo, tras eliminar pagos), vuelve a ejecutar `./create_test_data.sh`. Es idempotente y reescribe los registros existentes usando la misma base configurada en el backend.
 
 ---
 

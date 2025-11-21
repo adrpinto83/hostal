@@ -45,6 +45,7 @@ class StaffUpdate(BaseModel):
 
 class StaffResponse(StaffBase):
     id: int
+    user_id: int | None = None
     created_at: str
     updated_at: str
 
@@ -94,6 +95,7 @@ def create_staff(
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
@@ -147,6 +149,7 @@ def list_staff(
             hire_date=s.hire_date,
             salary=s.salary,
             notes=s.notes,
+            user_id=s.user_id,
             created_at=s.created_at.isoformat(),
             updated_at=s.updated_at.isoformat(),
         )
@@ -177,6 +180,7 @@ def get_staff(staff_id: int, db: Session = Depends(get_db)):
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
@@ -222,6 +226,7 @@ def update_staff(
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
@@ -345,6 +350,108 @@ def change_staff_status(
         hire_date=staff.hire_date,
         salary=staff.salary,
         notes=staff.notes,
+        user_id=staff.user_id,
         created_at=staff.created_at.isoformat(),
         updated_at=staff.updated_at.isoformat(),
     )
+
+
+# ============ Endpoints para dispositivos de personal ============
+
+from ..models.device import Device
+from ..schemas.device import DeviceCreate, DeviceOut
+
+
+@router.get(
+    "/{staff_id}/devices",
+    response_model=List[DeviceOut],
+    dependencies=[Depends(require_roles("admin", "gerente", "recepcionista"))],
+    summary="Listar dispositivos del personal",
+)
+def list_staff_devices(staff_id: int, db: Session = Depends(get_db)):
+    """Obtiene todos los dispositivos asociados a un miembro del personal."""
+    staff = db.get(Staff, staff_id)
+    if not staff:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    return staff.devices
+
+
+@router.post(
+    "/{staff_id}/devices",
+    response_model=DeviceOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles("admin", "gerente"))],
+    summary="Registrar dispositivo para personal",
+    description="Registra un nuevo dispositivo para un miembro del personal. La dirección MAC debe ser única.",
+)
+def add_staff_device(
+    staff_id: int,
+    data: DeviceCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Registra un dispositivo para un miembro del personal.
+
+    Los dispositivos del personal:
+    - No requieren una ocupancia activa
+    - Se suspenden automáticamente si el personal se inactiva
+    """
+    staff = db.get(Staff, staff_id)
+    if not staff:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+    mac = data.mac.upper()
+    exists = db.query(Device).filter(Device.mac == mac).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="MAC already registered")
+
+    device = Device(
+        staff_id=staff_id,
+        mac=mac,
+        name=data.name,
+        vendor=data.vendor,
+        allowed=True
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+
+    try:
+        from ..core.network import notify_whitelist_add
+
+        notify_whitelist_add(mac, None, device)
+    except Exception:
+        pass
+
+    return device
+
+
+@router.delete(
+    "/{staff_id}/devices/{device_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles("admin", "gerente"))],
+    summary="Eliminar dispositivo del personal",
+)
+def delete_staff_device(
+    staff_id: int,
+    device_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Elimina un dispositivo específico de un miembro del personal."""
+    device = db.get(Device, device_id)
+    if not device or device.staff_id != staff_id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    mac = device.mac
+    db.delete(device)
+    db.commit()
+
+    try:
+        from ..core.network import notify_whitelist_remove
+
+        notify_whitelist_remove(mac)
+    except Exception:
+        pass
+    return

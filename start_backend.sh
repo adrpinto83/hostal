@@ -32,33 +32,39 @@ if [ ! -f ".env" ]; then
     echo "✓ Archivo .env creado"
 fi
 
-# Verificar si existe la base de datos
-if [ ! -f "hostal.db" ]; then
-    echo "🗄️  Base de datos no encontrada. Ejecutando migraciones..."
-    alembic upgrade head
-    echo "✓ Base de datos creada"
-    
-    # Crear usuario admin
-    echo "👤 Creando usuario administrador..."
-    python << 'EOF'
+# Ejecutar migraciones siempre para mantener el esquema actualizado
+echo "🗄️  Aplicando migraciones de base de datos..."
+if ! alembic upgrade head; then
+    echo "❌ Error al ejecutar las migraciones. Revisa la configuración de la base de datos."
+    exit 1
+fi
+echo "✓ Migraciones aplicadas"
+
+# Asegurar que el usuario administrador exista (idempotente)
+echo "👤 Verificando usuario administrador..."
+python << 'EOF'
 from app.core.db import SessionLocal
 from app.models.user import User
 from app.core.security import get_password_hash
 
 db = SessionLocal()
-admin = User(
-    email="admin@hostal.com",
-    hashed_password=get_password_hash("admin123"),
-    role="admin"
-)
-db.add(admin)
-db.commit()
+existing = db.query(User).filter(User.email == "admin@hostal.com").first()
+if existing:
+    print("✓ Usuario admin existente: admin@hostal.com")
+else:
+    admin = User(
+        email="admin@hostal.com",
+        hashed_password=get_password_hash("admin123"),
+        role="admin",
+        approved=True
+    )
+    db.add(admin)
+    db.commit()
+    print("✓ Usuario admin creado")
+    print("  Email: admin@hostal.com")
+    print("  Contraseña: admin123")
 db.close()
-print("✓ Usuario admin creado")
-print("  Email: admin@hostal.com")
-print("  Contraseña: admin123")
 EOF
-fi
 
 echo ""
 echo "✅ Backend configurado correctamente"

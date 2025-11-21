@@ -68,7 +68,10 @@ def _hash_password(plain: str) -> str:
 def seed_admin(db_session):
     # Crea un admin de pruebas
     admin = User(
-        email="admin@hostal.com", role="admin", hashed_password=hash_password("MiClaveSegura")
+        email="admin@hostal.com",
+        role="admin",
+        hashed_password=hash_password("MiClaveSegura"),
+        approved=True,
     )
     db_session.add(admin)
     db_session.commit()

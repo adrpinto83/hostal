@@ -4,12 +4,20 @@ Modelos de base de datos del sistema Hostal.
 """
 
 # Modelos principales
+from .audit_log import AuditLog
 from .device import Device
 from .exchange_rate import ExchangeRate
 from .guest import Guest
 from .maintenance import Maintenance, MaintenancePriority, MaintenanceStatus, MaintenanceType
 from .media import Media, MediaCategory, MediaType
 from .network_activity import ActivityType, NetworkActivity
+from .network_device import (
+    NetworkDevice,
+    DeviceBrand,
+    DeviceType,
+    ConnectionStatus,
+    AuthType,
+)
 from .occupancy import Occupancy
 from .payment import Currency, Payment, PaymentMethod, PaymentStatus
 from .reservation import Period, Reservation, ReservationStatus
@@ -19,6 +27,8 @@ from .staff import Staff, StaffRole, StaffStatus
 from .user import User
 
 __all__ = [
+    # Audit and logging
+    "AuditLog",
     # Core models
     "User",
     "Guest",
@@ -42,6 +52,11 @@ __all__ = [
     # Network control
     "NetworkActivity",
     "ActivityType",
+    "NetworkDevice",
+    "DeviceBrand",
+    "DeviceType",
+    "ConnectionStatus",
+    "AuthType",
     # Payments and currency
     "Payment",
     "PaymentMethod",

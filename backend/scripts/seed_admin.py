@@ -14,11 +14,12 @@ with engine.begin() as conn:
     conn.execute(
         text(
             """
-        INSERT INTO users (email, hashed_password, role)
-        VALUES (:email, :hash, 'admin')
+        INSERT INTO users (email, hashed_password, role, approved)
+        VALUES (:email, :hash, 'admin', TRUE)
         ON CONFLICT (email) DO UPDATE
           SET hashed_password = EXCLUDED.hashed_password,
-              role = 'admin';
+              role = 'admin',
+              approved = TRUE;
     """
         ),
         {"email": admin_email, "hash": h},

@@ -7,11 +7,12 @@ from ..core.db import Base
 
 
 class Device(Base):
-    """Dispositivo de un huésped con control de internet."""
+    """Dispositivo de un huésped o personal con control de internet."""
     __tablename__ = "devices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    guest_id: Mapped[int] = mapped_column(ForeignKey("guests.id", ondelete="CASCADE"), index=True)
+    guest_id: Mapped[int | None] = mapped_column(ForeignKey("guests.id", ondelete="CASCADE"), index=True, nullable=True)
+    staff_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id", ondelete="CASCADE"), index=True, nullable=True)
 
     # Identificación del dispositivo
     mac: Mapped[str] = mapped_column(String(17), nullable=False, unique=True, index=True)  # AA:BB:CC:DD:EE:FF
@@ -22,6 +23,11 @@ class Device(Base):
     allowed: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # whitelist flag
     suspended: Mapped[bool] = mapped_column(Boolean, default=False, index=True)  # Suspendido manualmente
     suspension_reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # Razón de suspensión
+
+    # Suspensión automática por mora o sin ocupancia
+    auto_suspended: Mapped[bool] = mapped_column(Boolean, default=False, index=True)  # Suspendido automáticamente
+    auto_suspension_reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # Razón de suspensión automática
+    auto_suspension_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # Fecha de suspensión automática
 
     # Control de cuota de datos (opcional)
     daily_quota_mb: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # Cuota diaria en MB
@@ -38,6 +44,7 @@ class Device(Base):
 
     # Relaciones
     guest = relationship("Guest", back_populates="devices")
+    staff = relationship("Staff", back_populates="devices")
 
     @property
     def is_online(self) -> bool:

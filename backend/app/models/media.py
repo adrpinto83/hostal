@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
@@ -28,6 +28,7 @@ class MediaCategory(str, Enum):
     room_photo = "room_photo"  # Foto de habitación
     guest_id = "guest_id"  # Documento de identidad del huésped
     guest_photo = "guest_photo"  # Foto del huésped
+    staff_photo = "staff_photo"  # Foto del personal
     payment_proof = "payment_proof"  # Comprobante de pago
     maintenance_photo = "maintenance_photo"  # Foto de mantenimiento
     other = "other"  # Otro
@@ -45,6 +46,7 @@ class Media(Base):
     file_path = Column(String(500), nullable=False)  # Path completo o URL
     file_size = Column(Integer, nullable=False)  # Tamaño en bytes
     mime_type = Column(String(100), nullable=False)  # image/jpeg, application/pdf, etc.
+    file_hash = Column(String(64), nullable=True, index=True)  # SHA256 hash para detección de duplicados
 
     # Clasificación
     media_type = Column(
@@ -60,6 +62,7 @@ class Media(Base):
 
     # Relaciones opcionales (puede estar asociado a múltiples entidades)
     guest_id = Column(Integer, ForeignKey("guests.id", ondelete="CASCADE"), nullable=True, index=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=True, index=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=True, index=True)
     maintenance_id = Column(Integer, ForeignKey("maintenances.id", ondelete="CASCADE"), nullable=True, index=True)
     payment_id = Column(Integer, ForeignKey("payments.id", ondelete="CASCADE"), nullable=True, index=True)
@@ -72,9 +75,11 @@ class Media(Base):
     # Auditoría
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    is_primary = Column(Boolean, nullable=False, default=False, server_default="0")
 
     # Relaciones
     guest = relationship("Guest")
+    staff = relationship("Staff")
     room = relationship("Room")
     maintenance = relationship("Maintenance")
     payment = relationship("Payment")
@@ -98,8 +103,11 @@ class Media(Base):
     @property
     def url(self) -> str:
         """Retorna la URL pública del archivo."""
+        from ..core.config import settings
+
         # Si está en cloud storage, file_path ya es la URL
-        # Si es local, construir URL
         if self.file_path.startswith("http"):
             return self.file_path
-        return f"/media/{self.stored_filename}"
+
+        # Si es local, construir URL absoluta
+        return f"{settings.API_URL}/media/{self.stored_filename}"

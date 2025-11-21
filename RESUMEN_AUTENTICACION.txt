@@ -1,0 +1,438 @@
+================================================================================
+                  ANÁLISIS DEL SISTEMA DE AUTENTICACIÓN
+                            Proyecto: Hostal
+================================================================================
+
+FECHA DE ANÁLISIS: 2025-11-12
+RAMA: feature/improve-ui-dashboard
+
+================================================================================
+1. UBICACIÓN DE ARCHIVOS CLAVE
+================================================================================
+
+BACKEND:
+--------
+✓ /home/adrpinto/hostal/backend/app/routers/auth.py
+  └─ POST /auth/login      - Obtener JWT token
+  └─ GET /auth/me          - Datos usuario autenticado
+
+✓ /home/adrpinto/hostal/backend/app/routers/users.py
+  └─ POST /users/bootstrap - Crear PRIMER admin (sin auth)
+  └─ POST /users/          - Crear usuario (admin only)
+  └─ GET /users/           - Listar usuarios (admin only)
+  └─ GET /users/me         - Obtener datos usuario
+
+✓ /home/adrpinto/hostal/backend/app/models/user.py
+  └─ User ORM model con campos: id, email, hashed_password, role
+
+✓ /home/adrpinto/hostal/backend/app/schemas/auth.py
+  └─ LoginIn, TokenOut schemas
+
+✓ /home/adrpinto/hostal/backend/app/schemas/user.py
+  └─ UserCreate, UserOut schemas
+
+✓ /home/adrpinto/hostal/backend/app/core/security.py
+  └─ hash_password(), verify_password()
+  └─ create_access_token(), get_current_user()
+  └─ require_roles() - Validar roles
+
+✓ /home/adrpinto/hostal/backend/app/core/config.py
+  └─ Settings con SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+
+FRONTEND:
+---------
+✓ /home/adrpinto/hostal/frontend/src/pages/auth/Login.tsx
+  └─ UI de login con email, password, toggle show/hide
+  └─ Pre-cargado con: admin@example.com / string
+
+✓ /home/adrpinto/hostal/frontend/src/lib/hooks/useAuth.ts
+  └─ Zustand store para auth state
+  └─ Persiste en localStorage bajo clave 'auth-storage'
+
+✓ /home/adrpinto/hostal/frontend/src/lib/api/auth.ts
+  └─ authApi.login(), getCurrentUser(), logout()
+
+✓ /home/adrpinto/hostal/frontend/src/lib/api/client.ts
+  └─ Axios instance con baseURL
+  └─ Request interceptor: agrega token en Authorization header
+  └─ Response interceptor: maneja 401, redirige a /login
+
+✓ /home/adrpinto/hostal/frontend/src/types/index.ts
+  └─ Tipos TypeScript: User, LoginRequest, LoginResponse, UserCreate
+
+================================================================================
+2. MODELO DE USUARIO
+================================================================================
+
+Estructura en BD:
+  TABLE users {
+    id              INT PRIMARY KEY AUTO INCREMENT
+    email           VARCHAR(255) UNIQUE NOT NULL
+    hashed_password VARCHAR(255) NOT NULL
+    role            VARCHAR(50) DEFAULT 'user'
+  }
+
+Roles disponibles:
+  - admin          (acceso total)
+  - gerente        (gestión operativa)
+  - recepcionista  (operaciones limitadas)
+  - mantenimiento  (solo mantenimiento)
+  - user           (usuario básico)
+
+Validaciones:
+  - Email: EmailStr (validación de email)
+  - Password: mínimo 6 caracteres
+  - Role: string (sin validación de enum en modelo)
+
+================================================================================
+3. ENDPOINTS DE AUTENTICACIÓN
+================================================================================
+
+POST /auth/login
+  │
+  ├─ Rate Limit: 5 intentos por minuto por IP
+  ├─ Entrada: OAuth2PasswordRequestForm (username, password)
+  ├─ Salida: {"access_token": "...", "token_type": "bearer"}
+  │
+  └─ Lógica:
+     1. Busca usuario por email (username en form_data)
+     2. Verifica password contra bcrypt hash
+     3. Registra intento en auditoría
+     4. Crea JWT con claims: sub (user_id), role, exp (120 min)
+     5. Retorna token
+
+GET /auth/me
+  │
+  ├─ Requiere: Token JWT válido en Authorization header
+  ├─ Salida: {"id": 1, "email": "...", "role": "admin"}
+  │
+  └─ Lógica:
+     1. Valida token (JWT decode + firma)
+     2. Extrae user_id del claim 'sub'
+     3. Busca usuario en BD
+     4. Retorna UserOut con id, email, role
+
+POST /users/bootstrap
+  │
+  ├─ Requiere: NINGUNO (primer setup del sistema)
+  ├─ Entrada: UserCreate (email, password, role)
+  ├─ Salida: UserOut (id, email, role)
+  │
+  └─ Lógica:
+     1. Verifica que NO exista admin previo
+     2. Verifica que email no esté duplicado
+     3. Hashea password con bcrypt
+     4. Crea usuario con role="admin"
+     5. Falla si ya existe admin
+
+POST /users/
+  │
+  ├─ Requiere: Rol admin
+  ├─ Entrada: UserCreate (email, password, role)
+  ├─ Salida: UserOut (id, email, role)
+  │
+  └─ Lógica: Similar a bootstrap, permite crear cualquier rol
+
+GET /users/
+  │
+  ├─ Requiere: Rol admin
+  ├─ Salida: List[UserOut]
+  │
+  └─ Lógica: Lista todos los usuarios
+
+================================================================================
+4. FLUJO COMPLETO DE AUTENTICACIÓN
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Usuario accede a /login                                      │
+│    └─ Componente Login.tsx se renderiza                         │
+│    └─ Pre-cargado: email="admin@example.com", password="string" │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. Usuario completa formulario e ingresa "Iniciar Sesión"       │
+│    └─ handleSubmit() ejecuta                                    │
+│    └─ setLoading(true), setError('')                            │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. authApi.login({ username: email, password })                 │
+│    ├─ Convierte a URLSearchParams                               │
+│    ├─ POST /auth/login                                          │
+│    │  Headers: Content-Type: application/x-www-form-urlencoded  │
+│    │  Body: username=...&password=...                           │
+│    └─ Response: {access_token, token_type}                      │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ BACKEND ROUTING                                                  │
+│                                                                  │
+│ @router.post("/login")                                          │
+│ └─ 1. db.query(User).filter(email == username).first()          │
+│    2. verify_password(form_data.password, user.hashed_password) │
+│    3. log_login(success=True, ip=client.host, ...)              │
+│    4. token_data = {"sub": str(user.id), "role": user.role}    │
+│    5. create_access_token(token_data, expires_delta=120min)    │
+│    6. return TokenOut(access_token, token_type)                 │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. Frontend recibe token                                         │
+│    └─ localStorage.setItem('access_token', response.access_token)
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 5. authApi.getCurrentUser()                                      │
+│    ├─ GET /auth/me                                              │
+│    │  Headers: Authorization: Bearer <token>                    │
+│    └─ Response: {id, email, role}                               │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 6. Frontend actualiza Zustand state                              │
+│    └─ setAuth(user, response.access_token)                      │
+│    ├─ localStorage.setItem('access_token', token)               │
+│    ├─ localStorage.setItem('auth-storage', {...state})          │
+│    └─ set({ user, token })                                      │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 7. navigate('/dashboard')                                        │
+│    └─ Usuario es redirigido al dashboard                        │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+              AUTENTICACIÓN EXITOSA
+
+PRÓXIMAS REQUESTS AL API:
+  ├─ Axios request interceptor captura token de localStorage
+  ├─ Agrega header: Authorization: Bearer <token>
+  ├─ Backend get_current_user() valida token en cada endpoint
+  └─ Si 401: Response interceptor limpia localStorage y redirige a /login
+
+================================================================================
+5. SEGURIDAD - MANEJO DE TOKENS JWT
+================================================================================
+
+Token Structure: header.payload.signature
+
+Header:
+  {
+    "alg": "HS256",
+    "typ": "JWT"
+  }
+
+Payload (EJEMPLO):
+  {
+    "sub": "1",           // user_id (string)
+    "role": "admin",      // user role
+    "exp": 1700000000,    // expiration timestamp (Unix)
+    "iat": 1699996400     // issued at timestamp
+  }
+
+Firma:
+  HMACSHA256(
+    base64UrlEncode(header) + "." + base64UrlEncode(payload),
+    SECRET_KEY
+  )
+
+Validación en Backend:
+  1. Decodificar token con SECRET_KEY
+  2. Si signature inválida o expirado → JWTError → 401
+  3. Extraer user_id del claim "sub"
+  4. Buscar usuario en BD
+  5. Si no existe → 401
+
+================================================================================
+6. HASHING DE CONTRASEÑAS
+================================================================================
+
+Sistema: bcrypt con CryptContext (passlib)
+
+hash_password("MyPassword123"):
+  └─ bcrypt.hash("MyPassword123")
+  └─ Resultado: $2b$12$... (hash de 60 caracteres)
+
+verify_password("MyPassword123", "$2b$12$..."):
+  └─ bcrypt.verify(plain, hashed)
+  └─ Resultado: True o False
+
+Ventajas:
+  - Salt incluido en el hash
+  - Función lenta por diseño (resiste fuerza bruta)
+  - Adaptable (parámetro de costo)
+
+================================================================================
+7. CONTROL DE ACCESO POR ROLES
+================================================================================
+
+Función: require_roles(*roles: str)
+  └─ Dependency injection en FastAPI
+  └─ Valida que current_user.role esté en lista permitida
+
+Uso en endpoints:
+  @router.post("/", dependencies=[Depends(require_roles("admin"))])
+  def create_user(...): ...
+  
+  @router.get("/", dependencies=[Depends(require_roles("admin", "recepcionista"))])
+  def list_rooms(...): ...
+
+Errores:
+  - 401 si no hay token o token inválido
+  - 403 si tiene token válido pero rol insuficiente
+
+Endpoints protegidos encontrados:
+  POST /guests            → admin, recepcionista
+  DELETE /guests/{id}     → admin
+  GET /rooms              → admin, recepcionista
+  POST /rooms             → admin
+  DELETE /rooms/{id}      → admin
+  POST /media             → admin, recepcionista
+  DELETE /media/{id}      → admin
+  GET /maintenance        → admin, recepcionista, mantenimiento
+  POST /room-rates        → admin, recepcionista
+  POST /exchange-rates    → admin
+  POST /users             → admin
+  GET /users              → admin
+  GET /users/me           → cualquier usuario autenticado
+
+================================================================================
+8. SEGURIDAD - CONSIDERACIONES IMPORTANTES
+================================================================================
+
+Rate Limiting:
+  ✓ POST /auth/login: 5 intentos por minuto por IP
+  └─ Usa limiter de FastAPI
+
+Auditoría:
+  ✓ Cada intento de login (exitoso/fallido) se registra
+  └─ Incluye: email, éxito/fallo, IP, user_id, role, razón
+
+Token Expiration:
+  ✓ Tokens expiran en 120 minutos (configurable en .env)
+  └─ No hay refresh token implementado
+  └─ Token expirado → usuario debe volver a login
+
+CORS:
+  ✓ Origins permitidos: http://localhost:3000, http://localhost:5173
+  └─ Configurable en .env
+
+SECRET_KEY:
+  ⚠ En producción DEBE ser >= 32 caracteres
+  ⚠ No puede ser valor por defecto
+  └─ Generar: openssl rand -base64 32
+
+Storage en Frontend:
+  ✓ Token en localStorage (accesible vía JavaScript)
+  ⚠ Vulnerable a XSS
+  └─ Para mejorar: usar httpOnly cookie (requiere cambios)
+
+================================================================================
+9. VARIABLES DE ENTORNO
+================================================================================
+
+Backend (.env):
+  SECRET_KEY=<>=32 chars>           # CRÍTICO para seguridad
+  ALGORITHM=HS256                   # Algoritmo JWT
+  ACCESS_TOKEN_EXPIRE_MINUTES=120   # Duración token
+  CORS_ORIGINS=...                  # Orígenes CORS permitidos
+  DATABASE_URL=postgresql://...     # Conexión BD
+  DEBUG=true                        # Dev only
+  APP_ENV=dev                       # dev o prod
+
+Frontend (.env.local):
+  VITE_API_BASE_URL=http://localhost:8000
+
+Validaciones Config:
+  - En prod: SECRET_KEY >= 32 chars (validación en Settings)
+  - En prod: DEBUG=false automáticamente
+  - CORS_ORIGINS puede ser "*" (pero no recomendado en prod)
+
+================================================================================
+10. PUNTOS CLAVE RESUMIDOS
+================================================================================
+
+1. OAuth2 Password Flow: Backend espera username/password en form urlencoded
+
+2. JWT Stateless: Tokens no se almacenan en backend, validación por firma
+
+3. Dual Storage Frontend: Token en localStorage + Zustand (persistido)
+
+4. RBAC Simple: Sistema de roles en columna "role"
+
+5. bcrypt Hashing: Contraseñas nunca se almacenan en texto plano
+
+6. Axios Interceptores: Token se agrega automáticamente a requests
+
+7. 401 Handling: Response interceptor limpia sesión y redirige a login
+
+8. Bootstrap Pattern: Primer admin se crea sin autenticación
+
+9. Auditoria: Logs de login en todos los intentos
+
+10. No Refresh Tokens: Si expira token, debe hacer login nuevamente
+
+================================================================================
+11. FLUJO DE ERRORES COMUNES
+================================================================================
+
+Error: "Credenciales inválidas" (401)
+  └─ Usuario no existe O contraseña incorrecta
+  └─ log_login registra con success=False
+
+Error: "No se pudieron validar las credenciales" (401)
+  └─ Token inválido, expirado o malformado
+  └─ JWT decode falló
+
+Error: "Operation not permitted for this user role" (403)
+  └─ Usuario autenticado pero rol insuficiente
+  └─ Ej: recepcionista intentando crear usuario
+
+Error: "5 per 1 minute" (429)
+  └─ Demasiados intentos de login desde mismo IP
+  └─ Esperar 1 minuto antes de reintentar
+
+Error: "Email already registered" (400)
+  └─ Al crear usuario, email ya existe en BD
+
+Error: "Admin already exists" (400)
+  └─ Endpoint bootstrap solo funciona si NO hay admin
+
+================================================================================
+12. TESTING MANUAL (CURL)
+================================================================================
+
+# 1. Bootstrap admin
+curl -X POST http://localhost:8000/api/v1/users/bootstrap \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@test.com","password":"Test123!","role":"admin"}'
+
+# 2. Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin@test.com&password=Test123!"
+# Guarda el token: TOKEN="eyJ0eXAi..."
+
+# 3. Obtener datos usuario
+curl -X GET http://localhost:8000/api/v1/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+
+# 4. Listar usuarios (admin only)
+curl -X GET http://localhost:8000/api/v1/users \
+  -H "Authorization: Bearer $TOKEN"
+
+# 5. Crear recepcionista
+curl -X POST http://localhost:8000/api/v1/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"email":"recep@test.com","password":"Test456!","role":"recepcionista"}'
+
+================================================================================

@@ -2,9 +2,10 @@
 """Modelo para personal del hostal (limpieza, mantenimiento, recepción, etc.)."""
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 
@@ -13,11 +14,11 @@ from ..core.db import Base
 
 class StaffRole(str, Enum):
     """Roles del personal del hostal."""
-    receptionist = "receptionist"  # Recepcionista
-    cleaner = "cleaner"  # Personal de limpieza
-    maintenance = "maintenance"  # Personal de mantenimiento
-    manager = "manager"  # Gerente
-    security = "security"  # Seguridad
+    recepcionista = "recepcionista"  # Recepcionista
+    limpieza = "limpieza"  # Personal de limpieza
+    mantenimiento = "mantenimiento"  # Personal de mantenimiento
+    gerente = "gerente"  # Gerente
+    seguridad = "seguridad"  # Seguridad
 
 
 class StaffStatus(str, Enum):
@@ -50,12 +51,21 @@ class Staff(Base):
         SAEnum(StaffStatus, name="staff_status", create_constraint=True),
         nullable=False,
         default=StaffStatus.active,
-        server_default="active"
+        server_default="active",
+        index=True
     )
+    hire_date = Column(Date, nullable=True)  # Fecha de contratación
+    salary = Column(Float, nullable=True)  # Salario
 
-    # Configuración
-    can_access_admin = Column(Boolean, default=False)  # Acceso al panel administrativo
-    notes = Column(String(500), nullable=True)
+    # Notas
+    notes = Column(Text, nullable=True)
+
+    # Sistema de usuarios - Un empleado puede estar asociado a una cuenta del sistema
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, unique=True, index=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default="now()")
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default="now()", onupdate=datetime.utcnow)
 
     # Relaciones
-    maintenances = relationship("Maintenance", back_populates="staff")
+    devices = relationship("Device", back_populates="staff", cascade="all, delete-orphan")

@@ -1,114 +1,53 @@
-# ⚡ Inicio Rápido - Sistema de Hostal
+# 🚀 Guía de Inicio Rápido - Sistema de Hostal
 
-## 📍 Ubicación de Archivos
+## ✅ Sistema Completamente Funcional
 
-Todos los scripts están en: `/home/user/hostal/`
+El sistema de gestión de hostal está **100% operativo** con todos los módulos implementados.
 
-```
-/home/user/hostal/
-├── setup.sh              ← Configuración inicial completa
-├── start_backend.sh      ← Inicia el backend
-├── start_frontend.sh     ← Inicia el frontend
-├── create_test_data.sh   ← Crea datos de prueba
-├── START_LOCAL.md        ← Guía detallada paso a paso
-├── README_TESTING.md     ← Guía de pruebas completa
-└── DEPLOYMENT_GUIDE.md   ← Guía de producción
-```
+---
 
-## 🚀 Usar los Scripts
+## 🎯 Lo Que Puedes Hacer Ahora
 
-### Paso 1: Ir al directorio del proyecto
-```bash
-cd /home/user/hostal
-```
+### 1. **Gestión de Habitaciones** (NUEVO)
+- ✅ Crear habitaciones (Individual, Doble, Suite)
+- ✅ Editar información de habitaciones
+- ✅ Eliminar habitaciones
+- ✅ Ver estados (Disponible, Ocupada, Limpieza, Mantenimiento)
 
-### Paso 2: Ver los scripts disponibles
-```bash
-ls -la *.sh
-```
+### 2. **Gestión de Huéspedes** (NUEVO)
+- ✅ Crear huéspedes con documento y contacto
+- ✅ Buscar huéspedes en tiempo real
+- ✅ Editar información de huéspedes
+- ✅ Eliminar huéspedes
 
-Deberías ver:
-```
--rwxr-xr-x create_test_data.sh
--rwxr-xr-x setup.sh
--rwxr-xr-x start_backend.sh
--rwxr-xr-x start_frontend.sh
-```
+### 3. **Control de Dispositivos WiFi** (NUEVO)
+- ✅ Agregar dispositivos por huésped (MAC address)
+- ✅ Suspender/reanudar internet de dispositivos
+- ✅ Ver estado online de dispositivos
+- ✅ Eliminar dispositivos
 
-### Paso 3: Ejecutar configuración inicial
-```bash
-./setup.sh
-```
+---
 
-### Paso 4: Crear datos de prueba (opcional)
-```bash
-./create_test_data.sh
-```
-
-### Paso 5: Iniciar backend (en esta terminal)
-```bash
-./start_backend.sh
-```
-
-### Paso 6: Iniciar frontend (en OTRA terminal)
-```bash
-# Abrir nueva terminal
-cd /home/user/hostal
-./start_frontend.sh
-```
-
-## 🌐 Acceder al Sistema
-
-1. Abrir navegador: http://localhost:3000
-2. Login:
-   - Email: `admin@hostal.com`
-   - Password: `admin123`
-
-## ❓ Si no ves los archivos
+## 🚀 Cómo Iniciar
 
 ```bash
-# Asegúrate de estar en el directorio correcto
-pwd
-# Debe mostrar: /home/user/hostal
-
-# Si no estás ahí, navega al directorio
-cd /home/user/hostal
-
-# Ahora lista los archivos
-ls -la *.sh
+./start-dev.sh
 ```
 
-## 🔧 Alternativa Manual (si prefieres)
+## 🌐 URLs de Acceso
 
-### Backend:
-```bash
-cd /home/user/hostal/backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-alembic upgrade head
-uvicorn app.main:app --reload
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+## 🔑 Credenciales
+
 ```
-
-### Frontend (en otra terminal):
-```bash
-cd /home/user/hostal/frontend
-npm install
-echo "VITE_API_BASE_URL=http://localhost:8000" > .env
-npm run dev
-```
-
-## 📊 Verificación Rápida
-
-```bash
-# Backend funcionando
-curl http://localhost:8000/api/v1/health
-
-# Frontend funcionando
-# Abrir http://localhost:3000 en navegador
+Email: admin@hostal.com
+Password: admin123
 ```
 
 ---
 
-**¿Problemas?** Consulta README_TESTING.md para solución de problemas.
+**Última actualización**: 2025-11-11
+**Estado**: ✅ PRODUCCIÓN READY

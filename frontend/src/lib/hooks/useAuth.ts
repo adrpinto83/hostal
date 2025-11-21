@@ -28,3 +28,13 @@ export const useAuth = create<AuthState>()(
     }
   )
 );
+
+// Initialize storage listener once (outside the hook)
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'access_token' && !event.newValue) {
+      // Token was removed, clear auth state
+      useAuth.setState({ user: null, token: null });
+    }
+  });
+}

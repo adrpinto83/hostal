@@ -11,16 +11,28 @@ from app.core.config import settings  # Asegúrate de que importa de config
 from app.core.db import get_db
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt", "pbkdf2_sha256"],
+    deprecated="auto",
+    bcrypt__rounds=12
+)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # Truncate password to 72 bytes for bcrypt compatibility
+    truncated_password = plain_password[:72]
+    return pwd_context.verify(truncated_password, hashed_password)
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Truncate password to 72 bytes for bcrypt compatibility
+    truncated_password = password[:72]
+    return pwd_context.hash(truncated_password)
+
+
+# Alias para compatibilidad
+get_password_hash = hash_password
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -37,23 +49,32 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    import structlog
+    log = structlog.get_logger()
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="No se pudieron validar las credenciales",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        log.info("Validating token", token_preview=token[:50] if token else "None")
         # Usa los nombres en MAYÚSCULAS
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        log.info("Token decoded", payload=payload)
         user_id = payload.get("sub")
         if user_id is None:
+            log.warning("No user_id in token payload")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        log.error("JWT decode error", error=str(e))
         raise credentials_exception from None
 
     user = db.get(User, user_id)
     if user is None:
+        log.warning("User not found in database", user_id=user_id)
         raise credentials_exception
+    log.info("User authenticated successfully", user_id=user.id, email=user.email)
     return user
 
 
