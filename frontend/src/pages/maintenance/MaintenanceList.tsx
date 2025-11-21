@@ -21,6 +21,7 @@ import {
   Timer,
   User,
   Wrench,
+  Archive,
 } from 'lucide-react';
 import {
   formatDate,
@@ -28,6 +29,7 @@ import {
   getMaintenancePriorityColor,
   getMaintenanceStatusColor,
 } from '@/lib/utils';
+import MaintenanceHistory from './MaintenanceHistory';
 
 const priorityOptions = [
   { value: 'all', label: 'Todas las prioridades' },
@@ -100,6 +102,12 @@ export default function MaintenanceList() {
   const [selectedTaskForAssign, setSelectedTaskForAssign] = useState<Maintenance | null>(null);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<number | undefined>(undefined);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Show history view if requested
+  if (showHistory) {
+    return <MaintenanceHistory onBack={() => setShowHistory(false)} />;
+  }
 
   const { data: maintenanceStats } = useQuery({
     queryKey: ['maintenance-stats'],
@@ -339,6 +347,10 @@ export default function MaintenanceList() {
           <Button onClick={() => setOnlyPending((prev) => !prev)} variant={onlyPending ? 'default' : 'ghost'}>
             <ShieldAlert className="h-4 w-4 mr-2" />
             {onlyPending ? 'Mostrando pendientes' : 'Ver todo'}
+          </Button>
+          <Button variant="outline" onClick={() => setShowHistory(true)}>
+            <Archive className="h-4 w-4 mr-2" />
+            Historial
           </Button>
         </div>
       </div>

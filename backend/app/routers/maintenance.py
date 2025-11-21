@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..core.db import get_db
 from ..core.security import get_current_user, require_roles
@@ -70,6 +70,48 @@ class MaintenanceResponse(BaseModel):
         from_attributes = True
 
 
+def _build_maintenance_response(maintenance: Maintenance, db: Session | None = None) -> MaintenanceResponse:
+    duration_hours = None
+    if maintenance.started_at and maintenance.completed_at:
+        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
+
+    assigned_staff_name = None
+    if maintenance.staff:
+        assigned_staff_name = maintenance.staff.full_name
+    elif maintenance.assigned_to and db:
+        staff = db.get(Staff, maintenance.assigned_to)
+        if staff:
+            assigned_staff_name = staff.full_name
+
+    room_number = None
+    if maintenance.room:
+        room_number = maintenance.room.number
+    elif db:
+        room = db.get(Room, maintenance.room_id)
+        if room:
+            room_number = room.number
+
+    return MaintenanceResponse(
+        id=maintenance.id,
+        room_id=maintenance.room_id,
+        type=maintenance.type.value,
+        priority=maintenance.priority.value,
+        status=maintenance.status.value,
+        title=maintenance.title,
+        description=maintenance.description,
+        notes=maintenance.notes,
+        assigned_to=maintenance.assigned_to,
+        reported_at=maintenance.reported_at.isoformat(),
+        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
+        completed_at=maintenance.completed_at.isoformat() if maintenance.completed_at else None,
+        estimated_cost=maintenance.estimated_cost,
+        actual_cost=maintenance.actual_cost,
+        room_number=room_number,
+        assigned_staff_name=assigned_staff_name,
+        duration_hours=round(duration_hours, 2) if duration_hours else None,
+    )
+
+
 # Endpoints
 @router.post(
     "/",
@@ -114,25 +156,7 @@ def create_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        assigned_to=maintenance.assigned_to,
-        reported_at=maintenance.reported_at.isoformat(),
-        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
-        completed_at=maintenance.completed_at.isoformat() if maintenance.completed_at else None,
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        room_number=room.number,
-        assigned_staff_name=None,
-        duration_hours=None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.get(
@@ -162,7 +186,10 @@ def list_maintenance(
     - **assigned_to**: Filtrar por empleado asignado
     - **pending_only**: Solo tareas pendientes o en progreso
     """
-    query = db.query(Maintenance)
+    query = db.query(Maintenance).options(
+        joinedload(Maintenance.room),
+        joinedload(Maintenance.staff),
+    )
 
     if room_id:
         query = query.filter(Maintenance.room_id == room_id)
@@ -193,35 +220,7 @@ def list_maintenance(
     # Ordenar por prioridad en Python (más fácil que en SQL)
     maintenances.sort(key=lambda m: (priority_order.get(m.priority, 99), m.reported_at), reverse=True)
 
-    results = []
-    for m in maintenances:
-        duration_hours = None
-        if m.started_at and m.completed_at:
-            duration_hours = (m.completed_at - m.started_at).total_seconds() / 3600
-
-        results.append(
-            MaintenanceResponse(
-                id=m.id,
-                room_id=m.room_id,
-                type=m.type.value,
-                priority=m.priority.value,
-                status=m.status.value,
-                title=m.title,
-                description=m.description,
-                notes=m.notes,
-                assigned_to=m.assigned_to,
-                reported_at=m.reported_at.isoformat(),
-                started_at=m.started_at.isoformat() if m.started_at else None,
-                completed_at=m.completed_at.isoformat() if m.completed_at else None,
-                estimated_cost=m.estimated_cost,
-                actual_cost=m.actual_cost,
-                room_number=m.room.number if m.room else None,
-                assigned_staff_name=None,
-                duration_hours=round(duration_hours, 2) if duration_hours else None,
-            )
-        )
-
-    return results
+    return [_build_maintenance_response(m, db) for m in maintenances]
 
 
 @router.get(
@@ -236,29 +235,7 @@ def get_maintenance(maintenance_id: int, db: Session = Depends(get_db)):
     if not maintenance:
         raise HTTPException(status_code=404, detail="Tarea de mantenimiento no encontrada")
 
-    duration_hours = None
-    if maintenance.started_at and maintenance.completed_at:
-        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
-
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        assigned_to=maintenance.assigned_to,
-        reported_at=maintenance.reported_at.isoformat(),
-        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
-        completed_at=maintenance.completed_at.isoformat() if maintenance.completed_at else None,
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=None,
-        duration_hours=round(duration_hours, 2) if duration_hours else None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.patch(
@@ -321,36 +298,7 @@ def update_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    duration_hours = None
-    if maintenance.started_at and maintenance.completed_at:
-        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
-
-    # Get assigned staff name if assigned_to is set
-    assigned_staff_name = None
-    if maintenance.assigned_to:
-        staff = db.get(Staff, maintenance.assigned_to)
-        if staff:
-            assigned_staff_name = staff.full_name
-
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        assigned_to=maintenance.assigned_to,
-        reported_at=maintenance.reported_at.isoformat(),
-        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
-        completed_at=maintenance.completed_at.isoformat() if maintenance.completed_at else None,
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=assigned_staff_name,
-        duration_hours=round(duration_hours, 2) if duration_hours else None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.post(
@@ -386,25 +334,7 @@ def start_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        assigned_to=maintenance.assigned_to,
-        reported_at=maintenance.reported_at.isoformat(),
-        started_at=maintenance.started_at.isoformat(),
-        completed_at=None,
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=None,
-        duration_hours=None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.post(
@@ -444,29 +374,7 @@ def pause_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    duration_hours = None
-    if maintenance.started_at and maintenance.completed_at:
-        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
-
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        assigned_to=maintenance.assigned_to,
-        reported_at=maintenance.reported_at.isoformat(),
-        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
-        completed_at=maintenance.completed_at.isoformat() if maintenance.completed_at else None,
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        room_number=maintenance.room.number if maintenance.room else None,
-        assigned_staff_name=None,
-        duration_hours=round(duration_hours, 2) if duration_hours else None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.post(
@@ -499,27 +407,7 @@ def resume_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    duration_hours = None
-    if maintenance.started_at and maintenance.completed_at:
-        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
-
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        reported_at=maintenance.reported_at,
-        started_at=maintenance.started_at,
-        completed_at=maintenance.completed_at,
-        assigned_staff_name=None,
-        duration_hours=round(duration_hours, 2) if duration_hours else None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.post(
@@ -575,29 +463,7 @@ def complete_maintenance(
     db.commit()
     db.refresh(maintenance)
 
-    duration_hours = None
-    if maintenance.started_at and maintenance.completed_at:
-        duration_hours = (maintenance.completed_at - maintenance.started_at).total_seconds() / 3600
-
-    return MaintenanceResponse(
-        id=maintenance.id,
-        room_id=maintenance.room_id,
-        type=maintenance.type.value,
-        priority=maintenance.priority.value,
-        status=maintenance.status.value,
-        title=maintenance.title,
-        description=maintenance.description,
-        notes=maintenance.notes,
-        assigned_to=maintenance.assigned_to,
-        reported_at=maintenance.reported_at.isoformat(),
-        started_at=maintenance.started_at.isoformat() if maintenance.started_at else None,
-        completed_at=maintenance.completed_at.isoformat(),
-        estimated_cost=maintenance.estimated_cost,
-        actual_cost=maintenance.actual_cost,
-        room_number=room.number if room else None,
-        assigned_staff_name=None,
-        duration_hours=round(duration_hours, 2) if duration_hours else None,
-    )
+    return _build_maintenance_response(maintenance, db)
 
 
 @router.get(

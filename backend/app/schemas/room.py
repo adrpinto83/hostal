@@ -36,3 +36,10 @@ class RoomOut(RoomBase):
     price_bs: Optional[float] = Field(None, description="Precio en Bolívares")
 
     model_config = ConfigDict(use_enum_values=True)
+
+
+class RoomListResponse(BaseModel):
+    items: list[RoomOut]
+    total: int
+
+    model_config = ConfigDict(from_attributes=True)

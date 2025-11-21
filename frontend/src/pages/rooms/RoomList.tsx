@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { roomsApi, mediaApi, occupancyApi, maintenanceApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Room, RoomUpdate, Media, Occupancy, Maintenance } from '@/types';
+import type { Room, RoomUpdate, Media, Occupancy, Maintenance, PaginatedResponse } from '@/types';
 import { formatDateTime } from '@/lib/utils';
 import { Plus, Edit, Trash2, X, Image as ImageIcon, CheckCircle, XCircle, UserCircle, Wrench } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
+import { RoomFormModal } from '@/components/rooms/RoomFormModal';
 
 interface ExchangeRates {
   USD: number;
@@ -67,6 +68,10 @@ export default function RoomList() {
     notes: '',
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<'number' | 'type' | 'status'>('number');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const queryClient = useQueryClient();
 
@@ -87,14 +92,47 @@ export default function RoomList() {
     fetchExchangeRates();
   }, []);
 
-  const { data: rooms, isLoading, isFetching } = useQuery<Room[]>({
-    queryKey: ['rooms', searchTerm],
-    queryFn: () => roomsApi.getAll({ q: searchTerm || undefined }),
-    placeholderData: (previous) => previous,
+  const {
+    data: roomsPage,
+    isLoading,
+    isFetching,
+  } = useQuery<PaginatedResponse<Room>>({
+    queryKey: ['rooms', searchTerm, currentPage, itemsPerPage, sortBy, sortOrder],
+    queryFn: () =>
+      roomsApi.getPaginated({
+        q: searchTerm || undefined,
+        limit: itemsPerPage,
+        offset: (currentPage - 1) * itemsPerPage,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      }),
+    keepPreviousData: true,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
-  const roomList = rooms ?? [];
-  const isInitialLoading = !rooms && isLoading;
-  const hasRooms = roomList.length > 0;
+  const roomList = roomsPage?.items ?? [];
+  const totalRooms = roomsPage?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalRooms / itemsPerPage));
+  const isInitialLoading = !roomsPage && isLoading;
+  const hasRooms = totalRooms > 0;
+  const startItem = hasRooms ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endItem = hasRooms ? Math.min(currentPage * itemsPerPage, totalRooms) : 0;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handleSort = (column: 'number' | 'type' | 'status') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
 
   const { data: activeOccupancies } = useQuery<Occupancy[]>({
     queryKey: ['rooms', 'active-occupancies'],
@@ -137,11 +175,6 @@ export default function RoomList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       setFormSuccess('✅ Habitación creada exitosamente');
-      setTimeout(() => {
-        setIsModalOpen(false);
-        resetForm();
-        setFormSuccess('');
-      }, 1500);
     },
     onError: (error) => {
       setFormError(handleApiError(error));
@@ -154,12 +187,6 @@ export default function RoomList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       setFormSuccess('✅ Habitación actualizada exitosamente');
-      setTimeout(() => {
-        setIsModalOpen(false);
-        setEditingRoom(null);
-        resetForm();
-        setFormSuccess('');
-      }, 1500);
     },
     onError: (error) => {
       setFormError(handleApiError(error));
@@ -178,6 +205,46 @@ export default function RoomList() {
 
   const resetForm = () => {
     setFormData({ number: '', type: 'single', price_amount: undefined, price_currency: 'VES', notes: '' });
+  };
+
+  const handleFormSubmit = async (data: FormData) => {
+    let result: Room | undefined;
+
+    if (editingRoom) {
+      result = await updateMutation.mutateAsync({ id: editingRoom.id, data });
+    } else {
+      result = await createMutation.mutateAsync(data);
+    }
+
+    // Actualizar el cache manualmente
+    if (result) {
+      // Actualizar TODAS las queries de rooms
+      queryClient.setQueryData(['rooms', searchTerm], (oldData: Room[] | undefined) => {
+        if (!oldData) return undefined;
+
+        if (editingRoom) {
+          // Si es una actualización, reemplazar la room existente
+          return oldData.map(r => r.id === result.id ? result : r);
+        } else {
+          // Si es una creación, agregar la nueva room al inicio
+          return [result, ...oldData];
+        }
+      });
+
+      // Refetch de todas formas para asegurar sincronización
+      await queryClient.refetchQueries({
+        queryKey: ['rooms', searchTerm]
+      });
+    }
+
+    // Cerrar modal después de refetch
+    setTimeout(() => {
+      setIsModalOpen(false);
+      setEditingRoom(null);
+      resetForm();
+      setFormSuccess('');
+      setFormError('');
+    }, 500);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -293,7 +360,32 @@ export default function RoomList() {
         </div>
       ) : hasRooms ? (
         viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="items-per-page" className="text-sm font-medium">Registros por página:</Label>
+                <select
+                  id="items-per-page"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalRooms} registros
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {roomList.map((room) => {
                     const photos = getRoomPhotos(room.id);
                     const primaryPhoto = photos[0];
@@ -477,15 +569,75 @@ export default function RoomList() {
                       </Card>
                     );
             })}
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalRooms} registros
+              </div>
+            </div>
+          </>
         ) : (
-          <div className="bg-white border rounded-lg overflow-auto">
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="items-per-page-table" className="text-sm font-medium">Registros por página:</Label>
+                <select
+                  id="items-per-page-table"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalRooms} registros
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-lg overflow-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Habitación</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Tipo</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Estado</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('number')}>
+                    Habitación {sortBy === 'number' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('type')}>
+                    Tipo {sortBy === 'type' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status')}>
+                    Estado {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Precio</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Actividad</th>
@@ -534,8 +686,8 @@ export default function RoomList() {
                               <td className="px-4 py-3 text-gray-600 max-w-sm">
                                 {room.notes ? <span className="line-clamp-2">{room.notes}</span> : <span className="text-gray-400">Sin notas</span>}
                               </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {activeOccupancy ? (
+                              <td className="px-4 py-3 text-gray-700 space-y-2">
+                                {activeOccupancy && (
                                   <div>
                                     <p className="font-semibold text-purple-900 flex items-center gap-1">
                                       <UserCircle className="h-4 w-4" />
@@ -545,7 +697,8 @@ export default function RoomList() {
                                       Check-in: {formatDateTime(activeOccupancy.check_in)}
                                     </p>
                                   </div>
-                                ) : maintenanceSummary ? (
+                                )}
+                                {maintenanceSummary && (
                                   <div>
                                     <p className="font-semibold text-orange-900 flex items-center gap-1">
                                       <Wrench className="h-4 w-4" />
@@ -558,7 +711,8 @@ export default function RoomList() {
                                       Responsable: {maintenanceSummary.assigned_staff_name || 'Sin asignar'}
                                     </p>
                                   </div>
-                                ) : (
+                                )}
+                                {!activeOccupancy && !maintenanceSummary && (
                                   <span className="text-gray-400">Sin actividad</span>
                                 )}
                               </td>
@@ -580,7 +734,36 @@ export default function RoomList() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalRooms} registros
+              </div>
+            </div>
+          </>
         )
       ) : (
         <div className="rounded-lg border border-dashed bg-white p-6 text-center text-gray-500">
@@ -588,185 +771,13 @@ export default function RoomList() {
         </div>
       )}
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md shadow-xl">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {editingRoom ? '✏️ Editar Habitación' : '➕ Nueva Habitación'}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {editingRoom ? `Habitación #${editingRoom.number}` : 'Crear una nueva habitación'}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={closeModal}
-                className="rounded-full"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-
-            {/* Body */}
-            <div className="p-6 max-h-[80vh] overflow-y-auto">
-              {/* Error Message */}
-              {formError && (
-                <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg flex items-start gap-3">
-                  <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-800">{formError}</p>
-                </div>
-              )}
-
-              {/* Success Message */}
-              {formSuccess && (
-                <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-green-800">{formSuccess}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Número */}
-                <div>
-                  <Label htmlFor="number" className="text-sm font-semibold text-gray-700">
-                    📌 Número de Habitación
-                  </Label>
-                  <Input
-                    id="number"
-                    placeholder="Ej: 101, A-205, Suite 1"
-                    value={formData.number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, number: e.target.value })
-                    }
-                    maxLength={10}
-                    className="mt-2 border-gray-300 focus:border-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Máximo 10 caracteres
-                  </p>
-                </div>
-
-                {/* Tipo */}
-                <div>
-                  <Label htmlFor="type" className="text-sm font-semibold text-gray-700">
-                    🛏️ Tipo de Habitación
-                  </Label>
-                  <select
-                    id="type"
-                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={formData.type}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        type: e.target.value as 'single' | 'double' | 'suite',
-                      })
-                    }
-                  >
-                    <option value="single">Individual (1 cama)</option>
-                    <option value="double">Doble (2 camas o 1 grande)</option>
-                    <option value="suite">Suite (Premium)</option>
-                  </select>
-                </div>
-
-                {/* Precio */}
-                <div>
-                  <Label className="text-sm font-semibold text-gray-700">
-                    💰 Precio por Noche
-                  </Label>
-                  <div className="grid grid-cols-3 gap-3 mt-2">
-                    <div className="col-span-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={formData.price_amount || ''}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            price_amount: e.target.value ? parseFloat(e.target.value) : undefined,
-                          })
-                        }
-                        className="border-gray-300"
-                      />
-                    </div>
-                    <select
-                      className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={formData.price_currency || 'VES'}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          price_currency: e.target.value as 'VES' | 'USD' | 'EUR',
-                        })
-                      }
-                    >
-                      <option value="VES">Bs</option>
-                      <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                    </select>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Opcional - Dejar vacío si no tiene precio
-                  </p>
-                </div>
-
-                {/* Notas */}
-                <div>
-                  <Label htmlFor="notes" className="text-sm font-semibold text-gray-700">
-                    📝 Notas Adicionales
-                  </Label>
-                  <textarea
-                    id="notes"
-                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="Ej: Con vista al mar, televisión, WiFi..."
-                    rows={3}
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Describe características especiales de la habitación
-                  </p>
-                </div>
-              </form>
-            </div>
-
-            {/* Footer */}
-            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={closeModal}
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                onClick={handleSubmit}
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {createMutation.isPending || updateMutation.isPending ? (
-                  <>
-                    <span className="inline-block animate-spin mr-2">⏳</span>
-                    Guardando...
-                  </>
-                ) : editingRoom ? (
-                  '✅ Actualizar'
-                ) : (
-                  '✅ Crear'
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RoomFormModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onSubmit={handleFormSubmit}
+        editingRoom={editingRoom}
+        isLoading={createMutation.isPending || updateMutation.isPending}
+      />
 
       {/* Modal de Fotos */}
       {isPhotoModalOpen && selectedRoom && (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -9,10 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { guestsApi, devicesApi, bandwidthApi, mediaApi, occupancyApi, paymentsApi, reservationsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Guest, GuestCreate, GuestUpdate, DeviceCreate, Media } from '@/types';
+import type { Guest, GuestCreate, GuestUpdate, DeviceCreate, Media, PaginatedResponse } from '@/types';
 import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera, Mail, Phone } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
+import { GuestFormModal } from '@/components/guests/GuestFormModal';
 
 function ErrorAlert({ message }: { message: string }) {
   return (
@@ -88,15 +89,52 @@ export default function GuestList() {
   const queryClient = useQueryClient();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<'name' | 'document' | 'phone'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const { data: guests, isLoading, isFetching } = useQuery<Guest[]>({
-    queryKey: ['guests', searchTerm],
-    queryFn: () => guestsApi.getAll(searchTerm),
-    placeholderData: (previous) => previous,
+  const {
+    data: guestsPage,
+    isLoading,
+    isFetching,
+  } = useQuery<PaginatedResponse<Guest>>({
+    queryKey: ['guests', searchTerm, currentPage, itemsPerPage, sortBy, sortOrder],
+    queryFn: () =>
+      guestsApi.getPaginated({
+        q: searchTerm || undefined,
+        limit: itemsPerPage,
+        offset: (currentPage - 1) * itemsPerPage,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      }),
+    keepPreviousData: true,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
-  const guestList = guests ?? [];
-  const isInitialLoading = !guests && isLoading;
-  const hasGuests = guestList.length > 0;
+  const guestList = guestsPage?.items ?? [];
+  const totalGuests = guestsPage?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalGuests / itemsPerPage));
+  const isInitialLoading = !guestsPage && isLoading;
+  const hasGuests = totalGuests > 0;
+  const startItem = hasGuests ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endItem = hasGuests ? Math.min(currentPage * itemsPerPage, totalGuests) : 0;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handleSort = (column: 'name' | 'document' | 'phone') => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
 
   const { data: devices } = useQuery({
     queryKey: ['devices', selectedGuest?.id],
@@ -223,9 +261,6 @@ export default function GuestList() {
     mutationFn: guestsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['guests'] });
-      setIsModalOpen(false);
-      resetForm();
-      setError(null);
     },
     onError: (error) => setError(handleApiError(error)),
   });
@@ -235,10 +270,6 @@ export default function GuestList() {
       guestsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['guests'] });
-      setIsModalOpen(false);
-      setEditingGuest(null);
-      resetForm();
-      setError(null);
     },
     onError: (error) => setError(handleApiError(error)),
   });
@@ -313,6 +344,62 @@ export default function GuestList() {
     }
     setError(null);
     return true;
+  };
+
+  const handleFormSubmit = async (data: GuestCreate | GuestUpdate) => {
+    let result: Guest | undefined;
+
+    try {
+      if (editingGuest) {
+        result = await updateMutation.mutateAsync({ id: editingGuest.id, data: data as GuestUpdate });
+      } else {
+        result = await createMutation.mutateAsync(data as GuestCreate);
+      }
+
+      console.log('✅ Guest created/updated:', result);
+
+      // Actualizar el cache manualmente con el searchTerm CORRECTO
+      if (result) {
+        console.log('📝 Setting query data for guests with searchTerm:', searchTerm);
+
+        // Capturar result en una variable local para el closure
+        const newGuest = result;
+
+        // Usar el searchTerm actual, no uno hardcodeado
+        queryClient.setQueryData(['guests', searchTerm], (oldData: Guest[] | undefined) => {
+          console.log('📊 Old data:', oldData);
+
+          if (!oldData) {
+            console.log('❌ No old data found');
+            return undefined;
+          }
+
+          if (editingGuest) {
+            // Si es una actualización, reemplazar el guest existente
+            const updated = oldData.map(g => g.id === newGuest.id ? newGuest : g);
+            console.log('✏️ Updated guests:', updated);
+            return updated;
+          } else {
+            // Si es una creación, agregar el nuevo guest al inicio
+            const newData = [newGuest, ...oldData];
+            console.log('➕ Added new guest. Total:', newData.length);
+            return newData;
+          }
+        });
+
+        console.log('🔄 Refetching guests query with searchTerm:', searchTerm);
+        // Refetch la query con el searchTerm actual
+        await queryClient.refetchQueries({
+          queryKey: ['guests', searchTerm]
+        });
+        console.log('✅ Refetch complete');
+      } else {
+        console.log('❌ No result returned from mutation');
+      }
+    } catch (err) {
+      console.error('❌ Error in handleFormSubmit:', err);
+      throw err;
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -427,7 +514,32 @@ export default function GuestList() {
         </div>
       ) : hasGuests ? (
         viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="items-per-page" className="text-sm font-medium">Registros por página:</Label>
+                <select
+                  id="items-per-page"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalGuests} registros
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {guestList.map((guest) => {
               const photo = getGuestPhoto(guest.id);
               return (
@@ -545,15 +657,75 @@ export default function GuestList() {
                 </Card>
               );
             })}
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalGuests} registros
+              </div>
+            </div>
+          </>
         ) : (
-          <div className="bg-white border rounded-lg overflow-auto">
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="items-per-page-table" className="text-sm font-medium">Registros por página:</Label>
+                <select
+                  id="items-per-page-table"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalGuests} registros
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-lg overflow-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Huésped</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Documento</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600">Teléfono</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('name')}>
+                    Huésped {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('document')}>
+                    Documento {sortBy === 'document' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('phone')}>
+                    Teléfono {sortBy === 'phone' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Notas</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
                 </tr>
@@ -618,7 +790,36 @@ export default function GuestList() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+              <div className="text-sm text-gray-600">
+                Mostrando {startItem} - {endItem} de {totalGuests} registros
+              </div>
+            </div>
+          </>
         )
       ) : (
         <div className="rounded-lg border border-dashed bg-white p-6 text-center text-gray-500">
@@ -627,133 +828,19 @@ export default function GuestList() {
       )}
 
       {/* Modal de Guest */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">
-                {editingGuest ? 'Editar Huésped' : 'Nuevo Huésped'}
-              </h2>
-              <Button variant="ghost" size="sm" onClick={() => setIsModalOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {error && <ErrorAlert message={error} />}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                Revisa los datos antes de guardar. El email y teléfono se usarán
-                para enviar confirmaciones automáticas.
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="full_name">Nombre Completo</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <Input
-                      id="full_name"
-                      placeholder="Ej. María Fernanda Suárez"
-                      value={formData.full_name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, full_name: e.target.value })
-                      }
-                      required
-                      className="pl-10"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Usa el nombre tal como aparece en el documento oficial.
-                    </p>
-                  </div>
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="document_id">Documento de Identidad</Label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <Input
-                      id="document_id"
-                      placeholder="V-12345678 / DNI / Pasaporte"
-                      value={formData.document_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, document_id: e.target.value })
-                      }
-                      required
-                      className="pl-10"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Acepta letras y números. Se utilizará para búsquedas rápidas.
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <Input
-                      id="phone"
-                      placeholder="+58 412-1234567"
-                      value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
-                      className="pl-10"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Incluye el código de país para WhatsApp o SMS.
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="correo@ejemplo.com"
-                      value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
-                      className="pl-10"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Necesario para notificaciones y recordatorios.
-                    </p>
-                  </div>
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="notes">Notas</Label>
-                  <textarea
-                    id="notes"
-                    className="w-full px-3 py-2 border rounded-md"
-                    rows={3}
-                    value={notesValue}
-                    placeholder="Preferencias, restricciones alimenticias, contactos de emergencia..."
-                    maxLength={NOTES_MAX_LENGTH}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                  />
-                  <div className="mt-1 text-xs text-gray-500 flex justify-between">
-                    <span>Información útil para el personal.</span>
-                    <span>{remainingNotesChars} caracteres restantes</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2 justify-end">
-                <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {editingGuest ? 'Actualizar' : 'Crear'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Improved Guest Form Modal */}
+      <GuestFormModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingGuest(null);
+          resetForm();
+          setError(null);
+        }}
+        onSubmit={handleFormSubmit}
+        editingGuest={editingGuest}
+        isLoading={createMutation.isPending || updateMutation.isPending}
+      />
 
       {/* Modal de Devices */}
       {isDeviceModalOpen && selectedGuest && (

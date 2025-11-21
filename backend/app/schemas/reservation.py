@@ -48,7 +48,19 @@ class ReservationOut(BaseModel):
     price_bs: float
     status: ReservationStatus
     notes: str | None = None
+    cancellation_reason: str | None = None
     guest: GuestOut
     room: RoomOut
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReservationCancel(BaseModel):
+    cancellation_reason: str = Field(..., min_length=10, max_length=500, description="Razón de cancelación")
+
+
+class ReservationListResponse(BaseModel):
+    items: list[ReservationOut]
+    total: int
 
     model_config = ConfigDict(from_attributes=True)

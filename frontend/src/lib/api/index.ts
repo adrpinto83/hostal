@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { api } from './client';
 import type {
   Staff,
@@ -37,12 +38,14 @@ import type {
   Reservation,
   ReservationCreate,
   ReservationUpdate,
+  ReservationSummary,
   ExchangeRatesResponse,
   ConversionResult,
   MultiConversionResult,
   InternetStatus,
   HealthCheck,
-  NetworkActivity
+  NetworkActivity,
+  PaginatedResponse
 } from '@/types';
 
 // Staff API (Complete)
@@ -201,6 +204,31 @@ export const roomsApi = {
     const response = await api.get<Room[]>('/rooms/', { params });
     return response.data;
   },
+  getPaginated: async (params?: {
+    q?: string;
+    room_type?: string;
+    limit?: number;
+    offset?: number;
+    sort_by?: 'number' | 'type' | 'status' | 'price';
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    try {
+      const response = await api.get<PaginatedResponse<Room>>('/rooms/paginated', { params });
+      return response.data;
+    } catch (error) {
+      if (!axios.isAxiosError(error)) {
+        throw error;
+      }
+      console.warn('roomsApi.getPaginated falling back to legacy endpoint:', error.message);
+      const legacyParams: Record<string, string | number | undefined> = {};
+      if (params?.q) legacyParams.q = params.q;
+      if (params?.room_type) legacyParams.room_type = params.room_type;
+      if (typeof params?.limit === 'number') legacyParams.limit = params.limit;
+      if (typeof params?.offset === 'number') legacyParams.skip = params.offset;
+      const legacyResponse = await api.get<Room[]>('/rooms/', { params: legacyParams });
+      return { items: legacyResponse.data, total: legacyResponse.data.length };
+    }
+  },
   getById: async (id: number) => {
     const response = await api.get<Room>(`/rooms/${id}`);
     return response.data;
@@ -227,6 +255,29 @@ export const guestsApi = {
     const params = search ? { q: search } : {};
     const response = await api.get<Guest[]>('/guests/', { params });
     return response.data;
+  },
+  getPaginated: async (params?: {
+    q?: string;
+    limit?: number;
+    offset?: number;
+    sort_by?: 'name' | 'document' | 'phone' | 'id';
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    try {
+      const response = await api.get<PaginatedResponse<Guest>>('/guests/paginated', { params });
+      return response.data;
+    } catch (error) {
+      if (!axios.isAxiosError(error)) {
+        throw error;
+      }
+      console.warn('guestsApi.getPaginated falling back to legacy endpoint:', error.message);
+      const legacyParams: Record<string, string | number | undefined> = {};
+      if (params?.q) legacyParams.q = params.q;
+      if (typeof params?.limit === 'number') legacyParams.limit = params.limit;
+      if (typeof params?.offset === 'number') legacyParams.skip = params.offset;
+      const legacyResponse = await api.get<Guest[]>('/guests/', { params: legacyParams });
+      return { items: legacyResponse.data, total: legacyResponse.data.length };
+    }
   },
   getById: async (id: number) => {
     const response = await api.get<Guest>(`/guests/${id}`);
@@ -449,6 +500,35 @@ export const reservationsApi = {
     const response = await api.get<Reservation[]>('/reservations/', { params });
     return response.data;
   },
+  getPaginated: async (params?: {
+    guest_id?: number;
+    room_id?: number;
+    status?: string[];
+    q?: string;
+    limit?: number;
+    offset?: number;
+    sort_by?: 'date' | 'guest' | 'room' | 'status';
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    try {
+      const response = await api.get<PaginatedResponse<Reservation>>('/reservations/paginated', { params });
+      return response.data;
+    } catch (error) {
+      if (!axios.isAxiosError(error)) {
+        throw error;
+      }
+      console.warn('reservationsApi.getPaginated falling back to legacy endpoint:', error.message);
+      const legacyParams: Record<string, string | number | undefined> = {};
+      if (params?.guest_id) legacyParams.guest_id = params.guest_id;
+      if (params?.room_id) legacyParams.room_id = params.room_id;
+      if (params?.status?.length) legacyParams.status = params.status[0];
+      if (params?.q) legacyParams.q = params.q;
+      if (typeof params?.limit === 'number') legacyParams.limit = params.limit;
+      if (typeof params?.offset === 'number') legacyParams.offset = params.offset;
+      const legacyResponse = await api.get<Reservation[]>('/reservations/', { params: legacyParams });
+      return { items: legacyResponse.data, total: legacyResponse.data.length };
+    }
+  },
   getById: async (id: number) => {
     const response = await api.get<Reservation>(`/reservations/${id}`);
     return response.data;
@@ -463,6 +543,10 @@ export const reservationsApi = {
   },
   cancel: async (id: number, cancellation_reason: string) => {
     const response = await api.post<Reservation>(`/reservations/${id}/cancel`, { cancellation_reason });
+    return response.data;
+  },
+  getSummary: async () => {
+    const response = await api.get<ReservationSummary>('/reservations/summary');
     return response.data;
   },
 };
@@ -597,4 +681,3 @@ export const networkDevicesApi = {
     return response.data;
   },
 };
-

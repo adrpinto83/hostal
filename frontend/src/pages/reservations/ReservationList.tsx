@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
-import type { Reservation, ReservationCreate, Period } from '@/types';
+import type { Reservation, ReservationCreate, Period, PaginatedResponse } from '@/types';
 import { Plus, CheckCircle, XCircle, Calendar, TrendingUp, AlertCircle, CheckCheck, Archive } from 'lucide-react';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -97,79 +97,59 @@ export default function ReservationList() {
     fetchExchangeRates();
   }, []);
 
-  const { data: reservations, isLoading, isFetching } = useQuery<Reservation[]>({
-    queryKey: ['reservations', searchQuery],
-    queryFn: () => reservationsApi.getAll({ q: searchQuery || undefined }),
+  const {
+    data: reservationsPage,
+    isLoading,
+    isFetching,
+  } = useQuery<PaginatedResponse<Reservation>>({
+    queryKey: ['reservations', searchQuery, currentPage, itemsPerPage, sortBy, sortOrder, selectedStatus],
+    queryFn: () =>
+      reservationsApi.getPaginated({
+        q: searchQuery || undefined,
+        limit: itemsPerPage,
+        offset: (currentPage - 1) * itemsPerPage,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        status: selectedStatus ? [selectedStatus] : undefined,
+      }),
+    keepPreviousData: true,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
-  const reservationList = reservations ?? [];
-  const isInitialLoading = !reservations && isLoading;
+  const reservationItems = reservationsPage?.items ?? [];
+  const totalReservations = reservationsPage?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalReservations / itemsPerPage));
+  const isInitialLoading = !reservationsPage && isLoading;
 
-  // Filtrar reservas no procesadas (excluir checked_out y cancelled)
-  const activeReservations = useMemo(() => {
-    let filtered = reservationList.filter(r => r.status !== 'checked_out' && r.status !== 'cancelled');
-
-    // Si se seleccionó un status específico del dashboard, filtrar por ese status
+  const visibleReservations = useMemo(() => {
     if (selectedStatus) {
-      filtered = filtered.filter(r => r.status === selectedStatus);
+      return reservationItems.filter((r) => r.status === selectedStatus);
     }
+    return reservationItems.filter((r) => r.status !== 'checked_out' && r.status !== 'cancelled');
+  }, [reservationItems, selectedStatus]);
 
-    return filtered;
-  }, [reservationList, selectedStatus]);
+  const hasReservations = visibleReservations.length > 0;
+  const startItem = hasReservations ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endItem = hasReservations ? Math.min(currentPage * itemsPerPage, totalReservations) : 0;
 
-  // Calcular estadísticas
-  const stats = useMemo(() => {
-    return {
-      pending: reservationList.filter(r => r.status === 'pending').length,
-      active: reservationList.filter(r => r.status === 'active').length,
-      checkedOut: reservationList.filter(r => r.status === 'checked_out').length,
-      cancelled: reservationList.filter(r => r.status === 'cancelled').length,
-      total: reservationList.length,
-    };
-  }, [reservationList]);
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
-  const hasReservations = activeReservations.length > 0;
-
-  // Sorting logic - usar activeReservations (sin completadas)
-  const sortedReservations = useMemo(() => {
-    const sorted = [...activeReservations];
-    sorted.sort((a, b) => {
-      let aValue: string = '';
-      let bValue: string = '';
-
-      switch (sortBy) {
-        case 'guest':
-          aValue = a.guest.full_name.toLowerCase();
-          bValue = b.guest.full_name.toLowerCase();
-          break;
-        case 'room':
-          aValue = a.room.number.toLowerCase();
-          bValue = b.room.number.toLowerCase();
-          break;
-        case 'date':
-          aValue = a.start_date;
-          bValue = b.start_date;
-          break;
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue.localeCompare(bValue);
-      } else {
-        return bValue.localeCompare(aValue);
-      }
-    });
-
-    return sorted;
-  }, [activeReservations, sortBy, sortOrder, selectedStatus]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(sortedReservations.length / itemsPerPage);
-  const paginatedReservations = useMemo(() => {
-    const startIdx = (currentPage - 1) * itemsPerPage;
-    const endIdx = startIdx + itemsPerPage;
-    return sortedReservations.slice(startIdx, endIdx);
-  }, [sortedReservations, currentPage, itemsPerPage]);
+  const defaultStats = {
+    pending: 0,
+    active: 0,
+    checked_out: 0,
+    cancelled: 0,
+    total: 0,
+  };
+  const { data: statsData } = useQuery({
+    queryKey: ['reservations', 'summary'],
+    queryFn: () => reservationsApi.getSummary(),
+  });
+  const stats = statsData ?? defaultStats;
 
   const handleSort = (column: 'guest' | 'room' | 'date') => {
     if (sortBy === column) {
@@ -318,7 +298,9 @@ export default function ReservationList() {
     }
 
     // Para pendientes y activas, hacer el filtro normal
-    setSelectedStatus(selectedStatus === status ? null : status);
+    const nextStatus = selectedStatus === status ? null : status;
+    setSelectedStatus(nextStatus);
+    setCurrentPage(1);
   };
 
   const handleCancelClick = (reservation: Reservation) => {
@@ -576,12 +558,12 @@ export default function ReservationList() {
                 </select>
               </div>
               <div className="text-sm text-gray-600">
-                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+                Mostrando {startItem} - {endItem} de {totalReservations} registros
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-        {paginatedReservations.map((reservation) => (
+        {visibleReservations.map((reservation) => (
           <Card
             key={reservation.id}
             className={reservation.status === 'pending' ? 'border-2 border-yellow-400 bg-yellow-50' : ''}
@@ -695,7 +677,7 @@ export default function ReservationList() {
                 </Button>
               </div>
               <div className="text-sm text-gray-600">
-                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+                Mostrando {startItem} - {endItem} de {totalReservations} registros
               </div>
             </div>
           </>
@@ -721,7 +703,7 @@ export default function ReservationList() {
                 </select>
               </div>
               <div className="text-sm text-gray-600">
-                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+                Mostrando {startItem} - {endItem} de {totalReservations} registros
               </div>
             </div>
 
@@ -741,7 +723,7 @@ export default function ReservationList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginatedReservations.map((reservation) => (
+              {visibleReservations.map((reservation) => (
                 <tr
                   key={reservation.id}
                   className={reservation.status === 'pending' ? 'bg-yellow-50 hover:bg-yellow-100 border-l-4 border-yellow-400' : 'hover:bg-gray-50'}
@@ -829,7 +811,7 @@ export default function ReservationList() {
                 </Button>
               </div>
               <div className="text-sm text-gray-600">
-                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, sortedReservations.length)} de {sortedReservations.length} registros
+                Mostrando {startItem} - {endItem} de {totalReservations} registros
               </div>
             </div>
           </>
@@ -846,7 +828,6 @@ export default function ReservationList() {
         onSubmit={handleFormSubmit}
         guests={guests}
         rooms={rooms}
-        existingReservations={reservationList}
         isLoading={createMutation.isPending}
       />
 

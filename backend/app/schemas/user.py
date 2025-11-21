@@ -20,7 +20,7 @@ class UserUpdate(BaseModel):
 
 class UserOut(BaseModel):
     id: int
-    email: EmailStr
+    email: str
     role: str
     approved: bool
     full_name: Optional[str] = None
@@ -31,7 +31,7 @@ class UserOut(BaseModel):
 class UserPendingApprovalOut(BaseModel):
     """Schema for users pending approval"""
     id: int
-    email: EmailStr
+    email: str
     approved: bool
     full_name: Optional[str] = None
     created_at: Optional[datetime] = None

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..core.db import get_db
 from ..core.security import require_roles
 from ..models.guest import Guest
-from ..schemas.guest import GuestCreate, GuestOut, GuestUpdate
+from ..schemas.guest import GuestCreate, GuestOut, GuestUpdate, GuestListResponse
 
 router = APIRouter(prefix="/guests", tags=["guests"])
 
@@ -28,7 +28,7 @@ Permite filtrar por los siguientes parámetros:
 def list_guests(
     q: str | None = Query(None, description="Buscar por nombre o documento"),
     skip: int = 0,
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     query = db.query(Guest)
@@ -36,6 +36,46 @@ def list_guests(
         like = f"%{q}%"
         query = query.filter((Guest.full_name.ilike(like)) | (Guest.document_id.ilike(like)))
     return query.order_by(Guest.id).offset(skip).limit(limit).all()
+
+
+@router.get(
+    "/paginated",
+    response_model=GuestListResponse,
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Listar huéspedes con paginación",
+    description="Devuelve huéspedes paginados con opciones de ordenación para grandes volúmenes.",
+)
+def list_guests_paginated(
+    q: str | None = Query(None, description="Buscar por nombre o documento"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    sort_by: str = Query("name", pattern="^(name|document|phone|id)$"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Guest)
+    if q:
+        like = f"%{q}%"
+        query = query.filter((Guest.full_name.ilike(like)) | (Guest.document_id.ilike(like)))
+
+    total = query.count()
+
+    sort_columns = {
+        "name": Guest.full_name,
+        "document": Guest.document_id,
+        "phone": Guest.phone,
+        "id": Guest.id,
+    }
+    sort_column = sort_columns.get(sort_by, Guest.full_name)
+    order_clause = sort_column.asc() if sort_order == "asc" else sort_column.desc()
+
+    results = (
+        query.order_by(order_clause, Guest.id.asc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return GuestListResponse(items=results, total=total)
 
 
 @router.get(

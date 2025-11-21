@@ -35,6 +35,7 @@ class Reservation(Base):
     price_bs = Column(Float, nullable=False)
     status = Column(Enum(ReservationStatus), nullable=False, default=ReservationStatus.pending)
     notes = Column(Text)
+    cancellation_reason = Column(Text)
 
     guest = relationship("Guest")
     room = relationship("Room")

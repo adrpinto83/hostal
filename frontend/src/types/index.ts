@@ -1,4 +1,9 @@
 // API Types
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -90,6 +95,14 @@ export interface RoomUpdate {
   status?: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'out_of_service';
   price_bs?: number;
   notes?: string;
+}
+
+export interface ReservationSummary {
+  pending: number;
+  active: number;
+  checked_out: number;
+  cancelled: number;
+  total: number;
 }
 
 export interface Staff {

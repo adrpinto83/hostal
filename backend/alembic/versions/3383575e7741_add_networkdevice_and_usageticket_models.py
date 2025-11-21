@@ -17,25 +17,25 @@ def upgrade() -> None:
         'ubiquiti', 'mikrotik', 'cisco', 'tp_link', 'asus', 'dlink', 'netgear', 'aruba', 'fortinet', 'other',
         name='device_brand'
     )
-    device_brand.create(op.get_bind())
+    device_brand.create(op.get_bind(), checkfirst=True)
 
     device_type = postgresql.ENUM(
         'switch', 'router', 'access_point', 'firewall', 'controller', 'modem',
         name='device_type'
     )
-    device_type.create(op.get_bind())
+    device_type.create(op.get_bind(), checkfirst=True)
 
     connection_status = postgresql.ENUM(
         'connected', 'disconnected', 'error', 'testing',
         name='connection_status'
     )
-    connection_status.create(op.get_bind())
+    connection_status.create(op.get_bind(), checkfirst=True)
 
     auth_type = postgresql.ENUM(
         'username_password', 'api_key', 'token', 'certificate', 'ssh_key',
         name='auth_type'
     )
-    auth_type.create(op.get_bind())
+    auth_type.create(op.get_bind(), checkfirst=True)
 
     # Create enums for UsageTicket
     ticket_type = postgresql.ENUM(
@@ -43,25 +43,25 @@ def upgrade() -> None:
         'device_registration', 'network_incident', 'manual_intervention', 'automatic_action', 'other',
         name='ticket_type'
     )
-    ticket_type.create(op.get_bind())
+    ticket_type.create(op.get_bind(), checkfirst=True)
 
     ticket_status = postgresql.ENUM(
         'open', 'in_progress', 'resolved', 'closed', 'pending', 'cancelled',
         name='ticket_status'
     )
-    ticket_status.create(op.get_bind())
+    ticket_status.create(op.get_bind(), checkfirst=True)
 
     ticket_priority = postgresql.ENUM(
         'low', 'medium', 'high', 'critical',
         name='ticket_priority'
     )
-    ticket_priority.create(op.get_bind())
+    ticket_priority.create(op.get_bind(), checkfirst=True)
 
     action_status = postgresql.ENUM(
         'pending', 'in_progress', 'success', 'failed', 'partial',
         name='action_status'
     )
-    action_status.create(op.get_bind())
+    action_status.create(op.get_bind(), checkfirst=True)
 
     # Create network_devices table
     op.create_table('network_devices',

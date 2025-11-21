@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.dates import compute_end_date
@@ -15,7 +15,12 @@ from app.models.reservation import Period as PeriodEnum
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.room import Room
 from app.models.room_rate import RoomRate
-from app.schemas.reservation import ReservationCreate, ReservationOut
+from app.schemas.reservation import (
+    ReservationCreate,
+    ReservationOut,
+    ReservationCancel,
+    ReservationListResponse,
+)
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
 
@@ -144,7 +149,7 @@ def list_reservations(
         None, description="Puede repetirse ?status=pending&status=active"
     ),
     q: str | None = None,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=500),
     offset: int = 0,
 ):
     query = (
@@ -175,6 +180,96 @@ def list_reservations(
         query = query.filter(Reservation.notes.ilike(like))
 
     return query.offset(offset).limit(limit).all()
+
+
+@router.get(
+    "/paginated",
+    response_model=ReservationListResponse,
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Listar reservas con paginación",
+    description="Devuelve reservas paginadas con filtros y ordenamiento para manejar historiales extensos.",
+)
+def list_reservations_paginated(
+    db: Session = Depends(get_db),
+    guest_id: int | None = None,
+    room_id: int | None = None,
+    status: list[str] | None = Query(
+        None, description="Puede repetirse ?status=pending&status=active"
+    ),
+    q: str | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    sort_by: str = Query("date", pattern="^(date|guest|room|status)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+):
+    query = (
+        db.query(Reservation)
+        .options(
+            joinedload(Reservation.guest),
+            joinedload(Reservation.room),
+        )
+    )
+
+    if guest_id:
+        query = query.filter(Reservation.guest_id == guest_id)
+    if room_id:
+        query = query.filter(Reservation.room_id == room_id)
+
+    if status:
+        try:
+            statuses = [ReservationStatus(s) for s in status]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400, detail={"error": f"Invalid status in {status}"}
+            ) from e
+        query = query.filter(Reservation.status.in_(statuses))
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(Reservation.notes.ilike(like))
+
+    total = query.count()
+
+    sort_column = Reservation.start_date
+    if sort_by == "guest":
+        query = query.join(Guest)
+        sort_column = Guest.full_name
+    elif sort_by == "room":
+        query = query.join(Room)
+        sort_column = Room.number
+    elif sort_by == "status":
+        sort_column = Reservation.status
+
+    order_clause = sort_column.asc() if sort_order == "asc" else sort_column.desc()
+
+    results = (
+        query.order_by(order_clause, Reservation.id.asc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return ReservationListResponse(items=results, total=total)
+
+
+@router.get(
+    "/summary",
+    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    summary="Resumen de estados de reservas",
+)
+def reservations_summary(db: Session = Depends(get_db)):
+    summary = {status.value: 0 for status in ReservationStatus}
+    totals = (
+        db.query(Reservation.status, func.count(Reservation.id))
+        .group_by(Reservation.status)
+        .all()
+    )
+    total_count = 0
+    for status_value, count in totals:
+        key = status_value.value if isinstance(status_value, ReservationStatus) else status_value
+        summary[key] = count
+        total_count += count
+    summary["total"] = total_count
+    return summary
 
 
 @router.post(
@@ -210,9 +305,13 @@ def confirm_reservation(reservation_id: int, db: Session = Depends(get_db)):
     response_model=ReservationOut,
     dependencies=[Depends(require_roles("admin", "recepcionista"))],
     summary="Cancelar una reserva",
-    description="Cambia el estado de una reserva a 'cancelled'. No se puede cancelar si ya está en un estado final.",
+    description="Cambia el estado de una reserva a 'cancelled' con una razón de cancelación. No se puede cancelar si ya está en un estado final.",
 )
-def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
+def cancel_reservation(
+    reservation_id: int,
+    data: ReservationCancel,
+    db: Session = Depends(get_db)
+):
     reservation = db.get(Reservation, reservation_id)
     if not reservation:
         raise HTTPException(
@@ -226,6 +325,7 @@ def cancel_reservation(reservation_id: int, db: Session = Depends(get_db)):
         )
 
     reservation.status = ReservationStatus.cancelled
+    reservation.cancellation_reason = data.cancellation_reason
     db.commit()
     db.refresh(reservation)
     return reservation
