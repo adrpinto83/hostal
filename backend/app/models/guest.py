@@ -13,3 +13,4 @@ class Guest(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=True)
     notes: Mapped[str] = mapped_column(String(500), nullable=True)
     devices = relationship("Device", back_populates="guest", cascade="all, delete-orphan")
+    invoices = relationship("Invoice", back_populates="guest", cascade="all, delete-orphan")  # NEW

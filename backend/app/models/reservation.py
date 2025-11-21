@@ -39,5 +39,6 @@ class Reservation(Base):
 
     guest = relationship("Guest")
     room = relationship("Room")
+    invoice = relationship("Invoice", back_populates="reservation", uselist=False)  # NEW
 
     __table_args__ = (Index("ix_res_room_range", "room_id", "start_date", "end_date"),)

@@ -25,6 +25,10 @@ from .room import Room, RoomStatus, RoomType
 from .room_rate import RoomRate
 from .staff import Staff, StaffRole, StaffStatus
 from .user import User
+# NEW: Invoice and payment gateway models
+from .invoice import Invoice, InvoiceStatus, InvoiceLineItem, InvoiceLineItemType, InvoicePayment
+from .stripe_webhook_event import StripeWebhookEvent, StripeWebhookLog, WebhookEventType, WebhookProcessingStatus
+from .financial_transaction import FinancialTransaction, TransactionType, TransactionStatus, PaymentGateway, ExchangeRateSnapshot
 
 __all__ = [
     # Audit and logging
@@ -63,6 +67,21 @@ __all__ = [
     "PaymentStatus",
     "Currency",
     "ExchangeRate",
+    # NEW: Invoicing and Stripe integration
+    "Invoice",
+    "InvoiceStatus",
+    "InvoiceLineItem",
+    "InvoiceLineItemType",
+    "InvoicePayment",
+    "StripeWebhookEvent",
+    "StripeWebhookLog",
+    "WebhookEventType",
+    "WebhookProcessingStatus",
+    "FinancialTransaction",
+    "TransactionType",
+    "TransactionStatus",
+    "PaymentGateway",
+    "ExchangeRateSnapshot",
     # Media
     "Media",
     "MediaType",

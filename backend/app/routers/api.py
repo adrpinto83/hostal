@@ -20,6 +20,7 @@ from . import (
     rooms,
     staff,
     users,
+    webhooks,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -44,3 +45,4 @@ api_router.include_router(media.router)  # Gestión de archivos
 api_router.include_router(staff.router)  # Gestión de personal
 api_router.include_router(occupancy.router)  # Check-in/Check-out
 api_router.include_router(maintenance.router)  # Mantenimiento
+api_router.include_router(webhooks.router)  # Webhooks de pasarelas de pago
