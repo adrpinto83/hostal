@@ -8,6 +8,7 @@ import {
   CreditCard,
   Wallet,
   TrendingUp,
+  Smartphone,
 } from 'lucide-react';
 import { paymentsApi, guestsApi } from '@/lib/api';
 import type { PaymentCreate, Currency, PaymentMethod, Guest, Payment } from '@/types';
@@ -18,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { handleApiError } from '@/lib/api/client';
+import { CheckoutModal } from '@/components/payments/CheckoutModal';
 
 const methodLabels: Record<PaymentMethod | string, string> = {
   cash: 'Efectivo',
@@ -46,6 +48,8 @@ const statusColors: Record<string, string> = {
 
 export default function PaymentList() {
   const [showModal, setShowModal] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutData, setCheckoutData] = useState({ guestId: 0, amount: 0, currency: 'usd' as const });
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [formError, setFormError] = useState<string | null>(null);
@@ -182,10 +186,20 @@ export default function PaymentList() {
             <Filter className="h-4 w-4 mr-2" />
             Filtros
           </Button>
-          <Button onClick={() => setShowModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Pago
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Pago Manual
+            </Button>
+            <Button onClick={() => setShowCheckout(true)} variant="default">
+              <CreditCard className="h-4 w-4 mr-2" />
+              Pagar con Tarjeta
+            </Button>
+            <Button onClick={() => setShowCheckout(true)} variant="outline">
+              <Smartphone className="h-4 w-4 mr-2" />
+              Banco Móvil VES
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -419,11 +433,26 @@ export default function PaymentList() {
         </CardContent>
       </Card>
 
+      {/* Stripe/Banco Móvil CheckoutModal */}
+      <CheckoutModal
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        guestId={checkoutData.guestId}
+        amount={checkoutData.amount}
+        currency={checkoutData.currency}
+        onPaymentSuccess={() => {
+          setShowCheckout(false);
+          queryClient.invalidateQueries({ queryKey: ['payments'] });
+          queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+        }}
+      />
+
+      {/* Manual Payment Form Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Registrar pago</h2>
+              <h2 className="text-xl font-semibold">Registrar pago manual</h2>
               <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>
                 <X className="h-4 w-4" />
               </Button>
