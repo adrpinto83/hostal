@@ -146,7 +146,7 @@ class InvoiceLineItem(Base):
     discount_amount = Column(Float, nullable=False, default=0.0)  # Monto de descuento
 
     # Metadata (enlace a qué generó este item)
-    metadata = Column(JSON, nullable=True)  # {"reservation_id": 123, "room_id": 5}
+    item_metadata = Column(JSON, nullable=True)  # {"reservation_id": 123, "room_id": 5}
 
     # Auditoría
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -98,7 +98,7 @@ class FinancialTransaction(Base):
     notes = Column(Text, nullable=True)
 
     # Metadata flexible para información adicional
-    metadata = Column(JSON, nullable=True)  # {
+    transaction_metadata = Column(JSON, nullable=True)  # {
     #     "stripe_charge_id": "ch_xxx",
     #     "invoice_number": "INV-2024-001",
     #     "room_id": 5,

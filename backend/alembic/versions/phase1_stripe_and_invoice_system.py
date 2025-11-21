@@ -20,59 +20,62 @@ depends_on = None
 def upgrade() -> None:
     """Upgrade: Add new tables for Stripe integration and invoicing"""
 
-    # Try to create enums, but ignore if they already exist
-    # 1. Create invoice_status enum type
-    try:
-        invoice_status = postgresql.ENUM(
+    # Create all ENUM types first with IF NOT EXISTS
+    # PostgreSQL doesn't support IF NOT EXISTS for types, so we use error handling
+    enum_definitions = [
+        ("invoice_status", [
             'draft', 'issued', 'sent', 'viewed', 'pending',
-            'partially_paid', 'paid', 'overdue', 'cancelled', 'refunded',
-            name='invoice_status',
-            create_type=False  # Don't try to create, will use existing
-        )
-    except:
-        # If enum doesn't exist, create it separately
-        op.execute("""
-            CREATE TYPE invoice_status AS ENUM (
-                'draft', 'issued', 'sent', 'viewed', 'pending',
-                'partially_paid', 'paid', 'overdue', 'cancelled', 'refunded'
-            )
-        """)
-        invoice_status = postgresql.ENUM(
-            'draft', 'issued', 'sent', 'viewed', 'pending',
-            'partially_paid', 'paid', 'overdue', 'cancelled', 'refunded',
-            name='invoice_status',
-            create_type=False
-        )
+            'partially_paid', 'paid', 'overdue', 'cancelled', 'refunded'
+        ]),
+        ("invoice_line_item_type", [
+            'room_charge', 'service', 'tax', 'discount', 'fee', 'other'
+        ]),
+        ("webhook_event_type", [
+            'payment_intent.succeeded', 'payment_intent.payment_failed',
+            'payment_intent.canceled', 'payment_intent.amount_capturable_updated',
+            'charge.succeeded', 'charge.failed', 'charge.refunded', 'charge.captured',
+            'charge.dispute.created', 'customer.created', 'customer.updated',
+            'customer.deleted', 'payment_method.attached', 'payment_method.detached'
+        ]),
+        ("webhook_processing_status", [
+            'pending', 'processing', 'success', 'failed', 'skipped', 'retry'
+        ]),
+        ("transaction_type", [
+            'payment', 'refund', 'deposit', 'adjustment', 'invoice',
+            'expense', 'fee', 'tip', 'credit'
+        ]),
+        ("transaction_status", [
+            'pending', 'processing', 'completed', 'failed', 'refunded', 'disputed'
+        ]),
+        ("payment_gateway", [
+            'stripe', 'paypal', 'manual', 'bank_transfer', 'cash',
+            'mobile_payment', 'crypto', 'other'
+        ])
+    ]
 
-    # 2. Create invoice_line_item_type enum type
-    try:
-        op.execute("""
-            CREATE TYPE invoice_line_item_type AS ENUM (
-                'room_charge', 'service', 'tax', 'discount', 'fee', 'other'
-            )
-        """)
-    except:
-        pass
+    # Create each ENUM type
+    for enum_name, values in enum_definitions:
+        enum_values_str = ', '.join([f"'{val}'" for val in values])
+        sql = f"CREATE TYPE {enum_name} AS ENUM ({enum_values_str})"
+        try:
+            op.execute(sql)
+        except Exception:
+            # Type might already exist, continue
+            pass
+
+    # Create ENUM objects for use in table definitions
+    invoice_status = postgresql.ENUM(
+        'draft', 'issued', 'sent', 'viewed', 'pending',
+        'partially_paid', 'paid', 'overdue', 'cancelled', 'refunded',
+        name='invoice_status',
+        create_type=False
+    )
 
     invoice_line_type = postgresql.ENUM(
         'room_charge', 'service', 'tax', 'discount', 'fee', 'other',
         name='invoice_line_item_type',
         create_type=False
     )
-
-    # 3. Create webhook_event_type enum type
-    try:
-        op.execute("""
-            CREATE TYPE webhook_event_type AS ENUM (
-                'payment_intent.succeeded', 'payment_intent.payment_failed',
-                'payment_intent.canceled', 'payment_intent.amount_capturable_updated',
-                'charge.succeeded', 'charge.failed', 'charge.refunded', 'charge.captured',
-                'charge.dispute.created', 'customer.created', 'customer.updated',
-                'customer.deleted', 'payment_method.attached', 'payment_method.detached'
-            )
-        """)
-    except:
-        pass
 
     webhook_event_type = postgresql.ENUM(
         'payment_intent.succeeded', 'payment_intent.payment_failed',
@@ -84,32 +87,11 @@ def upgrade() -> None:
         create_type=False
     )
 
-    # 4. Create webhook_processing_status enum type
-    try:
-        op.execute("""
-            CREATE TYPE webhook_processing_status AS ENUM (
-                'pending', 'processing', 'success', 'failed', 'skipped', 'retry'
-            )
-        """)
-    except:
-        pass
-
     webhook_processing_status = postgresql.ENUM(
         'pending', 'processing', 'success', 'failed', 'skipped', 'retry',
         name='webhook_processing_status',
         create_type=False
     )
-
-    # 5. Create transaction_type enum type
-    try:
-        op.execute("""
-            CREATE TYPE transaction_type AS ENUM (
-                'payment', 'refund', 'deposit', 'adjustment', 'invoice',
-                'expense', 'fee', 'tip', 'credit'
-            )
-        """)
-    except:
-        pass
 
     transaction_type = postgresql.ENUM(
         'payment', 'refund', 'deposit', 'adjustment', 'invoice',
@@ -118,34 +100,12 @@ def upgrade() -> None:
         create_type=False
     )
 
-    # 6. Create transaction_status enum type
-    try:
-        op.execute("""
-            CREATE TYPE transaction_status AS ENUM (
-                'pending', 'processing', 'completed', 'failed',
-                'refunded', 'disputed'
-            )
-        """)
-    except:
-        pass
-
     transaction_status = postgresql.ENUM(
         'pending', 'processing', 'completed', 'failed',
         'refunded', 'disputed',
         name='transaction_status',
         create_type=False
     )
-
-    # 7. Create payment_gateway enum type
-    try:
-        op.execute("""
-            CREATE TYPE payment_gateway AS ENUM (
-                'stripe', 'paypal', 'manual', 'bank_transfer', 'cash',
-                'mobile_payment', 'crypto', 'other'
-            )
-        """)
-    except:
-        pass
 
     payment_gateway = postgresql.ENUM(
         'stripe', 'paypal', 'manual', 'bank_transfer', 'cash',
@@ -206,7 +166,7 @@ def upgrade() -> None:
         sa.Column('total_price', sa.Float(), nullable=False),
         sa.Column('discount_percent', sa.Float(), nullable=False, server_default='0.0'),
         sa.Column('discount_amount', sa.Float(), nullable=False, server_default='0.0'),
-        sa.Column('metadata', sa.JSON(), nullable=True),
+        sa.Column('item_metadata', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ),
         sa.PrimaryKeyConstraint('id')
@@ -308,7 +268,7 @@ def upgrade() -> None:
         sa.Column('gateway_reference', sa.String(200), nullable=True),
         sa.Column('description', sa.String(500), nullable=False),
         sa.Column('notes', sa.Text(), nullable=True),
-        sa.Column('metadata', sa.JSON(), nullable=True),
+        sa.Column('transaction_metadata', sa.JSON(), nullable=True),
         sa.Column('error_code', sa.String(100), nullable=True),
         sa.Column('error_message', sa.Text(), nullable=True),
         sa.Column('transaction_date', sa.DateTime(), nullable=False),
