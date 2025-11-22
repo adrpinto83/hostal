@@ -15,6 +15,7 @@ import {
   AlertCircle,
   PieChart as PieChartIcon,
   Activity,
+  Info,
 } from 'lucide-react';
 import { paymentsApi, guestsApi } from '@/lib/api';
 import type { PaymentCreate, Currency, PaymentMethod, Guest, Payment } from '@/types';
@@ -25,6 +26,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { handleApiError } from '@/lib/api/client';
+import {
+  VENEZUELAN_BANKS,
+  MOBILE_OPERATORS,
+  ACCOUNT_TYPES,
+  CARD_TYPES,
+  validateVenezuelanPhone,
+  validateVenezuelanCedula,
+  formatVenezuelanPhone,
+} from '@/lib/venezuela-payments';
 
 const methodLabels: Record<PaymentMethod | string, string> = {
   cash: 'Efectivo',
@@ -80,6 +90,22 @@ export default function PaymentList() {
     notes: '',
   });
 
+  // Estados para campos dinámicos según método de pago
+  const [bankCode, setBankCode] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountType, setAccountType] = useState('checking');
+  const [mobileOperator, setMobileOperator] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [cedula, setCedula] = useState('');
+  const [cardLastDigits, setCardLastDigits] = useState('');
+  const [cardType, setCardType] = useState('debit');
+  const [phoneEmail, setPhoneEmail] = useState('');
+  const [cryptoAddress, setCryptoAddress] = useState('');
+
+  // Estados de validación
+  const [phoneValidation, setPhoneValidation] = useState<{ valid: boolean; message: string } | null>(null);
+  const [cedulaValidation, setCedulaValidation] = useState<{ valid: boolean; message: string } | null>(null);
+
   const { data: paymentsData, isLoading } = useQuery({
     queryKey: ['payments', normalizedFilters],
     queryFn: () => paymentsApi.getAll(normalizedFilters),
@@ -129,6 +155,18 @@ export default function PaymentList() {
       reference_number: '',
       notes: '',
     });
+    setBankCode('');
+    setAccountNumber('');
+    setAccountType('checking');
+    setMobileOperator('');
+    setPhoneNumber('');
+    setCedula('');
+    setCardLastDigits('');
+    setCardType('debit');
+    setPhoneEmail('');
+    setCryptoAddress('');
+    setPhoneValidation(null);
+    setCedulaValidation(null);
     setFormError(null);
   };
 
@@ -142,7 +180,54 @@ export default function PaymentList() {
       setFormError('El monto debe ser mayor a cero');
       return;
     }
-    createMutation.mutate(formData);
+
+    // Validar campos según el método de pago
+    let reference = formData.reference_number || '';
+
+    if (formData.method === 'transfer') {
+      if (!bankCode || !accountNumber || !accountType) {
+        setFormError('Por favor completa los datos de transferencia (banco, cuenta, tipo)');
+        return;
+      }
+      reference = `${bankCode}-${accountNumber} (${accountType})`;
+    } else if (formData.method === 'mobile_payment') {
+      if (!phoneNumber || !cedula || !mobileOperator) {
+        setFormError('Por favor completa los datos de pago móvil (teléfono, cédula, operador)');
+        return;
+      }
+      if (!phoneValidation?.valid) {
+        setFormError('El teléfono no es válido');
+        return;
+      }
+      if (!cedulaValidation?.valid) {
+        setFormError('La cédula no es válida');
+        return;
+      }
+      reference = `${mobileOperator}-${phoneNumber}-${cedula}`;
+    } else if (formData.method === 'card') {
+      if (!cardLastDigits || !cardType) {
+        setFormError('Por favor completa los datos de la tarjeta');
+        return;
+      }
+      reference = `${cardType}-${cardLastDigits}`;
+    } else if (formData.method === 'zelle') {
+      if (!phoneEmail) {
+        setFormError('Por favor proporciona teléfono o email para Zelle');
+        return;
+      }
+      reference = phoneEmail;
+    } else if (formData.method === 'crypto') {
+      if (!cryptoAddress) {
+        setFormError('Por favor proporciona la dirección de criptomoneda');
+        return;
+      }
+      reference = cryptoAddress;
+    }
+
+    createMutation.mutate({
+      ...formData,
+      reference_number: reference,
+    });
   };
 
   const handleDelete = (id: number) => {
@@ -605,9 +690,10 @@ export default function PaymentList() {
                   id="method"
                   className="w-full border rounded px-3 py-2"
                   value={formData.method}
-                  onChange={(e) =>
-                    setFormData({ ...formData, method: e.target.value as PaymentMethod })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, method: e.target.value as PaymentMethod });
+                    resetForm();
+                  }}
                 >
                   {Object.entries(methodLabels).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -617,14 +703,225 @@ export default function PaymentList() {
                 </select>
               </div>
 
-              <div>
-                <Label htmlFor="reference_number">Referencia</Label>
-                <Input
-                  id="reference_number"
-                  value={formData.reference_number ?? ''}
-                  onChange={(e) => setFormData({ ...formData, reference_number: e.target.value })}
-                />
-              </div>
+              {/* Campos dinámicos según método de pago */}
+
+              {/* Transferencia Bancaria */}
+              {formData.method === 'transfer' && (
+                <>
+                  <div className="border-t pt-4 mt-2">
+                    <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Datos de Transferencia
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="bank_code">Banco</Label>
+                    <select
+                      id="bank_code"
+                      className="w-full border rounded px-3 py-2"
+                      value={bankCode}
+                      onChange={(e) => setBankCode(e.target.value)}
+                      required
+                    >
+                      <option value="">Seleccionar banco...</option>
+                      {VENEZUELAN_BANKS.map((bank) => (
+                        <option key={bank.code} value={bank.code}>
+                          {bank.code} - {bank.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="account_number">Número de Cuenta</Label>
+                      <Input
+                        id="account_number"
+                        placeholder="20 dígitos"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="account_type">Tipo de Cuenta</Label>
+                      <select
+                        id="account_type"
+                        className="w-full border rounded px-3 py-2"
+                        value={accountType}
+                        onChange={(e) => setAccountType(e.target.value)}
+                        required
+                      >
+                        {ACCOUNT_TYPES.map((type) => (
+                          <option key={type.code} value={type.code}>
+                            {type.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Pago Móvil */}
+              {formData.method === 'mobile_payment' && (
+                <>
+                  <div className="border-t pt-4 mt-2">
+                    <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      Datos de Pago Móvil
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="mobile_operator">Operador</Label>
+                      <select
+                        id="mobile_operator"
+                        className="w-full border rounded px-3 py-2"
+                        value={mobileOperator}
+                        onChange={(e) => setMobileOperator(e.target.value)}
+                        required
+                      >
+                        <option value="">Seleccionar operador...</option>
+                        {MOBILE_OPERATORS.map((op) => (
+                          <option key={op.code} value={op.code}>
+                            {op.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="phone_number">Teléfono</Label>
+                      <Input
+                        id="phone_number"
+                        placeholder="0414XXXXXXX o +584141234567"
+                        value={phoneNumber}
+                        onChange={(e) => {
+                          setPhoneNumber(e.target.value);
+                          const validation = validateVenezuelanPhone(e.target.value);
+                          setPhoneValidation(validation);
+                        }}
+                        required
+                      />
+                      {phoneValidation && (
+                        <p className={`text-xs mt-1 ${phoneValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
+                          {phoneValidation.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="cedula">Cédula (V, E, J, G o P)</Label>
+                    <Input
+                      id="cedula"
+                      placeholder="V12345678 o E98765432"
+                      value={cedula}
+                      onChange={(e) => {
+                        setCedula(e.target.value);
+                        const validation = validateVenezuelanCedula(e.target.value);
+                        setCedulaValidation(validation);
+                      }}
+                      required
+                    />
+                    {cedulaValidation && (
+                      <p className={`text-xs mt-1 ${cedulaValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
+                        {cedulaValidation.message}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Tarjeta */}
+              {formData.method === 'card' && (
+                <>
+                  <div className="border-t pt-4 mt-2">
+                    <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Datos de Tarjeta
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="card_type">Tipo</Label>
+                      <select
+                        id="card_type"
+                        className="w-full border rounded px-3 py-2"
+                        value={cardType}
+                        onChange={(e) => setCardType(e.target.value)}
+                        required
+                      >
+                        {CARD_TYPES.map((type) => (
+                          <option key={type.code} value={type.code}>
+                            {type.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="card_last_digits">Últimos 4 dígitos</Label>
+                      <Input
+                        id="card_last_digits"
+                        placeholder="1234"
+                        maxLength={4}
+                        value={cardLastDigits}
+                        onChange={(e) => setCardLastDigits(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Zelle */}
+              {formData.method === 'zelle' && (
+                <>
+                  <div className="border-t pt-4 mt-2">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Datos de Zelle</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="phone_email">Teléfono o Email</Label>
+                    <Input
+                      id="phone_email"
+                      placeholder="mail@example.com o +584141234567"
+                      value={phoneEmail}
+                      onChange={(e) => setPhoneEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Criptomonedas */}
+              {formData.method === 'crypto' && (
+                <>
+                  <div className="border-t pt-4 mt-2">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Datos de Criptomoneda</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="crypto_address">Dirección de Billetera</Label>
+                    <Input
+                      id="crypto_address"
+                      placeholder="1A1z7agoat2JNUUZLPLQtqCSbLxnAsbW6b"
+                      value={cryptoAddress}
+                      onChange={(e) => setCryptoAddress(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Campo de referencia oculto para métodos simples */}
+              {['cash', 'other'].includes(formData.method) && (
+                <div>
+                  <Label htmlFor="reference_number">Referencia (opcional)</Label>
+                  <Input
+                    id="reference_number"
+                    placeholder="Referencia o número de recibo"
+                    value={formData.reference_number ?? ''}
+                    onChange={(e) => setFormData({ ...formData, reference_number: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="notes">Notas</Label>
