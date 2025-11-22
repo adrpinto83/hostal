@@ -65,7 +65,7 @@ export const VENEZUELAN_BANKS = [
 export const MOBILE_OPERATORS = [
   { code: 'movistar', name: 'Movistar (0414, 0424)' },
   { code: 'digitel', name: 'Digitel (0412)' },
-  { code: 'andes', name: 'ANDES (0416, 0426)' },
+  { code: 'movilnet', name: 'Movilnet (0416, 0426)' },
 ];
 
 export const ACCOUNT_TYPES = [
@@ -146,8 +146,8 @@ export function validateVenezuelanPhone(phone: string): { valid: boolean; operat
     '0414': 'Movistar',
     '0424': 'Movistar',
     '0412': 'Digitel',
-    '0416': 'ANDES',
-    '0426': 'ANDES',
+    '0416': 'Movilnet',
+    '0426': 'Movilnet',
   };
 
   const prefix = cleaned.substring(0, 4);

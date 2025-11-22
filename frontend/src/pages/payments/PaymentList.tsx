@@ -97,6 +97,7 @@ export default function PaymentList() {
   const [mobileOperator, setMobileOperator] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [cedula, setCedula] = useState('');
+  const [mobileReference, setMobileReference] = useState('');
   const [cardLastDigits, setCardLastDigits] = useState('');
   const [cardType, setCardType] = useState('debit');
   const [phoneEmail, setPhoneEmail] = useState('');
@@ -161,6 +162,7 @@ export default function PaymentList() {
     setMobileOperator('');
     setPhoneNumber('');
     setCedula('');
+    setMobileReference('');
     setCardLastDigits('');
     setCardType('debit');
     setPhoneEmail('');
@@ -191,8 +193,8 @@ export default function PaymentList() {
       }
       reference = `${bankCode}-${accountNumber} (${accountType})`;
     } else if (formData.method === 'mobile_payment') {
-      if (!phoneNumber || !cedula || !mobileOperator) {
-        setFormError('Por favor completa los datos de pago móvil (teléfono, cédula, operador)');
+      if (!phoneNumber || !cedula || !mobileOperator || !mobileReference) {
+        setFormError('Por favor completa los datos de pago móvil (teléfono, cédula, operador, referencia)');
         return;
       }
       if (!phoneValidation?.valid) {
@@ -203,7 +205,7 @@ export default function PaymentList() {
         setFormError('La cédula no es válida');
         return;
       }
-      reference = `${mobileOperator}-${phoneNumber}-${cedula}`;
+      reference = `${mobileOperator}-${phoneNumber}-${cedula}-${mobileReference}`;
     } else if (formData.method === 'card') {
       if (!cardLastDigits || !cardType) {
         setFormError('Por favor completa los datos de la tarjeta');
@@ -700,6 +702,7 @@ export default function PaymentList() {
                     setMobileOperator('');
                     setPhoneNumber('');
                     setCedula('');
+                    setMobileReference('');
                     setCardLastDigits('');
                     setCardType('debit');
                     setPhoneEmail('');
@@ -861,6 +864,22 @@ export default function PaymentList() {
                     {cedulaValidation && (
                       <p className={`text-xs mt-1 ${cedulaValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
                         {cedulaValidation.message}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="mobile_reference">Número de Referencia</Label>
+                    <Input
+                      id="mobile_reference"
+                      placeholder="Ingresa el número de referencia de la transacción"
+                      value={mobileReference}
+                      onChange={(e) => setMobileReference(e.target.value)}
+                      maxLength={50}
+                      required
+                    />
+                    {mobileReference && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {mobileReference.length}/50 caracteres
                       </p>
                     )}
                   </div>
