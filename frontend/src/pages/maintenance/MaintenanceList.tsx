@@ -22,6 +22,10 @@ import {
   User,
   Wrench,
   Archive,
+  AlertTriangle,
+  Clock,
+  DollarSign,
+  Zap,
 } from 'lucide-react';
 import {
   formatDate,
@@ -356,38 +360,76 @@ export default function MaintenanceList() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-xs uppercase text-gray-500">Total de tickets</p>
-            <CardTitle className="text-3xl">{maintenanceStats?.total ?? filteredTasks.length}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-gray-500">Histórico de incidencias registradas</CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Tickets Card */}
+        <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setSelectedStatus('all')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Total Tickets</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">
+                  {maintenanceStats?.total ?? filteredTasks.length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Histórico registrado</p>
+              </div>
+              <Hammer className="h-12 w-12 text-blue-500 opacity-20" />
+            </div>
+          </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-xs uppercase text-gray-500">Pendientes</p>
-            <CardTitle className="text-3xl text-amber-600">{maintenanceStats?.pending ?? 0}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-gray-500">En espera de atención o repuestos</CardContent>
+
+        {/* Pending Card */}
+        <Card className="border-l-4 border-l-amber-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setSelectedStatus('pending')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Pendientes</p>
+                <p className="text-3xl font-bold mt-2 text-amber-600">
+                  {maintenanceStats?.pending ?? 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">En espera de atención</p>
+              </div>
+              <AlertTriangle className="h-12 w-12 text-amber-500 opacity-20" />
+            </div>
+          </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-xs uppercase text-gray-500">Costos estimados</p>
-            <CardTitle className="text-3xl">
-              ${maintenanceStats?.costs?.total_estimated?.toFixed(2) ?? '0.00'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-gray-500">Monto proyectado del backlog</CardContent>
+
+        {/* Estimated Costs Card */}
+        <Card className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow"
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Costos Est.</p>
+                <p className="text-3xl font-bold mt-2 text-green-600">
+                  ${maintenanceStats?.costs?.total_estimated?.toFixed(2) ?? '0.00'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Presupuesto del backlog</p>
+              </div>
+              <DollarSign className="h-12 w-12 text-green-500 opacity-20" />
+            </div>
+          </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="text-xs uppercase text-gray-500">En curso</p>
-            <CardTitle className="text-3xl text-blue-600">
-              {maintenanceStats?.by_status?.in_progress ?? 0}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-gray-500">Equipos trabajando ahora mismo</CardContent>
+
+        {/* In Progress Card */}
+        <Card className="border-l-4 border-l-purple-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setSelectedStatus('in_progress')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">En Curso</p>
+                <p className="text-3xl font-bold mt-2 text-purple-600">
+                  {maintenanceStats?.by_status?.in_progress ?? 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Trabajando ahora</p>
+              </div>
+              <Zap className="h-12 w-12 text-purple-500 opacity-20" />
+            </div>
+          </CardContent>
         </Card>
       </div>
 
