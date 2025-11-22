@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { roomsApi, mediaApi, occupancyApi, maintenanceApi } from '@/lib/api';
+import { roomsApi, mediaApi, occupancyApi, maintenanceApi, dashboardApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Room, RoomUpdate, Media, Occupancy, Maintenance, PaginatedResponse } from '@/types';
 import { formatDateTime } from '@/lib/utils';
@@ -135,9 +135,9 @@ export default function RoomList() {
     setCurrentPage(1);
   };
 
-  const { data: allRooms } = useQuery({
-    queryKey: ['rooms-all'],
-    queryFn: () => roomsApi.getAll(),
+  const { data: dashboardStats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: dashboardApi.getStats,
   });
 
   const { data: activeOccupancies } = useQuery<Occupancy[]>({
@@ -177,22 +177,17 @@ export default function RoomList() {
   }, [pendingMaintenance]);
 
   const stats = useMemo(() => {
-    if (!allRooms) {
+    if (!dashboardStats?.rooms) {
       return { total: 0, available: 0, occupied: 0, maintenance: 0 };
     }
 
-    const total = allRooms.length;
-    const available = allRooms.filter(r => r.status === 'available').length;
-    const occupied = allRooms.filter(r => r.status === 'occupied').length;
-    const maintenance = allRooms.filter(r => r.status === 'maintenance').length;
-
     return {
-      total,
-      available,
-      occupied,
-      maintenance,
+      total: dashboardStats.rooms.total,
+      available: dashboardStats.rooms.available,
+      occupied: dashboardStats.rooms.occupied,
+      maintenance: dashboardStats.rooms.maintenance,
     };
-  }, [allRooms]);
+  }, [dashboardStats]);
 
   const createMutation = useMutation({
     mutationFn: roomsApi.create,
