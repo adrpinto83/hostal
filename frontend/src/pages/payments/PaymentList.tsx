@@ -694,7 +694,9 @@ export default function PaymentList() {
                   value={formData.method}
                   onChange={(e) => {
                     const newMethod = e.target.value as PaymentMethod;
-                    setFormData({ ...formData, method: newMethod });
+                    // Para pago móvil y transferencias, la moneda predeterminada es VES
+                    const newCurrency = (newMethod === 'mobile_payment' || newMethod === 'transfer') ? 'VES' : 'USD';
+                    setFormData({ ...formData, method: newMethod, currency: newCurrency as Currency });
                     // Limpiar campos específicos
                     setBankCode('');
                     setAccountNumber('');
