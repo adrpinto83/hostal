@@ -1,5 +1,9 @@
 import axios from 'axios';
 import { api } from './client';
+
+// Export the base api client for direct use
+export { api };
+
 import type {
   Staff,
   StaffCreate,
