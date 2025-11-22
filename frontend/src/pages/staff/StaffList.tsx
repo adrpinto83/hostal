@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { staffApi, mediaApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Staff, StaffCreate, StaffUpdate, Media } from '@/types';
-import { Plus, Edit, Trash2, X, UserCheck, CheckCircle2, Circle, Camera } from 'lucide-react';
+import { Plus, Edit, Trash2, X, UserCheck, CheckCircle2, Circle, Camera, Users, Briefcase, Clock } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 
@@ -229,6 +229,15 @@ export default function StaffList() {
     return <div className="p-6">Cargando...</div>;
   }
 
+  // Calculate dashboard stats
+  const stats = useMemo(() => {
+    if (!staff) return { total: 0, active: 0, onLeave: 0 };
+    const total = staff.length;
+    const active = staff.filter(s => s.status === 'active').length;
+    const onLeave = staff.filter(s => s.status === 'on_leave').length;
+    return { total, active, onLeave };
+  }, [staff]);
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -240,6 +249,51 @@ export default function StaffList() {
             Nuevo Empleado
           </Button>
         </div>
+      </div>
+
+      {/* Dashboard Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Total Staff Card */}
+        <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Total Personal</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">{stats.total}</p>
+                <p className="text-xs text-gray-500 mt-1">Empleados registrados</p>
+              </div>
+              <Users className="h-12 w-12 text-blue-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Active Staff Card */}
+        <Card className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Activos</p>
+                <p className="text-3xl font-bold mt-2 text-green-600">{stats.active}</p>
+                <p className="text-xs text-gray-500 mt-1">Disponibles trabajar</p>
+              </div>
+              <CheckCircle2 className="h-12 w-12 text-green-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* On Leave Card */}
+        <Card className="border-l-4 border-l-amber-500 hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">De Permiso</p>
+                <p className="text-3xl font-bold mt-2 text-amber-600">{stats.onLeave}</p>
+                <p className="text-xs text-gray-500 mt-1">Ausencia temporal</p>
+              </div>
+              <Clock className="h-12 w-12 text-amber-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {viewMode === 'grid' ? (
