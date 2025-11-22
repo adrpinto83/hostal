@@ -688,11 +688,25 @@ export default function PaymentList() {
                 <Label htmlFor="method">Método de pago</Label>
                 <select
                   id="method"
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border rounded px-3 py-2 bg-white"
                   value={formData.method}
                   onChange={(e) => {
-                    setFormData({ ...formData, method: e.target.value as PaymentMethod });
-                    resetForm();
+                    const newMethod = e.target.value as PaymentMethod;
+                    setFormData({ ...formData, method: newMethod });
+                    // Limpiar campos específicos
+                    setBankCode('');
+                    setAccountNumber('');
+                    setAccountType('checking');
+                    setMobileOperator('');
+                    setPhoneNumber('');
+                    setCedula('');
+                    setCardLastDigits('');
+                    setCardType('debit');
+                    setPhoneEmail('');
+                    setCryptoAddress('');
+                    setPhoneValidation(null);
+                    setCedulaValidation(null);
+                    setFormError(null);
                   }}
                 >
                   {Object.entries(methodLabels).map(([value, label]) => (
@@ -715,21 +729,29 @@ export default function PaymentList() {
                     </p>
                   </div>
                   <div>
-                    <Label htmlFor="bank_code">Banco</Label>
+                    <Label htmlFor="bank_code">
+                      Banco ({VENEZUELAN_BANKS.length} opciones disponibles)
+                    </Label>
                     <select
                       id="bank_code"
-                      className="w-full border rounded px-3 py-2"
+                      className="w-full border rounded px-3 py-2 bg-white"
                       value={bankCode}
                       onChange={(e) => setBankCode(e.target.value)}
                       required
+                      size={1}
                     >
-                      <option value="">Seleccionar banco...</option>
+                      <option value="">-- Seleccionar banco --</option>
                       {VENEZUELAN_BANKS.map((bank) => (
                         <option key={bank.code} value={bank.code}>
                           {bank.code} - {bank.name}
                         </option>
                       ))}
                     </select>
+                    {bankCode && (
+                      <p className="text-xs text-green-600 mt-1">
+                        ✓ Banco seleccionado: {VENEZUELAN_BANKS.find(b => b.code === bankCode)?.name}
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
@@ -738,15 +760,21 @@ export default function PaymentList() {
                         id="account_number"
                         placeholder="20 dígitos"
                         value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
+                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 20))}
                         required
+                        maxLength={20}
                       />
+                      {accountNumber && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {accountNumber.length}/20 dígitos
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="account_type">Tipo de Cuenta</Label>
                       <select
                         id="account_type"
-                        className="w-full border rounded px-3 py-2"
+                        className="w-full border rounded px-3 py-2 bg-white"
                         value={accountType}
                         onChange={(e) => setAccountType(e.target.value)}
                         required
@@ -773,21 +801,29 @@ export default function PaymentList() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <Label htmlFor="mobile_operator">Operador</Label>
+                      <Label htmlFor="mobile_operator">
+                        Operador ({MOBILE_OPERATORS.length} disponibles)
+                      </Label>
                       <select
                         id="mobile_operator"
-                        className="w-full border rounded px-3 py-2"
+                        className="w-full border rounded px-3 py-2 bg-white"
                         value={mobileOperator}
                         onChange={(e) => setMobileOperator(e.target.value)}
                         required
+                        size={1}
                       >
-                        <option value="">Seleccionar operador...</option>
+                        <option value="">-- Seleccionar operador --</option>
                         {MOBILE_OPERATORS.map((op) => (
                           <option key={op.code} value={op.code}>
                             {op.name}
                           </option>
                         ))}
                       </select>
+                      {mobileOperator && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ {MOBILE_OPERATORS.find(o => o.code === mobileOperator)?.name}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="phone_number">Teléfono</Label>
