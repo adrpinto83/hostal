@@ -9,7 +9,7 @@ import { roomsApi, mediaApi, occupancyApi, maintenanceApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Room, RoomUpdate, Media, Occupancy, Maintenance, PaginatedResponse } from '@/types';
 import { formatDateTime } from '@/lib/utils';
-import { Plus, Edit, Trash2, X, Image as ImageIcon, CheckCircle, XCircle, UserCircle, Wrench } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Image as ImageIcon, CheckCircle, XCircle, UserCircle, Wrench, Home, AlertCircle, Zap, Clock } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ImageCarousel } from '@/components/ui/image-carousel';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
@@ -72,6 +72,7 @@ export default function RoomList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'number' | 'type' | 'status'>('number');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -169,6 +170,19 @@ export default function RoomList() {
     });
     return map;
   }, [pendingMaintenance]);
+
+  const stats = useMemo(() => {
+    const occupied = (activeOccupancies ?? []).length;
+    const maintenance = Object.keys(maintenanceMap).length;
+    const available = Math.max(0, totalRooms - occupied - maintenance);
+
+    return {
+      total: totalRooms,
+      available,
+      occupied,
+      maintenance,
+    };
+  }, [totalRooms, activeOccupancies, maintenanceMap]);
 
   const createMutation = useMutation({
     mutationFn: roomsApi.create,
@@ -342,6 +356,133 @@ export default function RoomList() {
         </div>
       </div>
 
+      {/* Dashboard Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Rooms Card */}
+        <Card
+          className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setFilterStatus(null)}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Total Habitaciones</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">
+                  {stats.total}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Capacidad total</p>
+              </div>
+              <Home className="h-12 w-12 text-blue-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Available Card */}
+        <Card
+          className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setFilterStatus('available')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Disponibles</p>
+                <p className="text-3xl font-bold mt-2 text-green-600">
+                  {stats.available}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Listas para ocupar</p>
+              </div>
+              <CheckCircle className="h-12 w-12 text-green-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Occupied Card */}
+        <Card
+          className="border-l-4 border-l-red-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setFilterStatus('occupied')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Ocupadas</p>
+                <p className="text-3xl font-bold mt-2 text-red-600">
+                  {stats.occupied}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Actualmente ocupadas</p>
+              </div>
+              <XCircle className="h-12 w-12 text-red-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Maintenance Card */}
+        <Card
+          className="border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow cursor-pointer"
+          onClick={() => setFilterStatus('maintenance')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Mantenimiento</p>
+                <p className="text-3xl font-bold mt-2 text-orange-600">
+                  {stats.maintenance}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">En reparación/limpieza</p>
+              </div>
+              <Wrench className="h-12 w-12 text-orange-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Occupancy Rate */}
+      {stats.total > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <p className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Tasa de Ocupación
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Ocupación actual</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {Math.round((stats.occupied / stats.total) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-500 h-2 rounded-full transition-all"
+                    style={{ width: `${(stats.occupied / stats.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Active Filter Indicator */}
+      {filterStatus && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+            <span className="text-sm font-medium text-blue-900">
+              Filtrado por: <span className="font-bold">{statusLabels[filterStatus]}</span>
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setFilterStatus(null)}
+            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+          >
+            Limpiar filtro ✕
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <Input
           placeholder="Buscar por número o notas..."
@@ -386,7 +527,19 @@ export default function RoomList() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {roomList.map((room) => {
+            {roomList.filter((room) => {
+                      if (!filterStatus) return true;
+                      if (filterStatus === 'available') {
+                        return !occupancyMap[room.id] && !maintenanceMap[room.id];
+                      }
+                      if (filterStatus === 'occupied') {
+                        return !!occupancyMap[room.id];
+                      }
+                      if (filterStatus === 'maintenance') {
+                        return !!maintenanceMap[room.id];
+                      }
+                      return true;
+                    }).map((room) => {
                     const photos = getRoomPhotos(room.id);
                     const primaryPhoto = photos[0];
                     const activeOccupancy = occupancyMap[room.id];
