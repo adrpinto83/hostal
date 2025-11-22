@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { reservationsApi, guestsApi, roomsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Reservation, ReservationCreate, Period, PaginatedResponse } from '@/types';
-import { Plus, CheckCircle, XCircle, Calendar, TrendingUp, AlertCircle, CheckCheck, Archive } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Calendar, TrendingUp, AlertCircle, CheckCheck, Archive, DollarSign, BarChart3, Activity, PieChart as PieChartIcon, Wallet } from 'lucide-react';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { ReservationFormModal } from '@/components/reservations/ReservationFormModal';
@@ -422,79 +422,71 @@ export default function ReservationList() {
 
       {/* Dashboard de Estadísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Pendientes */}
+        {/* Pendientes Card */}
         <Card
           onClick={() => handleDashboardCardClick('pending')}
-          className={`cursor-pointer transition-all ${
-            selectedStatus === 'pending'
-              ? 'border-2 border-yellow-400 bg-yellow-50 shadow-lg'
-              : 'hover:shadow-md'
-          }`}
+          className="border-l-4 border-l-amber-500 hover:shadow-lg transition-shadow cursor-pointer"
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Pendientes</CardTitle>
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-            <p className="text-xs text-gray-500">Aguardando confirmación</p>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Pendientes</p>
+                <p className="text-3xl font-bold mt-2 text-amber-600">{stats.pending}</p>
+                <p className="text-xs text-gray-500 mt-1">Aguardando confirmación</p>
+              </div>
+              <AlertCircle className="h-12 w-12 text-amber-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Activas */}
+        {/* Activas Card */}
         <Card
           onClick={() => handleDashboardCardClick('active')}
-          className={`cursor-pointer transition-all ${
-            selectedStatus === 'active'
-              ? 'border-2 border-green-400 bg-green-50 shadow-lg'
-              : 'hover:shadow-md'
-          }`}
+          className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow cursor-pointer"
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Activas</CardTitle>
-            <CheckCheck className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-            <p className="text-xs text-gray-500">Reservas confirmadas</p>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Activas</p>
+                <p className="text-3xl font-bold mt-2 text-green-600">{stats.active}</p>
+                <p className="text-xs text-gray-500 mt-1">Confirmadas</p>
+              </div>
+              <CheckCheck className="h-12 w-12 text-green-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Check-out */}
+        {/* Check-out Card */}
         <Card
           onClick={() => handleDashboardCardClick('checked_out')}
-          className={`cursor-pointer transition-all ${
-            selectedStatus === 'checked_out'
-              ? 'border-2 border-blue-400 bg-blue-50 shadow-lg'
-              : 'hover:shadow-md'
-          }`}
+          className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow cursor-pointer"
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Check-out</CardTitle>
-            <CheckCircle className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.checkedOut}</div>
-            <p className="text-xs text-gray-500">Completadas</p>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Check-out</p>
+                <p className="text-3xl font-bold mt-2 text-blue-600">{stats.checkedOut}</p>
+                <p className="text-xs text-gray-500 mt-1">Completadas</p>
+              </div>
+              <CheckCircle className="h-12 w-12 text-blue-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Canceladas */}
+        {/* Canceladas Card */}
         <Card
           onClick={() => handleDashboardCardClick('cancelled')}
-          className={`cursor-pointer transition-all ${
-            selectedStatus === 'cancelled'
-              ? 'border-2 border-red-400 bg-red-50 shadow-lg'
-              : 'hover:shadow-md'
-          }`}
+          className="border-l-4 border-l-red-500 hover:shadow-lg transition-shadow cursor-pointer"
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Canceladas</CardTitle>
-            <XCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
-            <p className="text-xs text-gray-500">Anuladas</p>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Canceladas</p>
+                <p className="text-3xl font-bold mt-2 text-red-600">{stats.cancelled}</p>
+                <p className="text-xs text-gray-500 mt-1">Anuladas</p>
+              </div>
+              <XCircle className="h-12 w-12 text-red-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
       </div>
