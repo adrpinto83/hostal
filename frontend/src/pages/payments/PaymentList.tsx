@@ -8,6 +8,13 @@ import {
   CreditCard,
   Wallet,
   TrendingUp,
+  DollarSign,
+  BarChart3,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  PieChart as PieChartIcon,
+  Activity,
 } from 'lucide-react';
 import { paymentsApi, guestsApi } from '@/lib/api';
 import type { PaymentCreate, Currency, PaymentMethod, Guest, Payment } from '@/types';
@@ -189,42 +196,150 @@ export default function PaymentList() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Payments Card */}
+        <Card className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
-            <p className="text-xs uppercase text-gray-500">Pagos (30 días)</p>
-            <p className="text-3xl font-semibold mt-2">{stats?.total_payments ?? 0}</p>
-            <p className="text-sm text-gray-500">Solo completados</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Pagos Completados</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">
+                  {stats?.total_payments ?? 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Últimos 30 días</p>
+              </div>
+              <CheckCircle className="h-12 w-12 text-green-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
-        <Card>
+
+        {/* Revenue Card */}
+        <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
-            <p className="text-xs uppercase text-gray-500">Equivalente USD</p>
-            <p className="text-3xl font-semibold mt-2">
-              ${stats?.total_usd?.toFixed(2) ?? '0.00'}
-            </p>
-            <p className="text-sm text-gray-500">Conversión automática</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Ingresos USD</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">
+                  ${stats?.total_usd?.toFixed(2) ?? '0.00'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Conversión automática</p>
+              </div>
+              <DollarSign className="h-12 w-12 text-blue-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
-        <Card>
+
+        {/* Pending Payments Card */}
+        <Card className="border-l-4 border-l-amber-500 hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
-            <p className="text-xs uppercase text-gray-500">Método más usado</p>
-            <p className="text-xl font-semibold mt-2 flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-blue-600" />
-              {stats?.by_method?.[0]?.method ?? '—'}
-            </p>
-            <p className="text-sm text-gray-500">
-              {stats?.by_method?.[0]?.count ?? 0} operaciones
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Pagos Pendientes</p>
+                <p className="text-3xl font-bold mt-2 text-amber-600">
+                  {stats?.by_status?.find((s) => s.status === 'pending')?.count ?? 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">En revisión</p>
+              </div>
+              <Clock className="h-12 w-12 text-amber-500 opacity-20" />
+            </div>
           </CardContent>
         </Card>
-        <Card>
+
+        {/* Payment Method Card */}
+        <Card className="border-l-4 border-l-purple-500 hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
-            <p className="text-xs uppercase text-gray-500">Pendientes</p>
-            <p className="text-3xl font-semibold mt-2 text-amber-600">
-              {stats?.by_status?.find((s) => s.status === 'pending')?.count ?? 0}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Método Popular</p>
+                <p className="text-lg font-bold mt-2 text-gray-900 capitalize">
+                  {stats?.by_method?.[0]?.method?.replace('_', ' ') ?? '—'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {stats?.by_method?.[0]?.count ?? 0} transacciones
+                </p>
+              </div>
+              <CreditCard className="h-12 w-12 text-purple-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Metrics Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* By Status Breakdown */}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-sm font-semibold text-gray-600 mb-4 flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Estado de Pagos
             </p>
-            <p className="text-sm text-gray-500">En revisión</p>
+            <div className="space-y-3">
+              {stats?.by_status?.slice(0, 3).map((item) => (
+                <div key={item.status} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`h-2 w-2 rounded-full ${
+                        item.status === 'completed'
+                          ? 'bg-green-500'
+                          : item.status === 'pending'
+                          ? 'bg-yellow-500'
+                          : 'bg-red-500'
+                      }`}
+                    ></div>
+                    <span className="text-sm text-gray-700 capitalize">
+                      {item.status === 'completed' ? 'Completados' : item.status === 'pending' ? 'Pendientes' : 'Fallidos'}
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payment Methods Breakdown */}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-sm font-semibold text-gray-600 mb-4 flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4" />
+              Métodos de Pago
+            </p>
+            <div className="space-y-3">
+              {stats?.by_method?.slice(0, 3).map((item) => (
+                <div key={item.method} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm text-gray-700 capitalize">
+                      {item.method.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Currency Breakdown */}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-sm font-semibold text-gray-600 mb-4 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Monedas
+            </p>
+            <div className="space-y-3">
+              {['USD', 'EUR', 'VES'].map((currency) => {
+                const count = stats?.by_method?.length ?? 0; // Placeholder, you might want to add actual currency breakdown in the API
+                return (
+                  <div key={currency} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">{currency}</span>
+                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-700">
+                      {currencySymbol[currency]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       </div>
