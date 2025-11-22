@@ -172,7 +172,13 @@ export default function RoomList() {
   }, [pendingMaintenance]);
 
   const stats = useMemo(() => {
-    const occupied = (activeOccupancies ?? []).length;
+    // Count unique rooms with active occupancies
+    const occupiedRoomIds = new Set(
+      (activeOccupancies ?? [])
+        .map(o => o.room_id)
+        .filter((id): id is number => id !== undefined && id !== null)
+    );
+    const occupied = occupiedRoomIds.size;
     const maintenance = Object.keys(maintenanceMap).length;
     const available = Math.max(0, totalRooms - occupied - maintenance);
 
