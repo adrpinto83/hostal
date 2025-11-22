@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { guestsApi, devicesApi, bandwidthApi, mediaApi, occupancyApi, paymentsApi, reservationsApi } from '@/lib/api';
 import { handleApiError } from '@/lib/api/client';
 import type { Guest, GuestCreate, GuestUpdate, DeviceCreate, Media, PaginatedResponse } from '@/types';
-import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera, Mail, Phone } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Wifi, WifiOff, User, Activity, FileText, AlertTriangle, Home, DollarSign, Calendar, Camera, Mail, Phone, Users, TrendingUp } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { GuestFormModal } from '@/components/guests/GuestFormModal';
@@ -494,6 +494,55 @@ export default function GuestList() {
             Nuevo Huésped
           </Button>
         </div>
+      </div>
+
+      {/* Dashboard Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Total Guests Card */}
+        <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Total Huéspedes</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">{totalGuests}</p>
+                <p className="text-xs text-gray-500 mt-1">Registrados en el sistema</p>
+              </div>
+              <Users className="h-12 w-12 text-blue-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Guests Card */}
+        <Card className="border-l-4 border-l-green-500 hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Página Actual</p>
+                <p className="text-3xl font-bold mt-2 text-green-600">
+                  {guestList.length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">De {totalGuests} registros</p>
+              </div>
+              <TrendingUp className="h-12 w-12 text-green-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Guests with Devices Card */}
+        <Card className="border-l-4 border-l-purple-500 hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm uppercase text-gray-500 font-semibold">Con Dispositivos</p>
+                <p className="text-3xl font-bold mt-2 text-purple-600">
+                  {guestList.filter(g => g.devices && g.devices.length > 0).length}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Conectados a la red</p>
+              </div>
+              <Wifi className="h-12 w-12 text-purple-500 opacity-20" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
