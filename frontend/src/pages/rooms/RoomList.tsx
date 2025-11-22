@@ -135,6 +135,11 @@ export default function RoomList() {
     setCurrentPage(1);
   };
 
+  const { data: allRooms } = useQuery({
+    queryKey: ['rooms-all'],
+    queryFn: () => roomsApi.getAll(),
+  });
+
   const { data: activeOccupancies } = useQuery<Occupancy[]>({
     queryKey: ['rooms', 'active-occupancies'],
     queryFn: () => occupancyApi.getAll({ active_only: true }),
@@ -172,6 +177,9 @@ export default function RoomList() {
   }, [pendingMaintenance]);
 
   const stats = useMemo(() => {
+    // Use all rooms (not paginated) for accurate stats
+    const total = allRooms?.length ?? 0;
+
     // Count unique rooms with active occupancies
     const occupiedRoomIds = new Set(
       (activeOccupancies ?? [])
@@ -179,16 +187,24 @@ export default function RoomList() {
         .filter((id): id is number => id !== undefined && id !== null)
     );
     const occupied = occupiedRoomIds.size;
-    const maintenance = Object.keys(maintenanceMap).length;
-    const available = Math.max(0, totalRooms - occupied - maintenance);
+
+    // Count unique rooms with pending maintenance
+    const maintenanceRoomIds = new Set(
+      (pendingMaintenance ?? [])
+        .map(m => m.room_id)
+        .filter((id): id is number => id !== undefined && id !== null)
+    );
+    const maintenance = maintenanceRoomIds.size;
+
+    const available = Math.max(0, total - occupied - maintenance);
 
     return {
-      total: totalRooms,
+      total,
       available,
       occupied,
       maintenance,
     };
-  }, [totalRooms, activeOccupancies, maintenanceMap]);
+  }, [allRooms, activeOccupancies, pendingMaintenance]);
 
   const createMutation = useMutation({
     mutationFn: roomsApi.create,
