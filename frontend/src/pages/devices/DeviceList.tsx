@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Monitor, Wifi, WifiOff, Trash2, Search, Activity, Download, Upload } from 'lucide-react';
+import { Monitor, Wifi, WifiOff, Trash2, Search, Activity, Download, Upload, X } from 'lucide-react';
 import { devicesApi, bandwidthApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Device } from '@/types';
 
+type DashboardFilter = 'total' | 'online' | 'suspended' | 'usage' | null;
+
 export default function DeviceList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'online' | 'offline'>('all');
   const [filterSuspended, setFilterSuspended] = useState<'all' | 'active' | 'suspended'>('all');
+  const [dashboardFilter, setDashboardFilter] = useState<DashboardFilter>(null);
   const queryClient = useQueryClient();
 
   const {
@@ -30,26 +33,49 @@ export default function DeviceList() {
     queryKey: ['bandwidth-summary'],
     queryFn: () => bandwidthApi.getSummary(7),
   });
-  const visibleDevices = devices.filter((device) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      term.length === 0 ||
-      device.name?.toLowerCase().includes(term) ||
-      device.mac.toLowerCase().includes(term) ||
-      device.guest_name?.toLowerCase().includes(term);
 
-    const matchesStatus =
-      filterStatus === 'all' ||
-      (filterStatus === 'online' && device.is_online) ||
-      (filterStatus === 'offline' && !device.is_online);
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const online = devices.filter((d) => d.is_online).length;
+    const suspended = devices.filter((d) => d.suspended).length;
+    const totalUsage = bandwidthSummary?.total_usage?.gb || 0;
 
-    const matchesSuspended =
-      filterSuspended === 'all' ||
-      (filterSuspended === 'active' && !device.suspended) ||
-      (filterSuspended === 'suspended' && device.suspended);
+    return {
+      total: devices.length,
+      online,
+      suspended,
+      totalUsage,
+    };
+  }, [devices, bandwidthSummary]);
 
-    return matchesSearch && matchesStatus && matchesSuspended;
-  });
+  const visibleDevices = useMemo(() => {
+    return devices.filter((device) => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        term.length === 0 ||
+        device.name?.toLowerCase().includes(term) ||
+        device.mac.toLowerCase().includes(term) ||
+        device.guest_name?.toLowerCase().includes(term);
+
+      const matchesStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'online' && device.is_online) ||
+        (filterStatus === 'offline' && !device.is_online);
+
+      const matchesSuspended =
+        filterSuspended === 'all' ||
+        (filterSuspended === 'active' && !device.suspended) ||
+        (filterSuspended === 'suspended' && device.suspended);
+
+      const matchesDashboardFilter =
+        dashboardFilter === null ||
+        dashboardFilter === 'total' ||
+        (dashboardFilter === 'online' && device.is_online) ||
+        (dashboardFilter === 'suspended' && device.suspended);
+
+      return matchesSearch && matchesStatus && matchesSuspended && matchesDashboardFilter;
+    });
+  }, [devices, searchTerm, filterStatus, filterSuspended, dashboardFilter]);
 
   // Mutation to suspend device
   const suspendMutation = useMutation({
@@ -152,61 +178,126 @@ export default function DeviceList() {
         </div>
       ) : (
         <>
-      {/* Statistics Cards */}
+      {/* Indexed Dashboard Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total</CardTitle>
-            <Monitor className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{visibleDevices.length}</div>
-            <p className="text-xs text-gray-600">Dispositivos registrados</p>
-          </CardContent>
-        </Card>
+        {/* Total Card */}
+        <button
+          onClick={() => setDashboardFilter(dashboardFilter === 'total' ? null : 'total')}
+          className={`text-left transition-all ${
+            dashboardFilter === 'total' ? 'ring-2 ring-gray-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-gray-600 hover:shadow-lg ${
+            dashboardFilter === 'total' ? 'bg-gray-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total</CardTitle>
+              <Monitor className="h-6 w-6 text-gray-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{metrics.total}</div>
+              <p className="text-xs text-gray-600 mt-1">Dispositivos registrados</p>
+            </CardContent>
+          </Card>
+        </button>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">En Línea</CardTitle>
-            <Wifi className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {visibleDevices.filter((d) => d.is_online).length}
-            </div>
-            <p className="text-xs text-gray-600">Conectados ahora</p>
-          </CardContent>
-        </Card>
+        {/* Online Card */}
+        <button
+          onClick={() => setDashboardFilter(dashboardFilter === 'online' ? null : 'online')}
+          className={`text-left transition-all ${
+            dashboardFilter === 'online' ? 'ring-2 ring-green-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-green-600 hover:shadow-lg ${
+            dashboardFilter === 'online' ? 'bg-green-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-green-600">En Línea</CardTitle>
+              <Wifi className="h-6 w-6 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                {metrics.online}
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Conectados ahora</p>
+            </CardContent>
+          </Card>
+        </button>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Suspendidos</CardTitle>
-            <WifiOff className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {visibleDevices.filter((d) => d.suspended).length}
-            </div>
-            <p className="text-xs text-gray-600">Sin acceso a internet</p>
-          </CardContent>
-        </Card>
+        {/* Suspended Card */}
+        <button
+          onClick={() => setDashboardFilter(dashboardFilter === 'suspended' ? null : 'suspended')}
+          className={`text-left transition-all ${
+            dashboardFilter === 'suspended' ? 'ring-2 ring-orange-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-orange-600 hover:shadow-lg ${
+            dashboardFilter === 'suspended' ? 'bg-orange-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-orange-600">Suspendidos</CardTitle>
+              <WifiOff className="h-6 w-6 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-600">
+                {metrics.suspended}
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Sin acceso a internet</p>
+            </CardContent>
+          </Card>
+        </button>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Uso Total</CardTitle>
-            <Activity className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {bandwidthSummary?.total_usage?.gb?.toFixed(2) || '0.00'} GB
-            </div>
-            <p className="text-xs text-gray-600">Últimos 7 días</p>
-          </CardContent>
-        </Card>
+        {/* Usage Card */}
+        <button
+          onClick={() => setDashboardFilter(dashboardFilter === 'usage' ? null : 'usage')}
+          className={`text-left transition-all ${
+            dashboardFilter === 'usage' ? 'ring-2 ring-blue-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-blue-600 hover:shadow-lg ${
+            dashboardFilter === 'usage' ? 'bg-blue-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-blue-600">Uso Total</CardTitle>
+              <Activity className="h-6 w-6 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">
+                {metrics.totalUsage.toFixed(2)} GB
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Últimos 7 días</p>
+            </CardContent>
+          </Card>
+        </button>
       </div>
+
+      {/* Active Filter Indicator */}
+      {dashboardFilter && (
+        <div className="mb-4 flex items-center gap-2">
+          <Badge className="bg-blue-100 text-blue-800">
+            Filtrando por: {dashboardFilter === 'total' ? 'Total' : dashboardFilter === 'online' ? 'En Línea' : dashboardFilter === 'suspended' ? 'Suspendidos' : 'Uso Total'}
+          </Badge>
+          <button
+            onClick={() => setDashboardFilter(null)}
+            className="text-gray-600 hover:text-gray-900"
+            title="Limpiar filtro"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Devices Table */}
       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Monitor className="h-5 w-5" />
+            Dispositivos de Red
+            {dashboardFilter && (
+              <Badge className="ml-auto bg-blue-100 text-blue-800">Filtrado</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
         <CardContent className="pt-6">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -233,7 +324,16 @@ export default function DeviceList() {
                   visibleDevices.map((device) => {
                     const usage = getDeviceBandwidth(device.id);
                     return (
-                      <tr key={device.id} className="border-b hover:bg-gray-50">
+                      <tr
+                        key={device.id}
+                        className={`border-b transition-colors ${
+                          device.suspended
+                            ? 'hover:bg-orange-50'
+                            : device.is_online
+                            ? 'hover:bg-green-50'
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Monitor className="h-5 w-5 text-blue-600" />

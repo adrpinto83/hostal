@@ -25,6 +25,8 @@ import LogAnalytics from './pages/admin/LogAnalytics';
 import BackupManager from './pages/admin/BackupManager';
 import NetworkDevicesList from './pages/network-admin/NetworkDevicesList';
 import NetworkDeviceForm from './pages/network-admin/NetworkDeviceForm';
+import InvoiceList from './pages/invoices/InvoiceList';
+import InvoiceConfig from './pages/invoices/InvoiceConfig';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +54,8 @@ function App() {
             <Route path="reservations" element={<ReservationList />} />
             <Route path="payments" element={<PaymentList />} />
             <Route path="payments/reports" element={<PaymentReports />} />
+            <Route path="invoices" element={<InvoiceList />} />
+            <Route path="invoices/config" element={<InvoiceConfig />} />
             <Route path="staff" element={<StaffList />} />
             <Route path="occupancy" element={<OccupancyList />} />
             <Route path="maintenance" element={<MaintenanceList />} />

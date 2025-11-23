@@ -10,6 +10,7 @@ from . import (
     guests,
     health,
     internet_control,
+    invoices,
     maintenance,
     media,
     network_devices,
@@ -41,6 +42,7 @@ api_router.include_router(internet_control.router)  # Control de internet
 api_router.include_router(network_devices.router)  # Dispositivos de red e integración
 api_router.include_router(exchange_rates.router)  # Tasas de cambio
 api_router.include_router(payments.router)  # Pagos multimoneda
+api_router.include_router(invoices.router)  # Facturación homologada a Venezuela
 api_router.include_router(media.router)  # Gestión de archivos
 api_router.include_router(staff.router)  # Gestión de personal
 api_router.include_router(occupancy.router)  # Check-in/Check-out

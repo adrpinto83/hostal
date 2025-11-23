@@ -839,3 +839,136 @@ export interface HealthCheck {
   timestamp: string;
   details?: Record<string, unknown>;
 }
+
+// Invoice Types (Venezuelan Compliance)
+export interface InvoiceLine {
+  id?: number;
+  description: string;
+  code?: string;
+  quantity: number;
+  unit_price: number;
+  is_taxable: boolean;
+  tax_percentage: number;
+  line_total?: number;
+  tax_amount?: number;
+  line_order?: number;
+  created_at?: string;
+}
+
+export interface InvoiceLineCreate extends Omit<InvoiceLine, 'id' | 'line_total' | 'tax_amount' | 'line_order' | 'created_at'> {}
+
+export interface InvoicePayment {
+  id?: number;
+  amount: number;
+  currency: string;
+  exchange_rate: number;
+  payment_method: string;
+  payment_reference?: string;
+  payment_date: string;
+  notes?: string;
+  invoice_id?: number;
+  created_at?: string;
+}
+
+export interface InvoicePaymentCreate extends Omit<InvoicePayment, 'id' | 'invoice_id' | 'created_at'> {}
+
+export interface Invoice {
+  id?: number;
+  invoice_type: 'factura' | 'nota_credito' | 'nota_debito';
+  control_number?: string;
+  invoice_number?: number;
+  invoice_series?: string;
+  guest_id?: number;
+  client_name: string;
+  client_rif?: string;
+  client_email?: string;
+  client_phone?: string;
+  currency: string;
+  exchange_rate?: number;
+  subtotal?: number;
+  taxable_amount?: number;
+  tax_percentage: number;
+  tax_amount?: number;
+  iva_retention_percentage?: number;
+  iva_retention_amount?: number;
+  islr_retention_percentage?: number;
+  islr_retention_amount?: number;
+  total?: number;
+  payment_status?: 'pending' | 'partial' | 'completed';
+  paid_amount?: number;
+  status?: 'draft' | 'issued' | 'cancelled' | 'paid';
+  notes?: string;
+  internal_reference?: string;
+  invoice_date: string;
+  due_date?: string | null;
+  issued_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  lines: InvoiceLine[];
+  payments: InvoicePayment[];
+}
+
+export interface InvoiceCreate extends Omit<Invoice, 'id' | 'control_number' | 'invoice_number' | 'invoice_series' | 'subtotal' | 'taxable_amount' | 'tax_amount' | 'iva_retention_amount' | 'islr_retention_amount' | 'total' | 'payment_status' | 'paid_amount' | 'status' | 'issued_at' | 'created_at' | 'updated_at' | 'payments'> {
+  lines: InvoiceLineCreate[];
+}
+
+export interface InvoiceUpdate extends Partial<Omit<Invoice, 'id' | 'control_number' | 'invoice_number' | 'invoice_series' | 'status' | 'issued_at' | 'created_at' | 'updated_at'>> {
+  lines?: InvoiceLineCreate[];
+}
+
+export interface InvoiceConfiguration {
+  id?: number;
+  company_name: string;
+  company_rif: string;
+  address: string;
+  city: string;
+  state: string;
+  postal_code?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  tax_percentage: number;
+  enable_iva_retention: boolean;
+  iva_retention_percentage: number;
+  enable_islr_retention: boolean;
+  islr_retention_percentage: number;
+  invoice_series: string;
+  seniat_authorization_number?: string;
+  seniat_authorization_date?: string;
+  logo_path?: string;
+  invoice_header_color: string;
+  invoice_footer_text?: string;
+  payment_terms?: string;
+  next_invoice_number?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InvoiceConfigurationCreate extends Omit<InvoiceConfiguration, 'id' | 'next_invoice_number' | 'created_at' | 'updated_at'> {}
+
+export interface InvoiceListResponse {
+  id: number;
+  control_number: string;
+  invoice_number: number;
+  client_name: string;
+  currency: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+  payment_status: string;
+  status: string;
+  invoice_date: string;
+  due_date?: string | null;
+}
+
+export interface InvoiceStats {
+  total_invoices: number;
+  total_issued: number;
+  total_cancelled: number;
+  total_revenue: number;
+  total_tax_collected: number;
+  pending_payment: number;
+  average_invoice_value: number;
+  invoices_this_month: number;
+  revenue_this_month: number;
+}

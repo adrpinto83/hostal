@@ -18,6 +18,7 @@ import {
   Star,
   CheckCircle2,
   HardDrive,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/lib/hooks/useSidebar';
@@ -37,6 +38,7 @@ const navigation = [
   { name: 'Reservas', href: '/reservations', icon: Calendar },
   { name: 'Ocupación', href: '/occupancy', icon: DoorOpen },
   { name: 'Pagos', href: '/payments', icon: DollarSign },
+  { name: 'Facturación', href: '/invoices', icon: FileText },
   { name: 'Reportes', href: '/payments/reports', icon: BarChart3 },
   { name: 'Tasas de Cambio', href: '/exchange-rates', icon: TrendingUp },
   { name: 'Red', href: '/network', icon: Wifi },

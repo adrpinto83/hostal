@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNetworkDevices } from '@/lib/hooks/useNetworkDevices';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,24 +13,53 @@ import {
   Network,
   CheckCircle,
   AlertCircle,
-  Clock
+  Clock,
+  X
 } from 'lucide-react';
 import type { NetworkDevice } from '@/types';
+
+type FilterType = 'total' | 'connected' | 'disconnected' | null;
 
 export default function NetworkDevicesList() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState<FilterType>(null);
   const { devices, devicesLoading, deleteDevice } = useNetworkDevices();
 
-  const visibleDevices = devices.filter((device: NetworkDevice) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      term.length === 0 ||
-      device.name?.toLowerCase().includes(term) ||
-      device.ip_address?.toLowerCase().includes(term) ||
-      device.brand?.toLowerCase().includes(term)
-    );
-  });
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const connected = devices.filter((d: NetworkDevice) => d.connection_status === 'connected').length;
+    const disconnected = devices.filter((d: NetworkDevice) => d.connection_status !== 'connected').length;
+
+    return {
+      total: devices.length,
+      connected,
+      disconnected,
+      successRate: devices.length > 0
+        ? (devices.reduce((sum: number, d: NetworkDevice) => sum + (d.success_rate || 0), 0) / devices.length).toFixed(1)
+        : 0,
+    };
+  }, [devices]);
+
+  // Filter devices based on search term and status filter
+  const visibleDevices = useMemo(() => {
+    return devices.filter((device: NetworkDevice) => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        term.length === 0 ||
+        device.name?.toLowerCase().includes(term) ||
+        device.ip_address?.toLowerCase().includes(term) ||
+        device.brand?.toLowerCase().includes(term);
+
+      const matchesFilter =
+        filter === null ||
+        filter === 'total' ||
+        (filter === 'connected' && device.connection_status === 'connected') ||
+        (filter === 'disconnected' && device.connection_status !== 'connected');
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [devices, searchTerm, filter]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -100,48 +129,103 @@ export default function NetworkDevicesList() {
         </CardContent>
       </Card>
 
-      {/* Statistics */}
+      {/* Indexed Dashboard Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total</CardTitle>
-            <Network className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{devices.length}</div>
-            <p className="text-xs text-gray-600">Dispositivos registrados</p>
-          </CardContent>
-        </Card>
+        {/* Total Card */}
+        <button
+          onClick={() => setFilter(filter === 'total' ? null : 'total')}
+          className={`text-left transition-all ${
+            filter === 'total' ? 'ring-2 ring-gray-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-gray-600 hover:shadow-lg ${
+            filter === 'total' ? 'bg-gray-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total</CardTitle>
+              <Network className="h-6 w-6 text-gray-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{metrics.total}</div>
+              <p className="text-xs text-gray-600 mt-1">Dispositivos registrados</p>
+            </CardContent>
+          </Card>
+        </button>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Conectados</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {devices.filter((d: NetworkDevice) => d.connection_status === 'connected').length}
-            </div>
-            <p className="text-xs text-gray-600">Dispositivos activos</p>
-          </CardContent>
-        </Card>
+        {/* Connected Card */}
+        <button
+          onClick={() => setFilter(filter === 'connected' ? null : 'connected')}
+          className={`text-left transition-all ${
+            filter === 'connected' ? 'ring-2 ring-green-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-green-600 hover:shadow-lg ${
+            filter === 'connected' ? 'bg-green-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-green-600">Conectados</CardTitle>
+              <CheckCircle className="h-6 w-6 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                {metrics.connected}
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Dispositivos activos</p>
+            </CardContent>
+          </Card>
+        </button>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Desconectados</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {devices.filter((d: NetworkDevice) => d.connection_status !== 'connected').length}
-            </div>
-            <p className="text-xs text-gray-600">Sin conexión</p>
-          </CardContent>
-        </Card>
+        {/* Disconnected Card */}
+        <button
+          onClick={() => setFilter(filter === 'disconnected' ? null : 'disconnected')}
+          className={`text-left transition-all ${
+            filter === 'disconnected' ? 'ring-2 ring-red-400' : ''
+          }`}
+        >
+          <Card className={`border-l-4 border-l-red-600 hover:shadow-lg ${
+            filter === 'disconnected' ? 'bg-red-50' : ''
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-red-600">Desconectados</CardTitle>
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-600">
+                {metrics.disconnected}
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Sin conexión</p>
+            </CardContent>
+          </Card>
+        </button>
       </div>
+
+      {/* Active Filter Indicator */}
+      {filter && (
+        <div className="mb-4 flex items-center gap-2">
+          <Badge className="bg-blue-100 text-blue-800">
+            Filtrando por: {filter === 'total' ? 'Total' : filter === 'connected' ? 'Conectados' : 'Desconectados'}
+          </Badge>
+          <button
+            onClick={() => setFilter(null)}
+            className="text-gray-600 hover:text-gray-900"
+            title="Limpiar filtro"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Devices Table */}
       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Network className="h-5 w-5" />
+            Dispositivos de Red
+            {filter && (
+              <Badge className="ml-auto bg-blue-100 text-blue-800">Filtrado</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
         <CardContent className="pt-6">
           {devicesLoading ? (
             <div className="flex items-center justify-center p-8 text-gray-500">
@@ -168,7 +252,14 @@ export default function NetworkDevicesList() {
                 </thead>
                 <tbody>
                   {visibleDevices.map((device: NetworkDevice) => (
-                    <tr key={device.id} className="border-b hover:bg-gray-50">
+                    <tr
+                      key={device.id}
+                      className={`border-b transition-colors ${
+                        device.connection_status === 'connected'
+                          ? 'hover:bg-green-50'
+                          : 'hover:bg-red-50'
+                      }`}
+                    >
                       <td className="p-3">
                         <div>
                           <p className="font-medium">{device.name}</p>
@@ -192,7 +283,9 @@ export default function NetworkDevicesList() {
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(device.connection_status || 'unknown')}
-                          <span className="text-sm">{getStatusLabel(device.connection_status || 'unknown')}</span>
+                          <span className="text-sm font-medium">
+                            {getStatusLabel(device.connection_status || 'unknown')}
+                          </span>
                         </div>
                       </td>
                       <td className="p-3">

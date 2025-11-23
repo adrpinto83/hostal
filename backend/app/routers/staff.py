@@ -53,6 +53,12 @@ class StaffResponse(StaffBase):
         from_attributes = True
 
 
+class ChangeStatusRequest(BaseModel):
+    """Modelo para cambiar el estado del empleado."""
+    status: StaffStatus = Field(..., description="Nuevo estado del empleado")
+    notes: str | None = Field(None, description="Notas opcional para el cambio de estado")
+
+
 # Endpoints
 @router.post(
     "/",
@@ -312,8 +318,7 @@ def get_staff_stats(db: Session = Depends(get_db)):
 )
 def change_staff_status(
     staff_id: int,
-    new_status: StaffStatus,
-    notes: str | None = None,
+    request: ChangeStatusRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -329,12 +334,12 @@ def change_staff_status(
     if not staff:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-    staff.status = new_status
+    staff.status = request.status
 
-    if notes:
+    if request.notes:
         # Agregar nota al historial
         current_notes = staff.notes or ""
-        staff.notes = f"{current_notes}\n[{date.today()}] Estado cambiado a {new_status.value}: {notes}".strip()
+        staff.notes = f"{current_notes}\n[{date.today()}] Estado cambiado a {request.status.value}: {request.notes}".strip()
 
     db.commit()
     db.refresh(staff)

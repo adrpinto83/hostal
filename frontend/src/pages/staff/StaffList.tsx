@@ -77,10 +77,11 @@ export default function StaffList() {
     fetchExchangeRates();
   }, []);
 
-  const { data: staff, isLoading } = useQuery({
+  const { data: staffData, isLoading } = useQuery({
     queryKey: ['staff'],
     queryFn: () => staffApi.getAll(),
   });
+  const staff = staffData ?? [];
 
   // Query for staff photos
   const { data: staffPhotos } = useQuery({
@@ -225,18 +226,17 @@ export default function StaffList() {
     resetForm();
   };
 
-  if (isLoading) {
-    return <div className="p-6">Cargando...</div>;
-  }
-
-  // Calculate dashboard stats
+  // Calculate dashboard stats - MUST be before early return
   const stats = useMemo(() => {
-    if (!staff) return { total: 0, active: 0, onLeave: 0 };
     const total = staff.length;
     const active = staff.filter(s => s.status === 'active').length;
     const onLeave = staff.filter(s => s.status === 'on_leave').length;
     return { total, active, onLeave };
   }, [staff]);
+
+  if (isLoading) {
+    return <div className="p-6">Cargando...</div>;
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -262,7 +262,7 @@ export default function StaffList() {
                 <p className="text-3xl font-bold mt-2 text-gray-900">{stats.total}</p>
                 <p className="text-xs text-gray-500 mt-1">Empleados registrados</p>
               </div>
-              <Users className="h-12 w-12 text-blue-500 opacity-20" />
+              <Users className="h-12 w-12 text-blue-500 opacity-10" />
             </div>
           </CardContent>
         </Card>
@@ -276,7 +276,7 @@ export default function StaffList() {
                 <p className="text-3xl font-bold mt-2 text-green-600">{stats.active}</p>
                 <p className="text-xs text-gray-500 mt-1">Disponibles trabajar</p>
               </div>
-              <CheckCircle2 className="h-12 w-12 text-green-500 opacity-20" />
+              <CheckCircle2 className="h-12 w-12 text-green-500 opacity-10" />
             </div>
           </CardContent>
         </Card>
@@ -290,7 +290,7 @@ export default function StaffList() {
                 <p className="text-3xl font-bold mt-2 text-amber-600">{stats.onLeave}</p>
                 <p className="text-xs text-gray-500 mt-1">Ausencia temporal</p>
               </div>
-              <Clock className="h-12 w-12 text-amber-500 opacity-20" />
+              <Clock className="h-12 w-12 text-amber-500 opacity-10" />
             </div>
           </CardContent>
         </Card>
@@ -298,7 +298,7 @@ export default function StaffList() {
 
       {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {staff?.map((member) => {
+        {staff.map((member) => {
           const photo = getStaffPhoto(member.id);
           return (
           <Card key={member.id}>
@@ -404,7 +404,7 @@ export default function StaffList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {staff?.map((member) => {
+              {staff.map((member) => {
                 const photo = getStaffPhoto(member.id);
                 return (
                   <tr key={member.id} className="hover:bg-gray-50">
@@ -615,22 +615,28 @@ export default function StaffList() {
               </p>
               <div className="flex flex-col gap-2">
                 <Button
+                  type="button"
                   onClick={() => submitStatusChange('active')}
-                  className="w-full bg-green-500 hover:bg-green-600"
+                  disabled={changeStatusMutation.isPending}
+                  className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Activo
+                  {changeStatusMutation.isPending ? 'Procesando...' : 'Activo'}
                 </Button>
                 <Button
+                  type="button"
                   onClick={() => submitStatusChange('on_leave')}
-                  className="w-full bg-yellow-500 hover:bg-yellow-600"
+                  disabled={changeStatusMutation.isPending}
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  De Permiso
+                  {changeStatusMutation.isPending ? 'Procesando...' : 'De Permiso'}
                 </Button>
                 <Button
+                  type="button"
                   onClick={() => submitStatusChange('inactive')}
-                  className="w-full bg-gray-500 hover:bg-gray-600"
+                  disabled={changeStatusMutation.isPending}
+                  className="w-full bg-gray-500 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Inactivo
+                  {changeStatusMutation.isPending ? 'Procesando...' : 'Inactivo'}
                 </Button>
               </div>
             </div>

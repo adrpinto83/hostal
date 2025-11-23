@@ -49,7 +49,15 @@ import type {
   InternetStatus,
   HealthCheck,
   NetworkActivity,
-  PaginatedResponse
+  PaginatedResponse,
+  Invoice,
+  InvoiceCreate,
+  InvoiceUpdate,
+  InvoiceConfiguration,
+  InvoiceConfigurationCreate,
+  InvoiceListResponse,
+  InvoiceStats,
+  InvoicePaymentCreate,
 } from '@/types';
 
 // Staff API (Complete)
@@ -682,6 +690,81 @@ export const networkDevicesApi = {
       mac_address: macAddress,
       network_device_id: deviceId,
     });
+    return response.data;
+  },
+};
+
+// Invoices API (Venezuelan Compliance)
+export const invoicesApi = {
+  // Invoices CRUD
+  getAll: async (params?: {
+    status?: string;
+    client_name?: string;
+    start_date?: string;
+    end_date?: string;
+    skip?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get<InvoiceListResponse[]>('/invoices/', { params });
+    return response.data;
+  },
+  getById: async (id: number) => {
+    const response = await api.get<Invoice>(`/invoices/${id}`);
+    return response.data;
+  },
+  create: async (data: InvoiceCreate) => {
+    const response = await api.post<Invoice>('/invoices/', data);
+    return response.data;
+  },
+  update: async (id: number, data: InvoiceUpdate) => {
+    const response = await api.patch<Invoice>(`/invoices/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    await api.delete(`/invoices/${id}`);
+  },
+  issue: async (id: number) => {
+    const response = await api.post<Invoice>(`/invoices/${id}/issue`, {});
+    return response.data;
+  },
+  cancel: async (id: number, reason?: string) => {
+    const response = await api.post<Invoice>(`/invoices/${id}/cancel`, { reason });
+    return response.data;
+  },
+
+  // Invoice Payments
+  registerPayment: async (invoiceId: number, data: InvoicePaymentCreate) => {
+    const response = await api.post(`/invoices/${invoiceId}/payments`, data);
+    return response.data;
+  },
+  getPayments: async (invoiceId: number) => {
+    const response = await api.get(`/invoices/${invoiceId}/payments`);
+    return response.data;
+  },
+
+  // Configuration
+  getConfig: async () => {
+    const response = await api.get<InvoiceConfiguration>('/invoices/config');
+    return response.data;
+  },
+  updateConfig: async (data: InvoiceConfigurationCreate) => {
+    const response = await api.post<InvoiceConfiguration>('/invoices/config', data);
+    return response.data;
+  },
+
+  // Statistics
+  getStats: async () => {
+    const response = await api.get<InvoiceStats>('/invoices/stats/summary');
+    return response.data;
+  },
+
+  // Print and Email
+  getPrintable: async (id: number) => {
+    const response = await api.get(`/invoices/${id}/printable`);
+    return response.data;
+  },
+  sendByEmail: async (id: number) => {
+    const response = await api.post(`/invoices/${id}/send-email`, {});
     return response.data;
   },
 };

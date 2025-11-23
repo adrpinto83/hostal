@@ -26,7 +26,7 @@ from .room_rate import RoomRate
 from .staff import Staff, StaffRole, StaffStatus
 from .user import User
 # NEW: Invoice and payment gateway models
-from .invoice import Invoice, InvoiceStatus, InvoiceLineItem, InvoiceLineItemType, InvoicePayment
+from .invoice import Invoice, InvoiceStatus, InvoiceLine, InvoicePayment
 from .stripe_webhook_event import StripeWebhookEvent, StripeWebhookLog, WebhookEventType, WebhookProcessingStatus
 from .financial_transaction import FinancialTransaction, TransactionType, TransactionStatus, PaymentGateway, ExchangeRateSnapshot
 
@@ -70,8 +70,7 @@ __all__ = [
     # NEW: Invoicing and Stripe integration
     "Invoice",
     "InvoiceStatus",
-    "InvoiceLineItem",
-    "InvoiceLineItemType",
+    "InvoiceLine",
     "InvoicePayment",
     "StripeWebhookEvent",
     "StripeWebhookLog",
