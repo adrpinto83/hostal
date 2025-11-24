@@ -27,7 +27,6 @@ from .staff import Staff, StaffRole, StaffStatus
 from .user import User
 # NEW: Invoice and payment gateway models
 from .invoice import Invoice, InvoiceStatus, InvoiceLine, InvoicePayment
-from .stripe_webhook_event import StripeWebhookEvent, StripeWebhookLog, WebhookEventType, WebhookProcessingStatus
 from .financial_transaction import FinancialTransaction, TransactionType, TransactionStatus, PaymentGateway, ExchangeRateSnapshot
 
 __all__ = [
@@ -67,15 +66,11 @@ __all__ = [
     "PaymentStatus",
     "Currency",
     "ExchangeRate",
-    # NEW: Invoicing and Stripe integration
+    # NEW: Invoicing and payment integration
     "Invoice",
     "InvoiceStatus",
     "InvoiceLine",
     "InvoicePayment",
-    "StripeWebhookEvent",
-    "StripeWebhookLog",
-    "WebhookEventType",
-    "WebhookProcessingStatus",
     "FinancialTransaction",
     "TransactionType",
     "TransactionStatus",

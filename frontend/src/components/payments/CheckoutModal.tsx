@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { X, CreditCard, Banknote, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { X, Banknote, AlertCircle, CheckCircle, Loader, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { StripeCheckoutForm } from './StripeCheckoutForm';
 import { VenezuelanPaymentForm } from './VenezuelanPaymentForm';
+import { CashPaymentForm } from './CashPaymentForm';
 
-export type PaymentMethod = 'stripe' | 'banco-movil';
+export type PaymentMethod = 'banco-movil' | 'efectivo';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -112,19 +112,19 @@ export function CheckoutModal({
                 Selecciona tu método de pago preferido:
               </p>
 
-              {/* Stripe Option */}
+              {/* Efectivo Option */}
               <button
-                onClick={() => setSelectedMethod('stripe')}
+                onClick={() => setSelectedMethod('efectivo')}
                 disabled={paymentStatus === 'processing'}
-                className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition disabled:opacity-50 disabled:cursor-not-allowed text-left"
               >
                 <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 p-2 rounded-lg">
-                    <CreditCard className="w-5 h-5 text-blue-600" />
+                  <div className="bg-emerald-100 p-2 rounded-lg">
+                    <Wallet className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">Tarjeta de Crédito/Débito</h3>
-                    <p className="text-sm text-gray-600">Paga con Stripe</p>
+                    <h3 className="font-semibold text-gray-900">Efectivo</h3>
+                    <p className="text-sm text-gray-600">Pago en billetes físicos</p>
                   </div>
                 </div>
               </button>
@@ -170,9 +170,9 @@ export function CheckoutModal({
                 ← Volver a métodos de pago
               </button>
 
-              {/* Stripe Form */}
-              {selectedMethod === 'stripe' && (
-                <StripeCheckoutForm
+              {/* Efectivo Form */}
+              {selectedMethod === 'efectivo' && (
+                <CashPaymentForm
                   guestId={guestId}
                   amount={amount}
                   currency={currency}

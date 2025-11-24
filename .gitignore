@@ -1,41 +1,215 @@
-# --- Backups / Respaldos ---
-*.zip
-*.sql
-*.bak
-*.tar
-*.tar.gz
-*.tgz
+# Sistema de Gestión de Hostal - .gitignore
 
-# --- Python / FastAPI ---
-.venv/
-venv/
-backend/venv/
+# ============================================================================
+# Python / Backend
+# ============================================================================
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.log
-*.sqlite3
-db.sqlite3
-migrations/
+*$py.class
 
-# Archivos de entorno / seguridad
-.env
-.env.*
-secrets.json
+# C extensions
+*.so
 
-# --- Cachés / Testing ---
-.mypy_cache/
-.pytest_cache/
-.coverage
-coverage/
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
 htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
 
-# --- IDE / Sistema ---
+# Environments
+.env
+.env.local
+.env.*.local
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Alembic
+alembic/versions/*.pyc
+
+# Uploads
+uploads/
+media/
+
+# IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 .DS_Store
-Thumbs.db
 
-# --- Node / Frontend (si tienes frontend dentro del repo) ---
+# ============================================================================
+# Node / Frontend
+# ============================================================================
+
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output
+
+# Production
 dist/
 build/
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Vite
+dist-ssr/
+*.local
+
+# ============================================================================
+# Docker
+# ============================================================================
+
+# Docker volumes
+docker-compose.override.yml
+.dockerignore
+
+# ============================================================================
+# Operating System
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# Backups
+# ============================================================================
+
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+backups/
+*.sql.gz
+
+# ============================================================================
+# Sensitive Data
+# ============================================================================
+
+# Credenciales y secretos
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+*.cert
+
+# Configuraciones locales
+config.local.js
+config.local.json
+
+# ============================================================================
+# Documentation (temporal/obsoleto)
+# ============================================================================
+
+# Archivos markdown obsoletos (ya eliminados)
+*STRIPE*
+*GOOGLE_OAUTH*
+*TEST_CREDENTIALS*
+
+# ============================================================================
+# Build y Cache
+# ============================================================================
+
+.cache/
+.parcel-cache/
+.webpack/
+.next/
+out/
+
+# ============================================================================
+# Misc
+# ============================================================================
+
+# Editor configs
+.editorconfig
+
+# Temporary files
+tmp/
+temp/
+*.temp

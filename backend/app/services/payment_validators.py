@@ -10,55 +10,38 @@ from enum import Enum
 
 class VenezuelanBankCode(str, Enum):
     """Códigos de bancos en Venezuela (Banco Móvil)."""
-    # Bancos comerciales
-    BANCO_DE_VENEZUELA = "0001"  # Banco de Venezuela
-    BANESCO = "0002"              # Banesco
-    CITIBANK = "0004"             # Citibank
-    BANCO_MERCANTIL = "0005"      # Banco Mercantil
-    BANCO_PROVINCIAL = "0008"     # Banco Provincial
-    BANCO_OCCIDENTAL = "0006"     # Banco Occidental
-    BANCO_CARONI = "0009"         # Banco Caroni
-    BANCO_FEDEVAL = "0010"        # BanFedeval
-    ITAU = "0011"                 # Itaú
-    BANCO_TACHIRA = "0013"        # Banco Táchira
-    BANCO_EXITO = "0014"          # Banco Éxito
-    BANCO_AMAZON = "0015"         # Banco del Amazonas
-    BANCO_ACTINVER = "0016"       # Banco Actinver
-    BANCO_FINTERRA = "0017"       # Banco Finterra
-    BANCO_SOFIMEX = "0018"        # Banco Sofimex
-    BANCO_INFONAVIT = "0019"      # Banco Infonavit
-    BANCO_DEL_BIENESTAR = "0020"  # Banco del Bienestar
-    SANTANDER = "0021"            # Santander
-    HSBC = "0027"                 # HSBC
-    BARCLAYS = "0030"             # Barclays
-    SCOTIABANK = "0032"           # Scotiabank
-    ING = "0036"                  # ING
-    BANCO_LAZONTANO = "0166"      # Banco Lanzontano
-    BANCO_FALABELLA = "0168"      # Banco Falabella
-    BANCO_WALMART = "0172"        # Banco Walmart
-    AMERICAN_EXPRESS = "0174"     # American Express
-    INVEX = "0176"                # Invex
-    BANCREA = "0177"              # Bancrea
-    AJUSTES_POR_COMPENSACION = "0188"  # Ajustes por compensación
-    OPCIONES_EMPRESARIALES = "0189"    # Opciones Empresariales
-    AGROBANK = "0501"             # AgroBank
-    BANCAFECI = "0502"            # BancaFeci
-    ACCENDO_BANCO = "0503"        # Accendo Banco
-    INVERCAP = "0506"             # Invercap
-    BANCO_SIMPLES = "0640"        # Banco Simples
-    FUNDACIÓN_DONDÉ_BANCO = "0642"  # Fundación Dondé Banco
-    BANCATÍN = "0645"             # Bancatín
-    BANCO_AUTOFIN = "0646"        # BancoAutofin
-    INTERCAM_BANCO = "0648"       # Intercam Banco
-    ACTINVER = "0649"             # Actinver
-    BANCO_SABADELL = "0651"       # Banco Sabadell
-    INMOBILIARIO = "0652"         # Inmobiliario
-    DAVIVIENDA = "0656"           # Davivienda
-    BANCO_BANCREA = "0659"        # Banco Bancrea
-    BANCO_MONEXCB = "0661"        # Banco Monexcb
-    GBM = "0670"                  # GBM
-    ZURICH = "0901"               # Zurich
-    MAPFRE = "0902"               # Mapfre
+    # Bancos comerciales y universales de Venezuela
+    BANCO_CENTRAL_VENEZUELA = "0001"       # Banco Central de Venezuela
+    BANCO_DE_VENEZUELA = "0102"            # Banco de Venezuela
+    BANCO_VENEZOLANO_CREDITO = "0104"      # Banco Venezolano de Crédito
+    BANCO_MERCANTIL = "0105"               # Banco Mercantil
+    BANCO_PROVINCIAL = "0108"              # BBVA Provincial
+    BANCARIBE = "0114"                     # Bancaribe
+    BANCO_EXTERIOR = "0115"                # Banco Exterior
+    BANCO_OCCIDENTAL_DESCUENTO = "0116"    # Banco Occidental de Descuento (BOD)
+    BANCO_CARONÍ = "0128"                  # Banco Caroní
+    BANESCO = "0134"                       # Banesco Banco Universal
+    BANCO_SOFITASA = "0137"                # Banco Sofitasa
+    BANCO_PLAZA = "0138"                   # Banco Plaza
+    BANGENTE = "0146"                      # Bangente (Banco de la Gente Emprendedora)
+    BANCO_FONDO_COMÚN = "0151"             # BFC Banco Fondo Común
+    CIEN_POR_CIENTO_BANCO = "0156"         # 100% Banco
+    DELSUR = "0157"                        # DelSur Banco Universal
+    BANCO_DEL_TESORO = "0163"              # Banco del Tesoro
+    BANCO_AGRÍCOLA = "0166"                # Banco Agrícola de Venezuela
+    BANCRECER = "0168"                     # Bancrecer
+    MI_BANCO = "0169"                      # Mi Banco
+    BANCO_ACTIVO = "0171"                  # Banco Activo
+    BANCAMIGA = "0172"                     # Bancamiga Banco Microfinanciero
+    BANCO_INTERNACIONAL_DESARROLLO = "0173" # Banco Internacional de Desarrollo
+    BANPLUS = "0174"                       # Banplus Banco Universal
+    BANCO_BICENTENARIO = "0175"            # Banco Bicentenario del Pueblo
+    BANCO_ESPIRITO_SANTO = "0176"          # Banco Espirito Santo
+    BANFANB = "0177"                       # Banco de la Fuerza Armada Nacional Bolivariana (BANFANB)
+    BANCO_NACIONAL_CREDITO = "0191"        # BNC - Banco Nacional de Crédito
+    # Instituciones financieras especiales
+    BANCO_AGRICOLA_VENEZUELA = "0601"      # Instituto de Crédito Agrícola y Pecuario
+    VENEZOLANO_CREDITO = "1061"            # Venezolano de Crédito Entidad de Ahorro y Préstamo
 
 
 class MobilePaymentProvider(str, Enum):
@@ -353,12 +336,47 @@ class VenezuelanMobilePaymentValidator:
         Returns:
             Lista de dicts con código y nombre del banco
         """
+        # Mapa de nombres más legibles en español
+        bank_names = {
+            "0001": "Banco Central de Venezuela (BCV)",
+            "0102": "Banco de Venezuela",
+            "0104": "Banco Venezolano de Crédito",
+            "0105": "Banco Mercantil",
+            "0108": "BBVA Provincial",
+            "0114": "Bancaribe",
+            "0115": "Banco Exterior",
+            "0116": "Banco Occidental de Descuento (BOD)",
+            "0128": "Banco Caroní",
+            "0134": "Banesco",
+            "0137": "Banco Sofitasa",
+            "0138": "Banco Plaza",
+            "0146": "Bangente",
+            "0151": "BFC Banco Fondo Común",
+            "0156": "100% Banco",
+            "0157": "DelSur Banco",
+            "0163": "Banco del Tesoro",
+            "0166": "Banco Agrícola de Venezuela",
+            "0168": "Bancrecer",
+            "0169": "Mi Banco",
+            "0171": "Banco Activo",
+            "0172": "Bancamiga",
+            "0173": "Banco Internacional de Desarrollo",
+            "0174": "Banplus",
+            "0175": "Banco Bicentenario",
+            "0176": "Banco Espirito Santo",
+            "0177": "BANFANB",
+            "0191": "Banco Nacional de Crédito (BNC)",
+            "0601": "Instituto de Crédito Agrícola y Pecuario",
+            "1061": "Venezolano de Crédito",
+        }
+
         banks = []
         for bank_code in VenezuelanBankCode:
+            code = bank_code.value
             banks.append({
-                "code": bank_code.value,
-                "name": bank_code.name.replace('_', ' '),
-                "name_es": bank_code.name.replace('_', ' ')
+                "code": code,
+                "name": bank_names.get(code, bank_code.name.replace('_', ' ')),
+                "name_es": bank_names.get(code, bank_code.name.replace('_', ' '))
             })
         return sorted(banks, key=lambda x: x['code'])
 

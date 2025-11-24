@@ -16,6 +16,7 @@ from . import (
     network_devices,
     occupancy,
     payments,
+    payments_v2,
     reservations,
     room_rates,
     rooms,
@@ -42,6 +43,7 @@ api_router.include_router(internet_control.router)  # Control de internet
 api_router.include_router(network_devices.router)  # Dispositivos de red e integración
 api_router.include_router(exchange_rates.router)  # Tasas de cambio
 api_router.include_router(payments.router)  # Pagos multimoneda
+api_router.include_router(payments_v2.router)  # Pagos móviles venezolanos
 api_router.include_router(invoices.router)  # Facturación homologada a Venezuela
 api_router.include_router(media.router)  # Gestión de archivos
 api_router.include_router(staff.router)  # Gestión de personal

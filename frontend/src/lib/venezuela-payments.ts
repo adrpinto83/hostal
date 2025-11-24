@@ -4,68 +4,49 @@
  */
 
 export const VENEZUELAN_BANKS = [
-  // Bancos Universales
-  { code: '0102', name: 'Banco de Venezuela, S.A.' },
-  { code: '0104', name: 'Banco Venezolano de Crédito, S.A.' },
-  { code: '0105', name: 'Banco Mercantil, C.A.' },
-  { code: '0106', name: 'Banco del Caribe, C.A.' },
-  { code: '0108', name: 'Banco Provincial, S.A.' },
-  { code: '0110', name: 'Banco de Crédito e Inversiones' },
-  { code: '0112', name: 'Banco Lagunilla, S.A.' },
-  { code: '0114', name: 'Banco Autofín, S.A.' },
-  { code: '0115', name: 'Banco Única, S.A.' },
-  { code: '0116', name: 'BBVA Banco Francés, C.A.' },
-  { code: '0117', name: 'Banco Actinver, C.A.' },
-  { code: '0119', name: 'Banco Schloss, S.A.' },
-  { code: '0120', name: 'Banco del Tesoro, S.A.' },
-  { code: '0121', name: 'Banco Occidental de Descuento' },
-  { code: '0122', name: 'Banco Italcambio, C.A.' },
-  { code: '0123', name: 'Banco Ápice, S.A.' },
-  { code: '0124', name: 'Banco Finterra, C.A.' },
-  { code: '0125', name: 'Banco Pluss, C.A.' },
-  { code: '0126', name: 'Banco Banesco, S.A.' },
-  { code: '0127', name: 'Banco Bicentenario, C.A.' },
-  { code: '0128', name: 'Banco Hipotecario Federal' },
-  { code: '0129', name: 'Banco Sofimex, C.A.' },
-  { code: '0130', name: 'Banco Fondo Común, C.A.' },
-  { code: '0131', name: 'Banco Futuro, C.A.' },
-  { code: '0132', name: 'Banco Metropolitano, C.A.' },
-  { code: '0133', name: 'Banco Activa, C.A.' },
-  { code: '0134', name: 'Banco Latinoamericano de Exportaciones' },
-  { code: '0135', name: 'Banco Mercantil del Norte' },
-  { code: '0136', name: 'Banco de Inversiones de Venezuela' },
-  { code: '0137', name: 'BNDES Banco de Desarrollo Empresarial' },
-  { code: '0138', name: 'Banco FOMPED' },
-  { code: '0139', name: 'Banco Macro, C.A.' },
-  { code: '0140', name: 'Banco Interamericano' },
-  { code: '0142', name: 'Banco América Central' },
-  { code: '0143', name: 'Banco del Puente' },
-  { code: '0145', name: 'Banco Carrefour' },
-  { code: '0147', name: 'Banco Anzoátegui' },
-  { code: '0148', name: 'Banco Lara' },
-  { code: '0149', name: 'Banco Mérida' },
-  { code: '0150', name: 'Banco Trujillo' },
-
-  // Bancos de Segundo Piso
-  { code: '0156', name: 'Banco de Desarrollo de la Mujer' },
-  { code: '0157', name: 'Banco Nacional de Crédito Agrícola' },
-  { code: '0158', name: 'Banco del Caribe de Venezuela' },
-  { code: '0159', name: 'Banco de la República de Venezuela' },
-  { code: '0160', name: 'Banco de Crédito para la Construcción' },
-
-  // Instituciones de Pago Electrónico
-  { code: '0168', name: 'Banesco Provisiones, C.A.' },
-  { code: '0169', name: 'Misión Vivienda Venezuela, C.A.' },
-  { code: '0170', name: 'Banco de Inversiones de Venezuela' },
-  { code: '0171', name: 'Empresa Operadora de Valores' },
-  { code: '0172', name: 'Banco Bicentenario de Inversión' },
-  { code: '0173', name: 'Valores Analíticos, C.A.' },
+  // Bancos Comerciales y Universales de Venezuela
+  { code: '0001', name: 'Banco Central de Venezuela (BCV)' },
+  { code: '0102', name: 'Banco de Venezuela' },
+  { code: '0104', name: 'Banco Venezolano de Crédito' },
+  { code: '0105', name: 'Banco Mercantil' },
+  { code: '0108', name: 'BBVA Provincial' },
+  { code: '0114', name: 'Bancaribe' },
+  { code: '0115', name: 'Banco Exterior' },
+  { code: '0116', name: 'Banco Occidental de Descuento (BOD)' },
+  { code: '0128', name: 'Banco Caroní' },
+  { code: '0134', name: 'Banesco' },
+  { code: '0137', name: 'Banco Sofitasa' },
+  { code: '0138', name: 'Banco Plaza' },
+  { code: '0146', name: 'Bangente' },
+  { code: '0151', name: 'BFC Banco Fondo Común' },
+  { code: '0156', name: '100% Banco' },
+  { code: '0157', name: 'DelSur Banco' },
+  { code: '0163', name: 'Banco del Tesoro' },
+  { code: '0166', name: 'Banco Agrícola de Venezuela' },
+  { code: '0168', name: 'Bancrecer' },
+  { code: '0169', name: 'Mi Banco' },
+  { code: '0171', name: 'Banco Activo' },
+  { code: '0172', name: 'Bancamiga' },
+  { code: '0173', name: 'Banco Internacional de Desarrollo' },
+  { code: '0174', name: 'Banplus' },
+  { code: '0175', name: 'Banco Bicentenario' },
+  { code: '0176', name: 'Banco Espirito Santo' },
+  { code: '0177', name: 'BANFANB' },
+  { code: '0191', name: 'Banco Nacional de Crédito (BNC)' },
+  // Instituciones financieras especiales
+  { code: '0601', name: 'Instituto de Crédito Agrícola y Pecuario' },
+  { code: '1061', name: 'Venezolano de Crédito' },
 ];
 
 export const MOBILE_OPERATORS = [
-  { code: 'movistar', name: 'Movistar (0414, 0424)' },
-  { code: 'digitel', name: 'Digitel (0412)' },
-  { code: 'movilnet', name: 'Movilnet (0416, 0426)' },
+  { code: '0414', name: 'Movistar (0414)' },
+  { code: '0424', name: 'Movistar (0424)' },
+  { code: '0412', name: 'Digitel (0412)' },
+  { code: '0416', name: 'Digitel (0416)' },
+  { code: '0426', name: 'Digitel (0426)' },
+  { code: '0410', name: 'ANDES (0410)' },
+  { code: '0430', name: 'ANDES (0430)' },
+  { code: '0440', name: 'ANDES (0440)' },
 ];
 
 export const ACCOUNT_TYPES = [
@@ -141,13 +122,16 @@ export function validateVenezuelanPhone(phone: string): { valid: boolean; operat
     return { valid: false, message: 'El teléfono debe tener 10 u 11 dígitos' };
   }
 
-  // Formatos válidos: 0414..., 0424..., 0412..., 0416..., 0426...
+  // Formatos válidos: 0414, 0424, 0412, 0416, 0426, 0410, 0430, 0440
   const operators: Record<string, string> = {
     '0414': 'Movistar',
     '0424': 'Movistar',
     '0412': 'Digitel',
-    '0416': 'Movilnet',
-    '0426': 'Movilnet',
+    '0416': 'Digitel',
+    '0426': 'Digitel',
+    '0410': 'ANDES',
+    '0430': 'ANDES',
+    '0440': 'ANDES',
   };
 
   const prefix = cleaned.substring(0, 4);
@@ -155,7 +139,7 @@ export function validateVenezuelanPhone(phone: string): { valid: boolean; operat
   if (!operators[prefix]) {
     return {
       valid: false,
-      message: 'Prefijo telefónico no válido (use 0414, 0424, 0412, 0416 o 0426)',
+      message: 'Prefijo telefónico no válido (use 0414, 0424, 0412, 0416, 0426, 0410, 0430 o 0440)',
     };
   }
 
