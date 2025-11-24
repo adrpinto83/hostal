@@ -107,6 +107,32 @@ def list_backups(current_user: User = Depends(require_admin)):
         )
 
 
+@router.get("/database-info")
+def get_database_info(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Obtiene información detallada sobre el contenido de la base de datos."""
+    try:
+        from app.services.backup import BackupService
+        info = BackupService.get_database_info(db)
+
+        log_action(
+            "database_info_accessed",
+            "system",
+            current_user.id,
+            current_user,
+            details={"total_records": info.get("total_records", 0)},
+        )
+
+        return info
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error obteniendo información de la base de datos: {str(e)}",
+        )
+
+
 @router.get("/{backup_id}", response_model=BackupOut)
 def get_backup(
     backup_id: str,
@@ -266,4 +292,132 @@ def download_backup(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error descargando respaldo: {str(e)}",
+        )
+
+
+@router.post("/reset-database")
+def reset_database(
+    confirm: bool = False,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Resetea la base de datos eliminando todos los datos y dejando solo el usuario admin.
+
+    ⚠️ ADVERTENCIA CRÍTICA: Esta operación eliminará TODOS los datos del sistema de forma PERMANENTE.
+    Solo quedará el usuario administrador actual.
+
+    Requiere confirmación explícita (confirm=true).
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debes confirmar el reseteo (confirm=true)",
+        )
+
+    try:
+        from app.services.backup import BackupService
+        result = BackupService.reset_database(db, keep_admin_user_id=current_user.id)
+
+        log_action(
+            "database_reset",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "admin_preserved": current_user.email,
+                "records_deleted": result.get("records_deleted", 0),
+            },
+        )
+
+        return result
+    except Exception as e:
+        log_action(
+            "database_reset_failed",
+            "system",
+            current_user.id,
+            current_user,
+            details={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reseteando base de datos: {str(e)}",
+        )
+
+
+@router.post("/generate-test-data")
+def generate_test_data(
+    count: int = 10,
+    force: bool = False,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Genera datos de prueba en la base de datos.
+
+    Args:
+        count: Número de registros base a generar (default: 10, max: 500)
+        force: Si es True, genera datos incluso si ya existen datos (default: False)
+
+    Genera datos de prueba para:
+    - Huéspedes
+    - Habitaciones
+    - Reservas
+    - Pagos
+    - Facturas con líneas de factura
+    - Staff
+    - Dispositivos de red
+    - Ocupancias
+    - Actividades de red
+    - Y más...
+    """
+    if count < 1 or count > 500:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El número de registros debe estar entre 1 y 500",
+        )
+
+    try:
+        from app.services.backup import BackupService
+
+        # Verificar si ya existen datos
+        db_info = BackupService.get_database_info(db)
+        total_records = db_info.get("total_records", 0)
+
+        # Excluir usuarios del conteo (siempre habrá al menos el admin)
+        total_records_without_users = total_records - db_info.get("tables", {}).get("users", 0)
+
+        if total_records_without_users > 0 and not force:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "La base de datos ya contiene datos. Usa force=true para generar datos de prueba de todas formas.",
+                    "existing_records": total_records,
+                    "tables": db_info.get("tables", {}),
+                },
+            )
+
+        result = BackupService.generate_test_data(db, base_count=count)
+
+        log_action(
+            "test_data_generated",
+            "system",
+            current_user.id,
+            current_user,
+            details={
+                "base_count": count,
+                "records_created": result.get("total_records_created", 0),
+            },
+        )
+
+        return result
+    except Exception as e:
+        log_action(
+            "test_data_generation_failed",
+            "system",
+            current_user.id,
+            current_user,
+            details={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generando datos de prueba: {str(e)}",
         )
