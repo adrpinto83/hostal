@@ -160,6 +160,7 @@ export interface Maintenance {
   area_category?: string;
   assigned_staff_name?: string;
   duration_hours?: number;
+  inventory_items?: MaintenanceInventoryUsageOut[];
 }
 
 export interface LoginRequest {
@@ -214,8 +215,54 @@ export interface DashboardStats {
     total: number;
     active: number;
     by_status: Record<string, number>;
-    by_role: Record<string, number>;
+  by_role: Record<string, number>;
   };
+}
+
+// Inventory Types
+export type InventoryCategory = 'equipment' | 'consumable' | 'cleaning' | 'product' | 'spare_part' | 'other';
+
+export interface InventoryItem {
+  id: number;
+  name: string;
+  sku?: string;
+  category: InventoryCategory;
+  unit: string;
+  description?: string;
+  quantity_on_hand: number;
+  min_stock: number;
+  location?: string;
+  vendor?: string;
+  cost_per_unit?: number;
+  allow_negative_stock: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryTransaction {
+  id: number;
+  item_id: number;
+  transaction_type: 'purchase' | 'adjustment' | 'usage' | 'transfer';
+  quantity_change: number;
+  unit_cost?: number;
+  reference?: string;
+  reference_id?: number;
+  reference_type?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface MaintenanceInventoryUsageOut {
+  id: number;
+  maintenance_id: number;
+  inventory_item_id: number;
+  item_name: string;
+  quantity_used: number;
+  unit_cost?: number;
+  total_cost: number;
+  notes?: string;
+  used_at: string;
 }
 
 // Payment Types

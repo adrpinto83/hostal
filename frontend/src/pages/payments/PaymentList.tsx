@@ -48,12 +48,6 @@ const methodLabels: Record<PaymentMethod | string, string> = {
   other: 'Otro',
 };
 
-const currencySymbol: Record<Currency | string, string> = {
-  USD: '$',
-  EUR: '€',
-  VES: 'Bs.',
-};
-
 const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-800',
   pending: 'bg-yellow-100 text-yellow-800',
@@ -414,18 +408,20 @@ export default function PaymentList() {
         <Card
           className="border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow cursor-pointer"
           onClick={() => {
-            setFilters({ ...filters, currency: 'USD' });
+            setFilters({ ...filters, currency: displayCurrency });
             setShowFilters(true);
           }}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm uppercase text-gray-500 font-semibold">Ingresos USD</p>
-                <p className="text-3xl font-bold mt-2 text-gray-900">
-                  ${stats?.total_usd?.toFixed(2) ?? '0.00'}
+                <p className="text-sm uppercase text-gray-500 font-semibold">
+                  Ingresos ({displayCurrency})
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Conversión automática</p>
+                <p className="text-3xl font-bold mt-2 text-gray-900">
+                  {formatAmountFromUsd(stats?.total_usd)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Basado en tasa {displayCurrency}</p>
               </div>
               <DollarSign className="h-12 w-12 text-blue-500 opacity-20" />
             </div>
@@ -541,16 +537,19 @@ export default function PaymentList() {
                 >
                   <div className="flex items-center gap-2">
                     <Wallet className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm text-gray-700 capitalize">
-                      {item.method.replace('_', ' ')}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-700 capitalize">
+                        {item.method.replace('_', ' ')}
+                      </span>
+                      <span className="text-xs text-gray-500">{formatAmountFromUsd(item.total_usd)}</span>
+                    </div>
                   </div>
                   <span className="text-sm font-semibold text-gray-900">{item.count}</span>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+         </CardContent>
+       </Card>
 
         {/* Currency Breakdown */}
         <Card className="hover:shadow-lg transition-shadow">
@@ -560,24 +559,27 @@ export default function PaymentList() {
               Monedas
             </p>
             <div className="space-y-3">
-              {['USD', 'EUR', 'VES'].map((currency) => {
-                const count = stats?.by_method?.length ?? 0; // Placeholder, you might want to add actual currency breakdown in the API
-                return (
-                  <div
-                    key={currency}
-                    className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors"
-                    onClick={() => {
-                      setFilters({ ...filters, currency: currency });
-                      setShowFilters(true);
-                    }}
-                  >
-                    <span className="text-sm text-gray-700">{currency}</span>
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-700">
-                      {currencySymbol[currency]}
-                    </span>
+              {(stats?.by_currency ?? []).length === 0 && (
+                <p className="text-sm text-gray-500">Sin datos recientes por moneda.</p>
+              )}
+              {stats?.by_currency?.map((item) => (
+                <div
+                  key={item.currency}
+                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors"
+                  onClick={() => {
+                    setFilters({ ...filters, currency: item.currency });
+                    setShowFilters(true);
+                  }}
+                >
+                  <div className="flex flex-col">
+                    <span className="text-sm text-gray-700">{item.currency}</span>
+                    <span className="text-xs text-gray-500">{item.count} pagos</span>
                   </div>
-                );
-              })}
+                  <span className="text-sm font-semibold text-gray-900">
+                    {formatAmount(item.total, item.currency)}
+                  </span>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

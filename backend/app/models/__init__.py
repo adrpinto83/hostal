@@ -18,6 +18,13 @@ from .network_device import (
     ConnectionStatus,
     AuthType,
 )
+from .inventory import (
+    InventoryCategory,
+    InventoryItem,
+    InventoryTransaction,
+    InventoryTransactionType,
+    MaintenanceInventoryUsage,
+)
 from .occupancy import Occupancy
 from .payment import Currency, Payment, PaymentMethod, PaymentStatus
 from .reservation import Period, Reservation, ReservationStatus
@@ -60,6 +67,12 @@ __all__ = [
     "DeviceType",
     "ConnectionStatus",
     "AuthType",
+    # Inventory
+    "InventoryCategory",
+    "InventoryItem",
+    "InventoryTransaction",
+    "InventoryTransactionType",
+    "MaintenanceInventoryUsage",
     # Payments and currency
     "Payment",
     "PaymentMethod",

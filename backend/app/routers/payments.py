@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ..core.audit import log_action
 from ..core.db import get_db
-from ..core.security import get_current_user, require_roles
+from ..core.security import get_current_user, require_permission
 from ..models.guest import Guest
 from ..models.payment import Currency, Payment, PaymentMethod, PaymentStatus
 from ..models.reservation import Reservation, ReservationStatus
@@ -77,7 +77,7 @@ class PaymentOut(BaseModel):
     "/",
     response_model=PaymentOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Registrar nuevo pago",
     description="Crea un registro de pago con conversión automática a todas las monedas.",
 )
@@ -153,7 +153,7 @@ def create_payment(
 
 @router.get(
     "/",
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Listar pagos",
     description="Obtiene lista de pagos con filtros opcionales.",
 )
@@ -213,7 +213,7 @@ def list_payments(
 @router.get(
     "/{payment_id}",
     response_model=PaymentOut,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Obtener pago",
 )
 def get_payment(payment_id: int, db: Session = Depends(get_db)):
@@ -227,7 +227,7 @@ def get_payment(payment_id: int, db: Session = Depends(get_db)):
 @router.patch(
     "/{payment_id}",
     response_model=PaymentOut,
-    dependencies=[Depends(require_roles("admin"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Actualizar pago",
 )
 def update_payment(
@@ -259,7 +259,7 @@ def update_payment(
 
 @router.delete(
     "/{payment_id}",
-    dependencies=[Depends(require_roles("admin"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Eliminar pago",
 )
 def delete_payment(
@@ -316,7 +316,7 @@ def delete_payment(
 
 @router.get(
     "/stats/summary",
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Resumen de pagos",
     description="Estadísticas generales de pagos en todas las monedas.",
 )
@@ -401,7 +401,7 @@ def get_payment_stats(
 
 @router.get(
     "/reports/by-date",
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Reporte de pagos por fecha",
     description="Obtiene pagos agrupados por día en un rango de fechas.",
 )
@@ -434,25 +434,35 @@ def get_payments_by_date(
 
     result = query.group_by(func.date(Payment.payment_date)).order_by('date').all()
 
+    daily_totals = []
+    for day, count, total_usd, total_original in result:
+        if isinstance(day, str):
+            date_value = day
+        elif isinstance(day, datetime):
+            date_value = day.date().isoformat()
+        else:
+            date_value = day.isoformat() if hasattr(day, "isoformat") else str(day)
+
+        daily_totals.append(
+            {
+                "date": date_value,
+                "count": count,
+                "total_usd": round(total_usd or 0, 2),
+                "total_original": round(total_original or 0, 2),
+            }
+        )
+
     return {
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
         "currency_filter": currency,
-        "daily_totals": [
-            {
-                "date": day.isoformat(),
-                "count": count,
-                "total_usd": round(total_usd or 0, 2),
-                "total_original": round(total_original or 0, 2)
-            }
-            for day, count, total_usd, total_original in result
-        ]
+        "daily_totals": daily_totals,
     }
 
 
 @router.get(
     "/reports/by-guest/{guest_id}",
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Reporte de pagos de un huésped",
 )
 def get_guest_payments_report(
@@ -565,7 +575,7 @@ def get_guest_payments_report(
 
 @router.get(
     "/reports/export",
-    dependencies=[Depends(require_roles("admin"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Exportar datos de pagos",
     description="Exporta datos de pagos en formato CSV (retorna datos listos para CSV).",
 )

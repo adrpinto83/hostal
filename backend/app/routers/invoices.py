@@ -13,7 +13,7 @@ from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..core.security import get_current_user, require_roles
+from ..core.security import get_current_user, require_permission, require_roles
 from ..models.invoice import (
     Invoice, InvoiceLine, InvoicePayment, InvoiceConfiguration,
     InvoiceControlNumber, InvoiceStatus, PaymentStatus
@@ -107,7 +107,7 @@ def calculate_invoice_totals(
     "/",
     response_model=InvoiceResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Crear nueva factura"
 )
 def create_invoice(
@@ -210,7 +210,7 @@ def create_invoice(
 @router.get(
     "/",
     response_model=List[InvoiceListResponse],
-    dependencies=[Depends(require_roles("admin", "recepcionista", "gerente"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Listar facturas"
 )
 def list_invoices(
@@ -245,7 +245,7 @@ def list_invoices(
 @router.get(
     "/{invoice_id}",
     response_model=InvoiceResponse,
-    dependencies=[Depends(require_roles("admin", "recepcionista", "gerente"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Obtener detalle de factura"
 )
 def get_invoice(
@@ -263,7 +263,7 @@ def get_invoice(
 @router.patch(
     "/{invoice_id}",
     response_model=InvoiceResponse,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Actualizar factura"
 )
 def update_invoice(
@@ -335,7 +335,7 @@ def update_invoice(
 @router.post(
     "/{invoice_id}/issue",
     response_model=InvoiceResponse,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Emitir factura"
 )
 def issue_invoice(
@@ -478,7 +478,7 @@ def delete_invoice(
 @router.post(
     "/{invoice_id}/payments",
     response_model=InvoicePaymentResponse,
-    dependencies=[Depends(require_roles("admin", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:write"))],
     summary="Registrar pago de factura"
 )
 def register_payment(
@@ -527,7 +527,7 @@ def register_payment(
 @router.get(
     "/{invoice_id}/payments",
     response_model=List[InvoicePaymentResponse],
-    dependencies=[Depends(require_roles("admin", "recepcionista", "gerente"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Listar pagos de factura"
 )
 def list_payments(
@@ -574,7 +574,7 @@ def upsert_config(
 @router.get(
     "/config",
     response_model=InvoiceConfigResponse,
-    dependencies=[Depends(require_roles("admin", "recepcionista", "gerente"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Obtener configuración de facturación"
 )
 def get_config(
@@ -593,7 +593,7 @@ def get_config(
 @router.get(
     "/stats/summary",
     response_model=InvoiceStatsResponse,
-    dependencies=[Depends(require_roles("admin", "gerente"))],
+    dependencies=[Depends(require_permission("finance:read"))],
     summary="Estadísticas de facturación"
 )
 def get_invoice_stats(
@@ -646,7 +646,7 @@ def get_invoice_stats(
 @router.get(
     "/{id}/printable",
     summary="Obtener factura imprimible en HTML",
-    dependencies=[Depends(require_roles("admin", "gerente", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
 )
 def get_printable_invoice(
     id: int,
@@ -824,7 +824,7 @@ def get_printable_invoice(
 @router.post(
     "/{id}/send-email",
     summary="Enviar factura por correo",
-    dependencies=[Depends(require_roles("admin", "gerente", "recepcionista"))],
+    dependencies=[Depends(require_permission("finance:read"))],
 )
 def send_invoice_email(
     id: int,

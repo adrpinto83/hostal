@@ -9,6 +9,7 @@ from . import (
     exchange_rates,
     guests,
     health,
+    inventory,
     internet_control,
     invoices,
     maintenance,
@@ -45,6 +46,7 @@ api_router.include_router(exchange_rates.router)  # Tasas de cambio
 api_router.include_router(payments.router)  # Pagos multimoneda
 api_router.include_router(payments_v2.router)  # Pagos móviles venezolanos
 api_router.include_router(invoices.router)  # Facturación homologada a Venezuela
+api_router.include_router(inventory.router)  # Inventario
 api_router.include_router(media.router)  # Gestión de archivos
 api_router.include_router(staff.router)  # Gestión de personal
 api_router.include_router(occupancy.router)  # Check-in/Check-out

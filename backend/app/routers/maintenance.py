@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..core.db import get_db
 from ..core.security import get_current_user, require_roles
 from ..models.maintenance import Maintenance, MaintenancePriority, MaintenanceStatus, MaintenanceType
+from ..models.inventory import MaintenanceInventoryUsage
 from ..models.room import Room, RoomStatus
 from ..models.staff import Staff
 from ..models.user import User
@@ -45,6 +46,17 @@ class MaintenanceUpdate(BaseModel):
     notes: str | None = None
 
 
+class MaintenanceInventoryUsageOut(BaseModel):
+    id: int
+    inventory_item_id: int
+    item_name: str
+    quantity_used: float
+    unit_cost: float | None
+    total_cost: float
+    used_at: str
+    notes: str | None
+
+
 class MaintenanceResponse(BaseModel):
     id: int
     room_id: int
@@ -65,6 +77,7 @@ class MaintenanceResponse(BaseModel):
     room_number: str | None = None
     assigned_staff_name: str | None = None
     duration_hours: float | None = None
+    inventory_items: list[MaintenanceInventoryUsageOut] = []
 
     class Config:
         from_attributes = True
@@ -91,6 +104,23 @@ def _build_maintenance_response(maintenance: Maintenance, db: Session | None = N
         if room:
             room_number = room.number
 
+    inventory_items: list[MaintenanceInventoryUsageOut] = []
+    if maintenance.inventory_usages:
+        for usage in maintenance.inventory_usages:
+            item_name = usage.item.name if usage.item else "Item"
+            inventory_items.append(
+                MaintenanceInventoryUsageOut(
+                    id=usage.id,
+                    inventory_item_id=usage.inventory_item_id,
+                    item_name=item_name,
+                    quantity_used=usage.quantity_used,
+                    unit_cost=usage.unit_cost,
+                    total_cost=usage.total_cost,
+                    used_at=usage.used_at.isoformat(),
+                    notes=usage.notes,
+                )
+            )
+
     return MaintenanceResponse(
         id=maintenance.id,
         room_id=maintenance.room_id,
@@ -109,6 +139,7 @@ def _build_maintenance_response(maintenance: Maintenance, db: Session | None = N
         room_number=room_number,
         assigned_staff_name=assigned_staff_name,
         duration_hours=round(duration_hours, 2) if duration_hours else None,
+        inventory_items=inventory_items,
     )
 
 
@@ -189,6 +220,7 @@ def list_maintenance(
     query = db.query(Maintenance).options(
         joinedload(Maintenance.room),
         joinedload(Maintenance.staff),
+        joinedload(Maintenance.inventory_usages).joinedload(MaintenanceInventoryUsage.item),
     )
 
     if room_id:

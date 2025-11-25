@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   HardDrive,
   FileText,
+  Box,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/lib/hooks/useSidebar';
@@ -31,22 +32,48 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Huéspedes', href: '/guests', icon: Users },
-  { name: 'Habitaciones', href: '/rooms', icon: Bed },
-  { name: 'Reservas', href: '/reservations', icon: Calendar },
-  { name: 'Ocupación', href: '/occupancy', icon: DoorOpen },
-  { name: 'Pagos', href: '/payments', icon: DollarSign },
-  { name: 'Facturación', href: '/invoices', icon: FileText },
-  { name: 'Reportes', href: '/payments/reports', icon: BarChart3 },
-  { name: 'Tasas de Cambio', href: '/exchange-rates', icon: TrendingUp },
-  { name: 'Red', href: '/network', icon: Wifi },
-  { name: 'Dispositivos', href: '/devices', icon: Monitor },
-  { name: 'Config. Red', href: '/network-devices', icon: Wifi },
-  { name: 'Personal', href: '/staff', icon: UserCog },
-  { name: 'Mantenimiento', href: '/maintenance', icon: Wrench },
-  { name: 'Usuarios', href: '/users', icon: Shield },
+const navigationGroups = [
+  {
+    label: 'Operación',
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: Home },
+      { name: 'Ocupación', href: '/occupancy', icon: DoorOpen },
+      { name: 'Mantenimiento', href: '/maintenance', icon: Wrench },
+      { name: 'Inventario', href: '/inventory', icon: Box },
+    ],
+  },
+  {
+    label: 'Clientes & Habitaciones',
+    items: [
+      { name: 'Huéspedes', href: '/guests', icon: Users },
+      { name: 'Habitaciones', href: '/rooms', icon: Bed },
+      { name: 'Reservas', href: '/reservations', icon: Calendar },
+    ],
+  },
+  {
+    label: 'Finanzas',
+    items: [
+      { name: 'Pagos', href: '/payments', icon: DollarSign },
+      { name: 'Reportes', href: '/payments/reports', icon: BarChart3 },
+      { name: 'Facturación', href: '/invoices', icon: FileText },
+      { name: 'Tasas de Cambio', href: '/exchange-rates', icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Red & Dispositivos',
+    items: [
+      { name: 'Red', href: '/network', icon: Wifi },
+      { name: 'Dispositivos', href: '/devices', icon: Monitor },
+      { name: 'Config. Red', href: '/network-devices', icon: Wifi },
+    ],
+  },
+  {
+    label: 'Equipo & Seguridad',
+    items: [
+      { name: 'Personal', href: '/staff', icon: UserCog },
+      { name: 'Usuarios', href: '/users', icon: Shield },
+    ],
+  },
 ];
 
 const adminNavigation = [
@@ -110,9 +137,23 @@ export default function Sidebar() {
           <h1 className={cn("text-xl font-bold whitespace-nowrap", isCollapsed && 'hidden')}>JADs Hostal Manager</h1>
         </Link>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
-        {navigation.map((item) => (
-          <NavLink key={item.name} item={item} isCollapsed={isCollapsed} />
+      <nav className="flex-1 space-y-4 px-3 py-4 overflow-y-auto">
+        {navigationGroups.map((group) => (
+          <div key={group.label}>
+            <div
+              className={cn(
+                "text-xs font-semibold uppercase tracking-wide text-gray-400 px-3 mb-1",
+                isCollapsed && "hidden"
+              )}
+            >
+              {group.label}
+            </div>
+            <div className="space-y-1">
+              {group.items.map((item) => (
+                <NavLink key={item.name} item={item} isCollapsed={isCollapsed} />
+              ))}
+            </div>
+          </div>
         ))}
 
         {isAdmin && (

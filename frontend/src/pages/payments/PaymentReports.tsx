@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { PaymentsByDate } from '@/types';
+import { handleApiError } from '@/lib/api/client';
 
 export default function PaymentReports() {
   const [days, setDays] = useState(30);
@@ -13,6 +15,9 @@ export default function PaymentReports() {
     start: '',
     end: '',
   });
+  const [reportData, setReportData] = useState<PaymentsByDate | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   // Query payment stats
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -20,13 +25,110 @@ export default function PaymentReports() {
     queryFn: () => paymentsApi.getStats(days),
   });
 
-  // Query payments by date (only when date range is set)
-  const { data: byDate } = useQuery({
-    queryKey: ['payments-by-date', dateRange],
-    queryFn: () =>
-      paymentsApi.getByDate(dateRange.start, dateRange.end),
-    enabled: !!dateRange.start && !!dateRange.end,
-  });
+  const canGenerate = Boolean(dateRange.start && dateRange.end);
+
+  const openPrintableReport = (report: PaymentsByDate) => {
+    const totalCount = report.daily_totals.reduce((sum, day) => sum + day.count, 0);
+    const totalUsd = report.daily_totals.reduce((sum, day) => sum + day.total_usd, 0);
+    const totalOriginal = report.daily_totals.reduce(
+      (sum, day) => sum + day.total_original,
+      0
+    );
+
+    const rowsHtml = report.daily_totals
+      .map(
+        (day) => `
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${new Date(day.date).toLocaleDateString('es-VE')}</td>
+            <td style="padding:8px;text-align:right;border-bottom:1px solid #eee;">${day.count}</td>
+            <td style="padding:8px;text-align:right;border-bottom:1px solid #eee;">$${day.total_usd.toFixed(2)}</td>
+            <td style="padding:8px;text-align:right;border-bottom:1px solid #eee;">${day.total_original.toFixed(2)}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Reporte de Pagos</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #111827; }
+          h1 { color: #1f2937; }
+          .summary { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .summary div { text-align: right; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { text-align: left; padding: 10px; background: #f3f4f6; border-bottom: 2px solid #e5e7eb; }
+        </style>
+      </head>
+      <body>
+        <h1>Reporte de Pagos</h1>
+        <p>Rango: ${new Date(report.start_date).toLocaleDateString('es-VE')} - ${new Date(
+      report.end_date
+    ).toLocaleDateString('es-VE')}</p>
+        ${report.currency_filter ? `<p>Filtrado por moneda: ${report.currency_filter}</p>` : ''}
+        <div class="summary">
+          <div>
+            <strong>Total transacciones:</strong>
+            <div>${totalCount}</div>
+          </div>
+          <div>
+            <strong>Total USD:</strong>
+            <div>$${totalUsd.toFixed(2)}</div>
+          </div>
+          <div>
+            <strong>Total Original:</strong>
+            <div>${totalOriginal.toFixed(2)}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th style="text-align:right;">Cantidad</th>
+              <th style="text-align:right;">Total USD</th>
+              <th style="text-align:right;">Total Original</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="4" style="text-align:center;padding:20px;">Sin datos</td></tr>'}
+          </tbody>
+        </table>
+        <script>
+          window.addEventListener('load', () => {
+            window.print();
+          });
+        </script>
+      </body>
+      </html>
+    `;
+
+    const reportWindow = window.open('', '_blank', 'width=900,height=600');
+    if (!reportWindow) {
+      return;
+    }
+    reportWindow.document.write(html);
+    reportWindow.document.close();
+  };
+
+  const handleGenerateReport = async () => {
+    if (!canGenerate) {
+      return;
+    }
+    setReportError(null);
+    setIsGenerating(true);
+    try {
+      const data = await paymentsApi.getByDate(dateRange.start, dateRange.end);
+      setReportData(data);
+      openPrintableReport(data);
+    } catch (error) {
+      setReportError(handleApiError(error));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const getCurrencySymbol = (currency: string) => {
     const symbols: Record<string, string> = {
@@ -234,74 +336,87 @@ export default function PaymentReports() {
             </div>
             <div className="flex items-end">
               <Button
-                onClick={() => {
-                  // Query will auto-execute when dates are set
-                }}
-                disabled={!dateRange.start || !dateRange.end}
+                onClick={handleGenerateReport}
+                disabled={!canGenerate || isGenerating}
               >
-                Generar Reporte
+                {isGenerating ? 'Generando…' : 'Generar Reporte'}
               </Button>
             </div>
           </div>
 
-          {byDate && (
+          {reportError && (
+            <div className="p-3 rounded bg-red-50 text-red-700 text-sm mb-4">
+              {reportError}
+            </div>
+          )}
+
+          {reportData && (
             <div className="mt-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-semibold">
-                  Totales por Día ({byDate.daily_totals.length} días)
+                  Totales por Día ({reportData.daily_totals.length} días)
                 </h3>
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openPrintableReport(reportData)}
+                  disabled={reportData.daily_totals.length === 0}
+                >
                   <Download className="h-4 w-4 mr-2" />
-                  Exportar
+                  Imprimir
                 </Button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Fecha</th>
-                      <th className="text-right p-2">Cantidad</th>
-                      <th className="text-right p-2">Total USD</th>
-                      <th className="text-right p-2">Total Original</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byDate.daily_totals.map((day) => (
-                      <tr key={day.date} className="border-b hover:bg-gray-50">
-                        <td className="p-2">
-                          {new Date(day.date).toLocaleDateString()}
+              {reportData.daily_totals.length === 0 ? (
+                <p className="text-sm text-gray-500">No hay datos para el rango seleccionado.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Fecha</th>
+                        <th className="text-right p-2">Cantidad</th>
+                        <th className="text-right p-2">Total USD</th>
+                        <th className="text-right p-2">Total Original</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportData.daily_totals.map((day) => (
+                        <tr key={day.date} className="border-b hover:bg-gray-50">
+                          <td className="p-2">
+                            {new Date(day.date).toLocaleDateString()}
+                          </td>
+                          <td className="text-right p-2">{day.count}</td>
+                          <td className="text-right p-2 font-semibold text-green-600">
+                            ${day.total_usd.toFixed(2)}
+                          </td>
+                          <td className="text-right p-2">
+                            {day.total_original.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t-2">
+                      <tr>
+                        <td className="p-2 font-bold">Total</td>
+                        <td className="text-right p-2 font-bold">
+                          {reportData.daily_totals.reduce((sum, d) => sum + d.count, 0)}
                         </td>
-                        <td className="text-right p-2">{day.count}</td>
-                        <td className="text-right p-2 font-semibold text-green-600">
-                          ${day.total_usd.toFixed(2)}
+                        <td className="text-right p-2 font-bold text-green-600">
+                          $
+                          {reportData.daily_totals
+                            .reduce((sum, d) => sum + d.total_usd, 0)
+                            .toFixed(2)}
                         </td>
-                        <td className="text-right p-2">
-                          {day.total_original.toFixed(2)}
+                        <td className="text-right p-2 font-bold">
+                          {reportData.daily_totals
+                            .reduce((sum, d) => sum + d.total_original, 0)
+                            .toFixed(2)}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2">
-                    <tr>
-                      <td className="p-2 font-bold">Total</td>
-                      <td className="text-right p-2 font-bold">
-                        {byDate.daily_totals.reduce((sum, d) => sum + d.count, 0)}
-                      </td>
-                      <td className="text-right p-2 font-bold text-green-600">
-                        $
-                        {byDate.daily_totals
-                          .reduce((sum, d) => sum + d.total_usd, 0)
-                          .toFixed(2)}
-                      </td>
-                      <td className="text-right p-2 font-bold">
-                        {byDate.daily_totals
-                          .reduce((sum, d) => sum + d.total_original, 0)
-                          .toFixed(2)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

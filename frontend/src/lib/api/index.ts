@@ -58,6 +58,9 @@ import type {
   InvoiceListResponse,
   InvoiceStats,
   InvoicePaymentCreate,
+  InventoryItem,
+  InventoryTransaction,
+  InventoryCategory,
 } from '@/types';
 
 // Staff API (Complete)
@@ -258,6 +261,40 @@ export const roomsApi = {
   },
   getStats: async () => {
     const response = await api.get('/rooms/stats/summary');
+    return response.data;
+  },
+};
+
+export const inventoryApi = {
+  getItems: async (params?: { category?: InventoryCategory; low_stock_only?: boolean; search?: string }) => {
+    const response = await api.get<InventoryItem[]>('/inventory/items', { params });
+    return response.data;
+  },
+  getLowStock: async () => {
+    const response = await api.get<InventoryItem[]>('/inventory/low-stock');
+    return response.data;
+  },
+  createItem: async (data: Partial<InventoryItem> & { name: string }) => {
+    const response = await api.post<InventoryItem>('/inventory/items', data);
+    return response.data;
+  },
+  updateItem: async (id: number, data: Partial<InventoryItem>) => {
+    const response = await api.patch<InventoryItem>(`/inventory/items/${id}`, data);
+    return response.data;
+  },
+  deleteItem: async (id: number) => {
+    await api.delete(`/inventory/items/${id}`);
+  },
+  adjustStock: async (id: number, data: { quantity: number; transaction_type?: InventoryTransaction['transaction_type']; reference?: string; notes?: string }) => {
+    const response = await api.post<InventoryItem>(`/inventory/items/${id}/adjust`, data);
+    return response.data;
+  },
+  getTransactions: async (params?: { item_id?: number; limit?: number }) => {
+    const response = await api.get<InventoryTransaction[]>('/inventory/transactions', { params });
+    return response.data;
+  },
+  logUsage: async (data: { maintenance_id: number; inventory_item_id: number; quantity_used: number; unit_cost?: number; notes?: string }) => {
+    const response = await api.post('/inventory/usage', data);
     return response.data;
   },
 };

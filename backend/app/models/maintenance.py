@@ -86,6 +86,11 @@ class Maintenance(Base):
     # Relaciones
     room = relationship("Room", back_populates="maintenances")
     staff = relationship("Staff", foreign_keys=[assigned_to], backref="maintenances")
+    inventory_usages = relationship(
+        "MaintenanceInventoryUsage",
+        back_populates="maintenance",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def duration_hours(self) -> float | None:

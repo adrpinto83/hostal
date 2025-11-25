@@ -1,13 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { dashboardApi, bandwidthApi, occupancyApi, reservationsApi } from '@/lib/api';
 import { Bed, Users, Wrench, UserCog, Activity, Download, Upload, DollarSign, CalendarDays, ArrowUp, ArrowDown, AlertCircle, CheckCircle2, Clock, TrendingUp } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line, Legend, PieChart, Pie } from 'recharts';
 import { ExchangeRates } from '@/components/ui/exchange-rates';
 import { Button } from '@/components/ui/button';
+
+type SupportedCurrency = 'VES' | 'USD' | 'EUR';
+interface ExchangeRatesResponse {
+  USD: number;
+  EUR: number;
+  timestamp?: string;
+}
 
 // Skeleton Card Component
 const SkeletonCard = () => (
@@ -63,6 +70,8 @@ const CircularProgress = ({ percentage, size = 120 }: { percentage: number; size
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [displayCurrency, setDisplayCurrency] = useState<SupportedCurrency>('VES');
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRatesResponse | null>(null);
 
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ['dashboard-stats'],
@@ -83,6 +92,59 @@ export default function Dashboard() {
     queryKey: ['bandwidth-summary'],
     queryFn: () => bandwidthApi.getSummary(7),
   });
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (mounted) {
+          setExchangeRates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchRates();
+    const interval = setInterval(fetchRates, 30 * 60 * 1000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const supportedCurrencies: SupportedCurrency[] = ['VES', 'USD', 'EUR'];
+
+  const convertAmount = (amount: number, sourceCurrency: SupportedCurrency): number => {
+    if (sourceCurrency === displayCurrency) {
+      return amount;
+    }
+    if (!exchangeRates) {
+      return amount;
+    }
+
+    const ratesToVES: Record<SupportedCurrency, number> = {
+      VES: 1,
+      USD: exchangeRates.USD,
+      EUR: exchangeRates.EUR,
+    };
+
+    const amountInVES =
+      sourceCurrency === 'VES' ? amount : amount * ratesToVES[sourceCurrency];
+
+    if (displayCurrency === 'VES') {
+      return amountInVES;
+    }
+
+    return amountInVES / ratesToVES[displayCurrency];
+  };
+
+  const formatAmount = (amount: number, sourceCurrency: SupportedCurrency) => {
+    return formatCurrency(convertAmount(amount, sourceCurrency), displayCurrency);
+  };
 
   // Calculate occupancy percentage
   const occupancyPercentage = stats
@@ -116,6 +178,12 @@ export default function Dashboard() {
       : []),
   ];
 
+  const revenueBs = stats?.occupancy.revenue.total_bs ?? 0;
+  const revenueUsd = stats?.occupancy.revenue.total_usd ?? 0;
+  const totalRevenueDisplay = convertAmount(revenueBs, 'VES') + convertAmount(revenueUsd, 'USD');
+  const occupiedRoomsCount = stats?.occupancy.occupied_rooms ?? 0;
+  const averageRevenuePerRoom = occupiedRoomsCount > 0 ? totalRevenueDisplay / occupiedRoomsCount : 0;
+
   const roomStatusData = [
     { name: 'Disponibles', value: stats?.rooms.available || 0, fill: '#22c55e' },
     { name: 'Ocupadas', value: stats?.rooms.occupied || 0, fill: '#3b82f6' },
@@ -124,11 +192,43 @@ export default function Dashboard() {
     { name: 'Fuera de Servicio', value: stats?.rooms.out_of_service || 0, fill: '#ef4444' },
   ];
 
+  const maintenanceStatusData = Object.entries(stats?.maintenance.by_status || {}).map(([status, value]) => ({
+    name: status.replace('_', ' '),
+    value,
+  }));
+
+  const maintenancePriorityEntries = Object.entries(stats?.maintenance.by_priority || {}).sort((a, b) => b[1] - a[1]);
+  const staffRoleEntries = Object.entries(stats?.staff.by_role || {}).sort((a, b) => b[1] - a[1]);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard General</h1>
-        <p className="text-sm text-gray-500">{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard General</h1>
+          <p className="text-sm text-gray-500">
+            {new Date().toLocaleDateString('es-ES', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-gray-500">Moneda</label>
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={displayCurrency}
+            onChange={(e) => setDisplayCurrency(e.target.value as SupportedCurrency)}
+            disabled={!exchangeRates}
+          >
+            {supportedCurrencies.map((currency) => (
+              <option key={currency} value={currency}>
+                {currency === 'VES' ? 'Bolívares (VES)' : currency === 'USD' ? 'Dólares (USD)' : 'Euros (EUR)'}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -264,6 +364,55 @@ export default function Dashboard() {
         </Button>
       </div>
 
+      {/* Today Insights */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <ArrowDown className="h-4 w-4 text-blue-500" />
+              Check-ins hoy
+            </CardTitle>
+            <span className="text-xs text-gray-500">Agenda</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{todaysCheckIns.length}</div>
+            <p className="text-xs text-gray-500">
+              {todaysCheckIns.length > 0 ? todaysCheckIns.slice(0, 2).map((r) => r.guest.full_name).join(', ') : 'Sin llegadas registradas'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-orange-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <ArrowUp className="h-4 w-4 text-orange-500" />
+              Check-outs hoy
+            </CardTitle>
+            <span className="text-xs text-gray-500">Salidas</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{todaysCheckOuts.length}</div>
+            <p className="text-xs text-gray-500">
+              {todaysCheckOuts.length > 0 ? todaysCheckOuts.slice(0, 2).map((r) => r.guest.full_name).join(', ') : 'Sin salidas programadas'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              Ocupación
+            </CardTitle>
+            <span className="text-xs text-gray-500">{stats?.rooms.total || 0} habitaciones</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{occupancyPercentage.toFixed(1)}%</div>
+            <p className="text-xs text-gray-500">
+              {stats?.occupancy.active_occupancies || 0} estadías activas / {stats?.rooms.occupied || 0} habitaciones ocupadas
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Occupancy Rate and Today's Schedule */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="md:col-span-1">
@@ -339,18 +488,25 @@ export default function Dashboard() {
                 <div className="h-4 w-full rounded bg-gray-200"></div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Bolívares (VES):</span>
-                  <span className="text-lg font-semibold">
-                    {formatCurrency(stats?.occupancy.revenue.total_bs || 0, 'VES')}
-                  </span>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs uppercase text-gray-500">Total ({displayCurrency})</p>
+                  <p className="text-3xl font-bold mt-1">{formatCurrency(totalRevenueDisplay, displayCurrency)}</p>
+                  <p className="text-xs text-gray-500">Promedio por habitación: {formatCurrency(averageRevenuePerRoom || 0, displayCurrency)}</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Dólares (USD):</span>
-                  <span className="text-lg font-semibold">
-                    {formatCurrency(stats?.occupancy.revenue.total_usd || 0, 'USD')}
-                  </span>
+                <div className="text-xs text-gray-500 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span>Origen VES</span>
+                    <span className="font-semibold">
+                      {formatAmount(revenueBs, 'VES')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Origen USD</span>
+                    <span className="font-semibold">
+                      {formatAmount(revenueUsd, 'USD')}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -388,7 +544,7 @@ export default function Dashboard() {
       <ExchangeRates />
 
       {/* Internet Usage */}
-      <div className="grid gap-4 lg:grid-cols-1">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Uso de Internet (7 días)</CardTitle>
@@ -439,6 +595,63 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Estado de Mantenimiento</CardTitle>
+            <Wrench className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="h-48">
+              {isLoadingStats || maintenanceStatusData.length === 0 ? (
+                <div className="h-full w-full rounded bg-gray-200 animate-pulse"></div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={maintenanceStatusData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={3}
+                    >
+                      {maintenanceStatusData.map((entry, index) => (
+                        <Cell
+                          key={`maintenance-${entry.name}`}
+                          fill={['#94a3b8', '#f97316', '#22c55e', '#3b82f6', '#ef4444'][index % 5]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="text-xs uppercase text-gray-500 mb-1">Por prioridad</p>
+                {maintenancePriorityEntries.length === 0 && (
+                  <p className="text-xs text-gray-400">Sin tareas registradas</p>
+                )}
+                {maintenancePriorityEntries.slice(0, 3).map(([priority, count]) => (
+                  <div key={priority} className="flex items-center justify-between">
+                    <span className="capitalize">{priority.replace('_', ' ')}</span>
+                    <span className="font-semibold">{count}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-xs uppercase text-gray-500 mb-1">Roles activos</p>
+                {staffRoleEntries.slice(0, 3).map(([role, count]) => (
+                  <div key={role} className="flex items-center justify-between">
+                    <span className="capitalize">{role.replace('_', ' ')}</span>
+                    <span className="font-semibold">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

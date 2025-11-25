@@ -27,6 +27,7 @@ import NetworkDevicesList from './pages/network-admin/NetworkDevicesList';
 import NetworkDeviceForm from './pages/network-admin/NetworkDeviceForm';
 import InvoiceList from './pages/invoices/InvoiceList';
 import InvoiceConfig from './pages/invoices/InvoiceConfig';
+import InventoryList from './pages/inventory/InventoryList';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,6 +60,7 @@ function App() {
             <Route path="staff" element={<StaffList />} />
             <Route path="occupancy" element={<OccupancyList />} />
             <Route path="maintenance" element={<MaintenanceList />} />
+            <Route path="inventory" element={<InventoryList />} />
             <Route path="network" element={<NetworkMonitoring />} />
             <Route path="devices" element={<DeviceList />} />
             <Route path="users" element={<UserList />} />

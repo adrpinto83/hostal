@@ -18,6 +18,40 @@ pwd_context = CryptContext(
 )
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+ROLE_HIERARCHY = {
+    "admin": 4,
+    "gerente": 3,
+    "recepcionista": 2,
+    "mantenimiento": 1,
+    "auditor": 2,
+    "user": 0,
+}
+
+ROLE_PERMISSIONS = {
+    "admin": {"*"},
+    "gerente": {
+        "finance:read",
+        "inventory:read",
+        "inventory:write",
+        "inventory:consume",
+        "maintenance:manage",
+        "reports:read",
+        "staff:read",
+    },
+    "recepcionista": {
+        "finance:read",
+        "finance:write",
+        "inventory:read",
+        "inventory:consume",
+        "maintenance:create",
+        "guests:manage",
+        "reservations:manage",
+    },
+    "mantenimiento": {"inventory:read", "inventory:consume", "maintenance:execute"},
+    "auditor": {"finance:read", "reports:read"},
+    "user": set(),
+}
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Truncate password to 72 bytes for bcrypt compatibility
@@ -93,3 +127,28 @@ def require_roles(*roles: str):
         return current_user
 
     return role_checker
+
+
+def _has_permission(role: str, permission: str) -> bool:
+    if role == "admin":
+        return True
+    permissions = ROLE_PERMISSIONS.get(role, set())
+    return "*" in permissions or permission in permissions
+
+
+def require_permission(*permissions: str):
+    """
+    Dependencia que valida permisos de alto nivel.
+    El administrador general siempre tiene acceso.
+    """
+
+    def permission_checker(current_user: User = Depends(get_current_user)) -> User:
+        for perm in permissions:
+            if not _has_permission(current_user.role, perm):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Role '{current_user.role}' lacks permission '{perm}'",
+                )
+        return current_user
+
+    return permission_checker
