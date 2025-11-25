@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ViewToggle, type ViewMode } from '@/components/ui/view-toggle';
 import { handleApiError } from '@/lib/api/client';
+import { formatCurrency } from '@/lib/utils';
 import {
   VENEZUELAN_BANKS,
   MOBILE_OPERATORS,
@@ -61,12 +62,22 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-800',
 };
 
+type SupportedCurrency = 'VES' | 'USD' | 'EUR';
+
+interface ExchangeRatesResponse {
+  USD: number;
+  EUR: number;
+  timestamp?: string;
+}
+
 export default function PaymentList() {
   const [showModal, setShowModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [formError, setFormError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const [displayCurrency, setDisplayCurrency] = useState<SupportedCurrency>('VES');
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRatesResponse | null>(null);
 
   const [filters, setFilters] = useState({
     currency: '',
@@ -122,6 +133,30 @@ export default function PaymentList() {
     queryFn: () => guestsApi.getAll(),
   });
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) {
+            setExchangeRates(data);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchRates();
+    const interval = setInterval(fetchRates, 30 * 60 * 1000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   const createMutation = useMutation({
     mutationFn: paymentsApi.create,
     onSuccess: () => {
@@ -142,6 +177,63 @@ export default function PaymentList() {
       queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
     },
   });
+
+  const supportedCurrencies: SupportedCurrency[] = ['VES', 'USD', 'EUR'];
+
+  const normalizeCurrency = (currency?: string | null): SupportedCurrency | null => {
+    if (!currency) {
+      return 'VES';
+    }
+    const upper = currency.toUpperCase() as SupportedCurrency;
+    return supportedCurrencies.includes(upper) ? upper : null;
+  };
+
+  const convertAmount = (amount: number, sourceCurrency: SupportedCurrency): number => {
+    if (sourceCurrency === displayCurrency) {
+      return amount;
+    }
+    if (!exchangeRates) {
+      return amount;
+    }
+
+    const ratesToVES: Record<SupportedCurrency, number> = {
+      VES: 1,
+      USD: exchangeRates.USD,
+      EUR: exchangeRates.EUR,
+    };
+
+    const amountInVES = sourceCurrency === 'VES' ? amount : amount * ratesToVES[sourceCurrency];
+    if (displayCurrency === 'VES') {
+      return amountInVES;
+    }
+    return amountInVES / ratesToVES[displayCurrency];
+  };
+
+  const formatAmount = (amount?: number | null, sourceCurrency?: string | null): string => {
+    const safeAmount = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0;
+    const normalizedSource = normalizeCurrency(sourceCurrency);
+
+    if (!normalizedSource) {
+      const labelCurrency = (sourceCurrency || 'VES').toUpperCase();
+      return formatCurrency(safeAmount, labelCurrency);
+    }
+
+    if (normalizedSource === displayCurrency) {
+      return formatCurrency(safeAmount, displayCurrency);
+    }
+
+    if (!exchangeRates) {
+      return formatCurrency(safeAmount, normalizedSource);
+    }
+
+    const converted = convertAmount(safeAmount, normalizedSource);
+    return formatCurrency(converted, displayCurrency);
+  };
+
+  const formatAmountFromUsd = (amount?: number | null): string => {
+    const safeAmount = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0;
+    return formatAmount(safeAmount, 'USD');
+  };
 
   const payments = paymentsData?.payments ?? [];
   const total = paymentsData?.total ?? 0;
@@ -256,12 +348,7 @@ export default function PaymentList() {
     <Badge className={statusColors[status] ?? 'bg-gray-100 text-gray-800'}>{status}</Badge>
   );
 
-  const renderAmount = (payment: Payment) => (
-    <>
-      {currencySymbol[payment.currency] ?? payment.currency}{' '}
-      {payment.amount.toFixed(2)}
-    </>
-  );
+  const renderAmount = (payment: Payment) => formatAmount(payment.amount, payment.currency);
 
   return (
     <div className="p-6 space-y-6">
@@ -270,16 +357,33 @@ export default function PaymentList() {
           <h1 className="text-3xl font-bold">Pagos</h1>
           <p className="text-gray-600">{total} registros encontrados</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          <Button variant="outline" onClick={() => setShowFilters((prev) => !prev)}>
-            <Filter className="h-4 w-4 mr-2" />
-            Filtros
-          </Button>
-          <Button onClick={() => setShowModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Pago
-          </Button>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-gray-600">Moneda</Label>
+            <select
+              className="border rounded px-3 py-2 text-sm"
+              value={displayCurrency}
+              onChange={(e) => setDisplayCurrency(e.target.value as SupportedCurrency)}
+              disabled={!exchangeRates}
+            >
+              {supportedCurrencies.map((currency) => (
+                <option key={currency} value={currency}>
+                  {currency === 'VES' ? 'VES (Bs)' : currency === 'USD' ? 'USD ($)' : 'EUR (€)'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+            <Button variant="outline" onClick={() => setShowFilters((prev) => !prev)}>
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros
+            </Button>
+            <Button onClick={() => setShowModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Pago
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,14 @@ import type { Invoice, InvoiceListResponse, InvoiceStats } from '@/types';
 import { formatDateTime, formatCurrency } from '@/lib/utils';
 import { Plus, Eye, CheckCircle, XCircle, DollarSign, FileText, Clock, TrendingUp, AlertCircle, Printer, Settings } from 'lucide-react';
 import { InvoiceFormModal } from '@/components/invoices/InvoiceFormModal';
+
+type SupportedCurrency = 'VES' | 'USD' | 'EUR';
+
+interface ExchangeRatesResponse {
+  USD: number;
+  EUR: number;
+  timestamp?: string;
+}
 
 const invoiceStatusLabels = {
   draft: 'Borrador',
@@ -52,8 +60,86 @@ export default function InvoiceList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [displayCurrency, setDisplayCurrency] = useState<SupportedCurrency>('VES');
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRatesResponse | null>(null);
 
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRates = async () => {
+      try {
+        const response = await fetch('/api/v1/exchange-rates/current');
+        if (response.ok) {
+          const data = await response.json();
+          if (isMounted) {
+            setExchangeRates(data);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rates:', error);
+      }
+    };
+
+    fetchRates();
+    const interval = setInterval(fetchRates, 30 * 60 * 1000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const supportedCurrencies: SupportedCurrency[] = ['VES', 'USD', 'EUR'];
+
+  const normalizeCurrency = (currency?: string | null): SupportedCurrency | null => {
+    if (!currency) {
+      return 'VES';
+    }
+    const upper = currency.toUpperCase() as SupportedCurrency;
+    return supportedCurrencies.includes(upper) ? upper : null;
+  };
+
+  const convertAmount = (amount: number, sourceCurrency: SupportedCurrency): number => {
+    if (sourceCurrency === displayCurrency) {
+      return amount;
+    }
+    if (!exchangeRates) {
+      return amount;
+    }
+
+    const ratesToVES: Record<SupportedCurrency, number> = {
+      VES: 1,
+      USD: exchangeRates.USD,
+      EUR: exchangeRates.EUR,
+    };
+
+    const amountInVES = sourceCurrency === 'VES' ? amount : amount * ratesToVES[sourceCurrency];
+    if (displayCurrency === 'VES') {
+      return amountInVES;
+    }
+    return amountInVES / ratesToVES[displayCurrency];
+  };
+
+  const formatAmount = (amount?: number | null, sourceCurrency?: string | null): string => {
+    const safeAmount = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0;
+    const normalizedSource = normalizeCurrency(sourceCurrency);
+
+    if (!normalizedSource) {
+      const labelCurrency = (sourceCurrency || 'VES').toUpperCase();
+      return formatCurrency(safeAmount, labelCurrency);
+    }
+
+    if (normalizedSource === displayCurrency) {
+      return formatCurrency(safeAmount, displayCurrency);
+    }
+
+    if (!exchangeRates) {
+      return formatCurrency(safeAmount, normalizedSource);
+    }
+
+    const converted = convertAmount(safeAmount, normalizedSource);
+    return formatCurrency(converted, displayCurrency);
+  };
 
   // Fetch invoices with filters
   const { data: invoices = [], isLoading: isInvoicesLoading } = useQuery<InvoiceListResponse[]>({
@@ -227,26 +313,46 @@ export default function InvoiceList() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-3xl font-bold">Facturación</h1>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => navigate('/invoices/config')}
-            variant="outline"
-            className="border-gray-300"
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            Configuración
-          </Button>
-          <Button
-            onClick={() => {
-              setEditingInvoice(undefined);
-              setIsFormModalOpen(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nueva Factura
-          </Button>
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold">Facturación</h1>
+          <p className="text-sm text-gray-500">Cambia la moneda mostrada usando las tasas del dashboard.</p>
+        </div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-gray-600">Moneda</Label>
+            <select
+              className="border rounded px-3 py-2 text-sm"
+              value={displayCurrency}
+              onChange={(e) => setDisplayCurrency(e.target.value as SupportedCurrency)}
+              disabled={!exchangeRates}
+            >
+              {supportedCurrencies.map((currency) => (
+                <option key={currency} value={currency}>
+                  {currency === 'VES' ? 'VES (Bs)' : currency === 'USD' ? 'USD ($)' : 'EUR (€)'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => navigate('/invoices/config')}
+              variant="outline"
+              className="border-gray-300"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Configuración
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingInvoice(undefined);
+                setIsFormModalOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva Factura
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -312,7 +418,7 @@ export default function InvoiceList() {
               <div>
                 <p className="text-sm uppercase text-gray-500 font-semibold">Ingresos Totales</p>
                 <p className="text-3xl font-bold mt-2 text-gray-900">
-                  {formatCurrency(stats.total_revenue, 'VES')}
+                  {formatAmount(stats.total_revenue, 'VES')}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Valor de facturas</p>
               </div>
@@ -331,7 +437,7 @@ export default function InvoiceList() {
               <div>
                 <p className="text-sm uppercase text-gray-500 font-semibold">Pagos Pendientes</p>
                 <p className="text-3xl font-bold mt-2 text-orange-600">
-                  {formatCurrency(stats.pending_payment, 'VES')}
+                  {formatAmount(stats.pending_payment, 'VES')}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Por cobrar</p>
               </div>
@@ -440,7 +546,7 @@ export default function InvoiceList() {
                       <td className="px-4 py-3">{invoice.client_name}</td>
                       <td className="px-4 py-3 font-semibold">{invoice.currency}</td>
                       <td className="px-4 py-3 text-right font-semibold">
-                        {formatCurrency(invoice.total)}
+                        {formatAmount(invoice.total, invoice.currency)}
                       </td>
                       <td className="px-4 py-3">
                         <Badge className={invoiceStatusColors[invoice.status as keyof typeof invoiceStatusColors]}>
@@ -612,8 +718,8 @@ export default function InvoiceList() {
                         <tr key={line.id}>
                           <td className="px-2 py-1">{line.description}</td>
                           <td className="px-2 py-1 text-right">{line.quantity}</td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(line.unit_price)}</td>
-                          <td className="px-2 py-1 text-right">{formatCurrency(line.line_total || 0)}</td>
+                          <td className="px-2 py-1 text-right">{formatAmount(line.unit_price, selectedInvoice.currency)}</td>
+                          <td className="px-2 py-1 text-right">{formatAmount(line.line_total || 0, selectedInvoice.currency)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -625,27 +731,27 @@ export default function InvoiceList() {
               <div className="mt-4 pt-4 border-t space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>{formatCurrency(selectedInvoice.subtotal || 0)}</span>
+                  <span>{formatAmount(selectedInvoice.subtotal || 0, selectedInvoice.currency)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>IVA ({selectedInvoice.tax_percentage}%):</span>
-                  <span>{formatCurrency(selectedInvoice.tax_amount || 0)}</span>
+                  <span>{formatAmount(selectedInvoice.tax_amount || 0, selectedInvoice.currency)}</span>
                 </div>
                 {selectedInvoice.iva_retention_amount && selectedInvoice.iva_retention_amount > 0 && (
                   <div className="flex justify-between text-orange-600">
                     <span>Retención IVA:</span>
-                    <span>-{formatCurrency(selectedInvoice.iva_retention_amount)}</span>
+                    <span>-{formatAmount(selectedInvoice.iva_retention_amount, selectedInvoice.currency)}</span>
                   </div>
                 )}
                 {selectedInvoice.islr_retention_amount && selectedInvoice.islr_retention_amount > 0 && (
                   <div className="flex justify-between text-orange-600">
                     <span>Retención ISLR:</span>
-                    <span>-{formatCurrency(selectedInvoice.islr_retention_amount)}</span>
+                    <span>-{formatAmount(selectedInvoice.islr_retention_amount, selectedInvoice.currency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg pt-2 border-t">
                   <span>Total:</span>
-                  <span>{formatCurrency(selectedInvoice.total || 0)}</span>
+                  <span>{formatAmount(selectedInvoice.total || 0, selectedInvoice.currency)}</span>
                 </div>
               </div>
 
