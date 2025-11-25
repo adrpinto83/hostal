@@ -154,6 +154,10 @@ class InvoiceResponse(BaseModel):
     invoice_date: date
     due_date: Optional[date]
     issued_at: Optional[datetime]
+    cancellation_reason: Optional[str]
+    cancellation_authorization_code: Optional[str]
+    cancellation_authorized_at: Optional[datetime]
+    cancellation_authorized_by: Optional[int]
     created_at: datetime
     updated_at: datetime
     lines: List[InvoiceLineResponse]
@@ -237,3 +241,9 @@ class InvoiceStatsResponse(BaseModel):
     average_invoice_value: float
     invoices_this_month: int
     revenue_this_month: float
+
+
+class InvoiceAnnulmentRequest(BaseModel):
+    """Esquema para solicitar anulación de factura emitida."""
+    reason: str = Field(..., min_length=10, max_length=500)
+    authorization_code: str = Field(..., min_length=5, max_length=50)

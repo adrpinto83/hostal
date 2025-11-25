@@ -22,8 +22,10 @@ def upgrade() -> None:
         ),
     )
     op.execute("UPDATE media SET is_primary = 0 WHERE is_primary IS NULL")
-    op.alter_column('media', 'is_primary', server_default=None)
+    with op.batch_alter_table('media') as batch_op:
+        batch_op.alter_column('is_primary', server_default=None)
 
 
 def downgrade() -> None:
-    op.drop_column('media', 'is_primary')
+    with op.batch_alter_table('media') as batch_op:
+        batch_op.drop_column('is_primary')

@@ -5,9 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number, currency: 'EUR' | 'USD' | 'VES'): string {
-  const symbols = { EUR: '€', USD: '$', VES: 'Bs' };
-  return symbols[currency] + ' ' + amount.toFixed(2);
+export function formatCurrency(
+  amount: number | null | undefined,
+  currency: 'EUR' | 'USD' | 'VES' | string = 'VES'
+): string {
+  const symbols: Record<string, string> = { EUR: '€', USD: '$', VES: 'Bs' };
+  const safeAmount = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0;
+  const symbol = symbols[currency] || currency || '';
+  return `${symbol} ${safeAmount.toFixed(2)}`.trim();
 }
 
 export function formatDate(date: string): string {

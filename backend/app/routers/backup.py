@@ -17,6 +17,8 @@ from app.schemas.backup import (
     RestoreResponse,
     DeleteBackupRequest,
     SystemHealthOut,
+    BackupScheduleOut,
+    BackupScheduleUpdate,
 )
 from app.core.audit import log_action
 
@@ -381,7 +383,6 @@ def generate_test_data(
         # Verificar si ya existen datos
         db_info = BackupService.get_database_info(db)
         total_records = db_info.get("total_records", 0)
-
         # Excluir usuarios del conteo (siempre habrá al menos el admin)
         total_records_without_users = total_records - db_info.get("tables", {}).get("users", 0)
 
@@ -409,6 +410,8 @@ def generate_test_data(
         )
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         log_action(
             "test_data_generation_failed",
@@ -420,4 +423,52 @@ def generate_test_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generando datos de prueba: {str(e)}",
+        )
+
+
+@router.get("/schedule", response_model=BackupScheduleOut)
+def get_backup_schedule(current_user: User = Depends(require_admin)):
+    """Obtiene la configuración actual de respaldos programados."""
+    schedule = BackupScheduleService.get_schedule()
+    log_action(
+        "backup_schedule_viewed",
+        "system",
+        current_user.id,
+        current_user,
+        details=schedule,
+    )
+    return schedule
+
+
+@router.post("/schedule", response_model=BackupScheduleOut)
+def update_backup_schedule(
+    request: BackupScheduleUpdate,
+    current_user: User = Depends(require_admin),
+):
+    """Actualiza la configuración de respaldos programados."""
+    try:
+        schedule = BackupScheduleService.update_schedule(
+            enabled=request.enabled,
+            interval_minutes=request.interval_minutes,
+            description=request.description,
+        )
+        log_action(
+            "backup_schedule_updated",
+            "system",
+            current_user.id,
+            current_user,
+            details=schedule,
+        )
+        return schedule
+    except Exception as e:
+        log_action(
+            "backup_schedule_update_failed",
+            "system",
+            current_user.id,
+            current_user,
+            details={"error": str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error actualizando programación de respaldos: {str(e)}",
         )

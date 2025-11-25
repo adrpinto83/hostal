@@ -104,6 +104,20 @@ async def start_background_tasks():
     )
     _active_tasks.append(("auto_suspend_devices", task))
 
+    # Tarea 2: Verificar respaldos programados cada minuto
+    async def scheduled_backup_checker():
+        from app.services.backup_schedule import BackupScheduleService
+        await BackupScheduleService.maybe_run_scheduled_backup()
+
+    backup_task = asyncio.create_task(
+        run_periodically(
+            interval_seconds=60,
+            task_name="scheduled_backups",
+            func=scheduled_backup_checker,
+        )
+    )
+    _active_tasks.append(("scheduled_backups", backup_task))
+
     log.info("Background scheduler tasks started", tasks_count=len(_active_tasks))
 
 

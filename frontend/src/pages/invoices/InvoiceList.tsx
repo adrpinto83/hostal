@@ -110,16 +110,31 @@ export default function InvoiceList() {
   });
 
   // Cancel invoice mutation
-  const cancelMutation = useMutation({
+  const cancelDraftMutation = useMutation({
     mutationFn: (id: number) => invoicesApi.cancel(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoices-stats'] });
-      setSuccessMessage('✅ Factura cancelada exitosamente');
+      setSuccessMessage('✅ Factura cancelada (borrador) exitosamente');
       setTimeout(() => setSuccessMessage(''), 3000);
     },
     onError: (error) => {
       setErrorMessage('❌ Error al cancelar la factura: ' + handleApiError(error));
+      setTimeout(() => setErrorMessage(''), 5000);
+    },
+  });
+
+  const annulMutation = useMutation({
+    mutationFn: ({ id, reason, authorizationCode }: { id: number; reason: string; authorizationCode: string }) =>
+      invoicesApi.annul(id, { reason, authorization_code: authorizationCode }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices-stats'] });
+      setSuccessMessage('✅ Factura anulada con autorización SENIAT');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    },
+    onError: (error) => {
+      setErrorMessage('❌ Error al anular la factura: ' + handleApiError(error));
       setTimeout(() => setErrorMessage(''), 5000);
     },
   });
@@ -130,10 +145,44 @@ export default function InvoiceList() {
     }
   };
 
-  const handleCancelInvoice = (invoiceId: number) => {
-    if (confirm('¿Está seguro de que desea cancelar esta factura?')) {
-      cancelMutation.mutate(invoiceId);
+  const handleCancelInvoice = (invoiceSummary: { id: number; status?: string }) => {
+    if (!invoiceSummary?.status) {
+      setErrorMessage('❌ Estado desconocido de la factura, no se puede cancelar/anular.');
+      setTimeout(() => setErrorMessage(''), 5000);
+      return;
     }
+
+    if (invoiceSummary.status === 'draft') {
+      if (confirm('¿Está seguro de que desea cancelar esta factura en borrador?')) {
+        cancelDraftMutation.mutate(invoiceSummary.id);
+      }
+      return;
+    }
+
+    if (invoiceSummary.status === 'issued') {
+      const reason = window.prompt('Ingresa el motivo de anulación autorizado por SENIAT (mínimo 10 caracteres):');
+      if (!reason || reason.trim().length < 10) {
+        setErrorMessage('❌ Debes especificar un motivo de anulación válido.');
+        setTimeout(() => setErrorMessage(''), 5000);
+        return;
+      }
+      const authorizationCode = window.prompt('Ingresa el código de autorización SENIAT recibido para esta anulación:');
+      if (!authorizationCode || authorizationCode.trim().length < 5) {
+        setErrorMessage('❌ Debes indicar el código de autorización SENIAT.');
+        setTimeout(() => setErrorMessage(''), 5000);
+        return;
+      }
+
+      annulMutation.mutate({
+        id: invoiceSummary.id,
+        reason: reason.trim(),
+        authorizationCode: authorizationCode.trim(),
+      });
+      return;
+    }
+
+    setErrorMessage('❌ Solo las facturas en borrador pueden cancelarse. Las emitidas se anulan con autorización.');
+    setTimeout(() => setErrorMessage(''), 5000);
   };
 
   const handleViewDetails = async (invoiceId: number) => {
@@ -147,9 +196,18 @@ export default function InvoiceList() {
 
   const handlePrintInvoice = async (invoiceId: number) => {
     try {
-      await invoicesApi.getPrintable(invoiceId);
-      // El navegador abre automáticamente el HTML
-      window.open(`/api/v1/invoices/${invoiceId}/printable`, '_blank');
+      const html = await invoicesApi.getPrintable(invoiceId);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, '_blank');
+      if (!printWindow) {
+        setErrorMessage('❌ El navegador bloqueó la ventana de impresión. Permite pop-ups e inténtalo de nuevo.');
+        URL.revokeObjectURL(url);
+        return;
+      }
+      printWindow.addEventListener('load', () => {
+        URL.revokeObjectURL(url);
+      });
     } catch (error) {
       setErrorMessage('❌ Error al generar la factura imprimible');
     }
@@ -254,7 +312,7 @@ export default function InvoiceList() {
               <div>
                 <p className="text-sm uppercase text-gray-500 font-semibold">Ingresos Totales</p>
                 <p className="text-3xl font-bold mt-2 text-gray-900">
-                  Bs {formatCurrency(stats.total_revenue)}
+                  {formatCurrency(stats.total_revenue, 'VES')}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Valor de facturas</p>
               </div>
@@ -273,7 +331,7 @@ export default function InvoiceList() {
               <div>
                 <p className="text-sm uppercase text-gray-500 font-semibold">Pagos Pendientes</p>
                 <p className="text-3xl font-bold mt-2 text-orange-600">
-                  Bs {formatCurrency(stats.pending_payment)}
+                  {formatCurrency(stats.pending_payment, 'VES')}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">Por cobrar</p>
               </div>
@@ -421,8 +479,8 @@ export default function InvoiceList() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleCancelInvoice(invoice.id)}
-                              title="Cancelar factura"
+                              onClick={() => handleCancelInvoice(invoice)}
+                              title={invoice.status === 'draft' ? 'Cancelar borrador' : 'Anular factura emitida'}
                             >
                               <XCircle className="h-4 w-4 text-red-600" />
                             </Button>

@@ -10,8 +10,18 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('users', sa.Column('full_name', sa.String(length=255), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "full_name" not in columns:
+        with op.batch_alter_table("users") as batch_op:
+            batch_op.add_column(sa.Column('full_name', sa.String(length=255), nullable=True))
 
 
 def downgrade():
-    op.drop_column('users', 'full_name')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "full_name" in columns:
+        with op.batch_alter_table("users") as batch_op:
+            batch_op.drop_column('full_name')

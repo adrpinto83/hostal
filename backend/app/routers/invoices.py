@@ -23,7 +23,8 @@ from ..models.user import User
 from ..schemas.invoice import (
     InvoiceCreate, InvoiceUpdate, InvoiceResponse, InvoiceListResponse,
     InvoicePaymentCreate, InvoicePaymentResponse,
-    InvoiceConfigCreate, InvoiceConfigResponse, InvoiceStatsResponse
+    InvoiceConfigCreate, InvoiceConfigResponse, InvoiceStatsResponse,
+    InvoiceAnnulmentRequest
 )
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -380,10 +381,16 @@ def cancel_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Anula una factura (solo admin)."""
+    """Cancela una factura en borrador antes de su emisión."""
     invoice = db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    if invoice.status != InvoiceStatus.draft:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden cancelar facturas en borrador. Las facturas emitidas requieren proceso de anulación autorizado."
+        )
 
     if invoice.status == InvoiceStatus.cancelled:
         raise HTTPException(status_code=400, detail="La factura ya está anulada")
@@ -397,6 +404,46 @@ def cancel_invoice(
     if control_reg:
         control_reg.is_used = False
         control_reg.used_at = None
+
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+
+@router.post(
+    "/{invoice_id}/annul",
+    response_model=InvoiceResponse,
+    dependencies=[Depends(require_roles("admin"))],
+    summary="Anular factura emitida con autorización SENIAT"
+)
+def annul_invoice(
+    invoice_id: int,
+    request: InvoiceAnnulmentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Anula una factura emitida siguiendo el ciclo de autorización SENIAT."""
+    invoice = db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+    if invoice.status != InvoiceStatus.issued:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden anular facturas emitidas pendientes de pago."
+        )
+
+    if invoice.payment_status == PaymentStatus.completed:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede anular una factura pagada. Emite una nota de crédito conforme a SENIAT."
+        )
+
+    invoice.status = InvoiceStatus.cancelled
+    invoice.cancellation_reason = request.reason
+    invoice.cancellation_authorization_code = request.authorization_code
+    invoice.cancellation_authorized_by = current_user.id
+    invoice.cancellation_authorized_at = datetime.utcnow()
 
     db.commit()
     db.refresh(invoice)

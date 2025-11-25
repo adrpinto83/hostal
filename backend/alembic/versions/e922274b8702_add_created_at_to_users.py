@@ -9,7 +9,17 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    op.add_column('users', sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "created_at" not in columns:
+        with op.batch_alter_table('users') as batch_op:
+            batch_op.add_column(sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()))
 
 def downgrade():
-    op.drop_column('users', 'created_at')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "created_at" in columns:
+        with op.batch_alter_table('users') as batch_op:
+            batch_op.drop_column('created_at')

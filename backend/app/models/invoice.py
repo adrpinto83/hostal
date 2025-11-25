@@ -84,6 +84,10 @@ class Invoice(Base):
     # Información adicional
     notes = Column(Text, nullable=True)
     internal_reference = Column(String(50), nullable=True)  # Referencia interna (número de reserva, etc)
+    cancellation_reason = Column(Text, nullable=True)
+    cancellation_authorization_code = Column(String(50), nullable=True)
+    cancellation_authorized_at = Column(DateTime, nullable=True)
+    cancellation_authorized_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Fecha y auditoría
     invoice_date = Column(Date, nullable=False, index=True)

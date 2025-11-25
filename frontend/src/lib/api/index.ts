@@ -731,6 +731,10 @@ export const invoicesApi = {
     const response = await api.post<Invoice>(`/invoices/${id}/cancel`, { reason });
     return response.data;
   },
+  annul: async (id: number, data: { reason: string; authorization_code: string }) => {
+    const response = await api.post<Invoice>(`/invoices/${id}/annul`, data);
+    return response.data;
+  },
 
   // Invoice Payments
   registerPayment: async (invoiceId: number, data: InvoicePaymentCreate) => {
@@ -760,7 +764,9 @@ export const invoicesApi = {
 
   // Print and Email
   getPrintable: async (id: number) => {
-    const response = await api.get(`/invoices/${id}/printable`);
+    const response = await api.get(`/invoices/${id}/printable`, {
+      responseType: 'text',
+    });
     return response.data;
   },
   sendByEmail: async (id: number) => {

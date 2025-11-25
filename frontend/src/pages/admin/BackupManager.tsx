@@ -51,6 +51,14 @@ interface DatabaseInfo {
   timestamp: string;
 }
 
+interface BackupSchedule {
+  enabled: boolean;
+  interval_minutes: number;
+  next_run?: string | null;
+  last_run?: string | null;
+  description?: string | null;
+}
+
 export default function BackupManager() {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [health, setHealth] = useState<SystemHealth | null>(null);
@@ -65,6 +73,9 @@ export default function BackupManager() {
   const [showTestDataWarningDialog, setShowTestDataWarningDialog] = useState(false);
   const [testDataCount, setTestDataCount] = useState(10);
   const [existingDataInfo, setExistingDataInfo] = useState<any>(null);
+  const [schedule, setSchedule] = useState<BackupSchedule | null>(null);
+  const [scheduleForm, setScheduleForm] = useState({ enabled: false, interval_minutes: 1440, description: '' });
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -76,14 +87,21 @@ export default function BackupManager() {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [backupsRes, healthRes, dbInfoRes] = await Promise.all([
+      const [backupsRes, healthRes, dbInfoRes, scheduleRes] = await Promise.all([
         api.get('/admin/backup/list'),
         api.get('/admin/backup/health'),
         api.get('/admin/backup/database-info'),
+        api.get('/admin/backup/schedule'),
       ]);
       setBackups(backupsRes.data.backups || []);
       setHealth(healthRes.data);
       setDbInfo(dbInfoRes.data);
+      setSchedule(scheduleRes.data);
+      setScheduleForm({
+        enabled: scheduleRes.data.enabled,
+        interval_minutes: scheduleRes.data.interval_minutes,
+        description: scheduleRes.data.description || '',
+      });
     } catch (error) {
       toast.error('Error cargando datos de respaldos');
       console.error(error);
@@ -228,6 +246,17 @@ export default function BackupManager() {
     return num.toLocaleString('es-ES');
   };
 
+  const formatDateTimeFriendly = (value?: string | null) => {
+    if (!value) return 'No disponible';
+    return new Date(value).toLocaleString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -337,6 +366,88 @@ export default function BackupManager() {
               >
                 <RefreshCw className="h-3 w-3 mr-2" />
                 Actualizar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Backup Schedule */}
+      {schedule && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              Programación de Respaldos
+            </CardTitle>
+            <CardDescription>Configura respaldos automáticos recurrentes</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={scheduleForm.enabled}
+                  onChange={(e) => setScheduleForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                />
+                Activar respaldos automáticos
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Intervalo:</span>
+                <select
+                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  value={scheduleForm.interval_minutes}
+                  onChange={(e) =>
+                    setScheduleForm((prev) => ({
+                      ...prev,
+                      interval_minutes: parseInt(e.target.value, 10),
+                    }))
+                  }
+                  disabled={!scheduleForm.enabled}
+                >
+                  <option value={60}>Cada 1 hora</option>
+                  <option value={120}>Cada 2 horas</option>
+                  <option value={360}>Cada 6 horas</option>
+                  <option value={720}>Cada 12 horas</option>
+                  <option value={1440}>Cada 24 horas</option>
+                  <option value={2880}>Cada 48 horas</option>
+                  <option value={10080}>Cada semana</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Descripción (opcional)
+              </label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                placeholder="Respaldo programado automático"
+                value={scheduleForm.description}
+                onChange={(e) => setScheduleForm((prev) => ({ ...prev, description: e.target.value }))}
+                disabled={!scheduleForm.enabled}
+              />
+            </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+                <div>
+                  <p className="font-semibold text-gray-800">Próxima ejecución:</p>
+                  <p>{schedule.next_run ? formatDateTimeFriendly(schedule.next_run) : 'No programada'}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800">Último respaldo automático:</p>
+                  <p>{schedule.last_run ? formatDateTimeFriendly(schedule.last_run) : 'Nunca ejecutado'}</p>
+                </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveSchedule}
+                disabled={isSavingSchedule}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isSavingSchedule ? 'Guardando...' : 'Guardar Programación'}
               </Button>
             </div>
           </CardContent>
@@ -736,3 +847,25 @@ export default function BackupManager() {
     </div>
   );
 }
+  const handleSaveSchedule = async () => {
+    try {
+      setIsSavingSchedule(true);
+      const res = await api.post('/admin/backup/schedule', {
+        enabled: scheduleForm.enabled,
+        interval_minutes: scheduleForm.interval_minutes,
+        description: scheduleForm.description,
+      });
+      setSchedule(res.data);
+      setScheduleForm({
+        enabled: res.data.enabled,
+        interval_minutes: res.data.interval_minutes,
+        description: res.data.description || '',
+      });
+      toast.success('Programación de respaldos actualizada');
+    } catch (error) {
+      toast.error('Error actualizando la programación de respaldos');
+      console.error(error);
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };

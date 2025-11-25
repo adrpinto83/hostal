@@ -902,6 +902,10 @@ export interface Invoice {
   invoice_date: string;
   due_date?: string | null;
   issued_at?: string;
+  cancellation_reason?: string;
+  cancellation_authorization_code?: string;
+  cancellation_authorized_at?: string;
+  cancellation_authorized_by?: number;
   created_at?: string;
   updated_at?: string;
   lines: InvoiceLine[];

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Optional
 import structlog
 from app.core.config import settings
+from app.core.db import Base, engine, SessionLocal
+from app.models.user import User
 
 log = structlog.get_logger()
 
@@ -435,11 +437,18 @@ class BackupService:
             dict: Resumen de la operación
         """
         from app.models import (
-            User, Guest, Room, Reservation, Device, Staff, Occupancy,
+            Guest, Room, Reservation, Device, Staff, Occupancy,
             Maintenance, NetworkActivity, NetworkDevice, Payment, ExchangeRate,
             Invoice, InvoiceLine, InvoicePayment, FinancialTransaction,
             ExchangeRateSnapshot, AuditLog, RoomRate, Media
         )
+
+        db_url = settings.DATABASE_URL.lower()
+        is_sqlite = db_url.startswith("sqlite")
+
+        if is_sqlite:
+            log.warning("Resetting SQLite database by recreating file", keep_admin=keep_admin_user_id)
+            return BackupService._reset_sqlite_database(keep_admin_user_id)
 
         try:
             log.warning("Starting database reset", keep_admin=keep_admin_user_id)
@@ -494,6 +503,62 @@ class BackupService:
             raise
 
     @staticmethod
+    def _reset_sqlite_database(keep_admin_user_id: int) -> dict:
+        """Recrea por completo la base SQLite, preservando el usuario admin."""
+        from app.models import User as UserModel  # to avoid confusion
+
+        session = SessionLocal()
+        try:
+            admin = session.query(UserModel).filter(UserModel.id == keep_admin_user_id).first()
+            if not admin:
+                raise Exception("Usuario administrador no encontrado; no se puede preservar.")
+
+            admin_snapshot = {
+                "email": admin.email,
+                "hashed_password": admin.hashed_password,
+                "role": admin.role,
+                "approved": getattr(admin, "approved", True),
+                "full_name": getattr(admin, "full_name", None),
+                "created_at": getattr(admin, "created_at", datetime.utcnow()),
+                "reset_password_token": getattr(admin, "reset_password_token", None),
+                "reset_password_expires_at": getattr(admin, "reset_password_expires_at", None),
+            }
+        finally:
+            session.close()
+
+        engine.dispose()
+
+        sqlite_path = settings.DATABASE_URL.replace("sqlite:///", "")
+        if not os.path.isabs(sqlite_path):
+            sqlite_path = Path(__file__).parent.parent.parent / sqlite_path
+        else:
+            sqlite_path = Path(sqlite_path)
+
+        if sqlite_path.exists():
+            sqlite_path.unlink()
+
+        Base.metadata.create_all(bind=engine)
+
+        restore_session = SessionLocal()
+        try:
+            new_admin = UserModel(**admin_snapshot)
+            new_admin.id = keep_admin_user_id
+            restore_session.add(new_admin)
+            restore_session.commit()
+        finally:
+            restore_session.close()
+
+        log.info("SQLite database recreated successfully", path=str(sqlite_path))
+        return {
+            "status": "success",
+            "message": "Base de datos SQLite recreada desde cero",
+            "records_deleted": "full_reset",
+            "details": {},
+            "admin_preserved": True,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    @staticmethod
     def generate_test_data(db, base_count: int = 10) -> dict:
         """Genera datos de prueba en la base de datos.
 
@@ -512,6 +577,7 @@ class BackupService:
         )
         from app.core.security import get_password_hash
         import random
+        import uuid
         from datetime import datetime, timedelta
         from decimal import Decimal
 
@@ -535,9 +601,13 @@ class BackupService:
             payment_methods = [PaymentMethod.cash, PaymentMethod.card, PaymentMethod.transfer, PaymentMethod.mobile_payment, PaymentMethod.zelle]
             currencies = [Currency.USD, Currency.EUR, Currency.VES]
             reservation_statuses = [ReservationStatus.pending, ReservationStatus.active, ReservationStatus.checked_out, ReservationStatus.cancelled]
-            maintenance_types = ["limpieza_profunda", "plomeria", "electricidad", "reparacion_muebles", "pintura", "aire_acondicionado", "carpinteria"]
-            maintenance_priorities = ["low", "medium", "high", "urgent"]
-            maintenance_statuses = ["pending", "in_progress", "completed", "cancelled"]
+            maintenance_types = list(MaintenanceType)
+            maintenance_priorities = list(MaintenancePriority)
+            maintenance_statuses = list(MaintenanceStatus)
+            device_brands = list(DeviceBrand)
+            device_types = list(DeviceType)
+            auth_types = list(AuthType)
+            connection_statuses = list(ConnectionStatus)
 
             # Nombres y apellidos para generar nombres realistas
             first_names = ["Carlos", "María", "José", "Ana", "Luis", "Carmen", "Pedro", "Laura", "Miguel", "Isabel",
@@ -546,11 +616,75 @@ class BackupService:
             last_names = ["García", "Rodríguez", "Martínez", "Fernández", "López", "González", "Pérez", "Sánchez", "Ramírez", "Torres",
                          "Flores", "Rivera", "Gómez", "Díaz", "Reyes", "Cruz", "Morales", "Ortiz", "Gutiérrez", "Chávez"]
 
+            # Valores existentes para evitar duplicados
+            existing_room_numbers = {row[0] for row in db.query(Room.number).all()}
+            numeric_room_numbers = [int(num) for num in existing_room_numbers if isinstance(num, str) and num.isdigit()]
+            next_room_number = (max(numeric_room_numbers) + 1) if numeric_room_numbers else 100
+
+            existing_guest_docs = {row[0] for row in db.query(Guest.document_id).all() if row[0]}
+            existing_staff_docs = {row[0] for row in db.query(Staff.document_id).all() if row[0]}
+            existing_staff_emails = {row[0] for row in db.query(Staff.email).all() if row[0]}
+            existing_device_macs = {row[0].upper() for row in db.query(Device.mac).all() if row[0]}
+            existing_network_ips = {row[0] for row in db.query(NetworkDevice.ip_address).all() if row[0]}
+            existing_network_names = {row[0] for row in db.query(NetworkDevice.name).all() if row[0]}
+
+            def generate_room_number() -> str:
+                nonlocal next_room_number
+                while True:
+                    candidate = f"{next_room_number:03d}"
+                    next_room_number += 1
+                    if candidate not in existing_room_numbers:
+                        existing_room_numbers.add(candidate)
+                        return candidate
+
+            def generate_guest_document() -> str:
+                while True:
+                    candidate = f"V-{random.randint(10_000_000, 99_999_999)}"
+                    if candidate not in existing_guest_docs:
+                        existing_guest_docs.add(candidate)
+                        return candidate
+
+            def generate_staff_document() -> str:
+                while True:
+                    candidate = f"V-{random.randint(20_000_000, 99_999_999)}"
+                    if candidate not in existing_staff_docs:
+                        existing_staff_docs.add(candidate)
+                        return candidate
+
+            def generate_staff_email(first_name: str) -> str:
+                base = first_name.lower()
+                while True:
+                    candidate = f"staff.{base}.{random.randint(1000, 9999)}@hostal.com"
+                    if candidate not in existing_staff_emails:
+                        existing_staff_emails.add(candidate)
+                        return candidate
+
+            def generate_mac() -> str:
+                while True:
+                    mac = ":".join(f"{random.randint(0, 255):02X}" for _ in range(6))
+                    if mac not in existing_device_macs:
+                        existing_device_macs.add(mac)
+                        return mac
+
+            def generate_network_ip() -> str:
+                while True:
+                    ip = f"10.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+                    if ip not in existing_network_ips:
+                        existing_network_ips.add(ip)
+                        return ip
+
+            def generate_network_name(base_label: str) -> str:
+                while True:
+                    candidate = f"{base_label}-{uuid.uuid4().hex[:4].upper()}"
+                    if candidate not in existing_network_names:
+                        existing_network_names.add(candidate)
+                        return candidate
+
             # 1. Habitaciones con más variedad
             rooms = []
             for i in range(base_count):
                 room = Room(
-                    number=f"{100 + i}",
+                    number=generate_room_number(),
                     type=random.choice(room_types),
                     price_bs=random.randint(800, 6000),
                     status=random.choice(room_statuses),
@@ -568,7 +702,7 @@ class BackupService:
                 last_name = f"{random.choice(last_names)} {random.choice(last_names)}"
                 guest = Guest(
                     full_name=f"{first_name} {last_name}",
-                    document_id=f"V-{10000000 + i}",
+                    document_id=generate_guest_document(),
                     email=f"{first_name.lower()}.{last_name.split()[0].lower()}{i}@{'gmail.com' if i % 2 == 0 else 'hotmail.com'}",
                     phone=f"+58{random.choice(['414', '424', '412', '416'])}{random.randint(1000000, 9999999)}",
                     notes=f"País: {random.choice(['Venezuela', 'Colombia', 'España', 'Argentina', 'México', 'Chile', 'Perú'])}. Dirección: Calle {random.randint(1, 100)}, {random.choice(['Caracas', 'Maracaibo', 'Valencia', 'Maracay'])}",
@@ -585,10 +719,10 @@ class BackupService:
                 last_name = f"{random.choice(last_names)} {random.choice(last_names)}"
                 staff = Staff(
                     full_name=f"{first_name} {last_name}",
-                    document_id=f"V-{20000000 + i}",
+                    document_id=generate_staff_document(),
                     role=random.choice(staff_roles),
                     phone=f"+58{random.choice(['414', '424', '412'])}{random.randint(1000000, 9999999)}",
-                    email=f"staff.{first_name.lower()}{i}@hostal.com",
+                    email=generate_staff_email(first_name),
                     salary=random.randint(600, 2000),
                     status=random.choice([StaffStatus.active, StaffStatus.inactive]) if i % 10 != 0 else StaffStatus.active,
                     hire_date=datetime.now().date() - timedelta(days=random.randint(30, 1000)),
@@ -733,14 +867,14 @@ class BackupService:
             network_devices = []
             for i in range(max(1, base_count // 3)):
                 device = NetworkDevice(
-                    name=f"{random.choice(['Router', 'Switch', 'Access Point'])}-{i+1}",
-                    brand=random.choice(["mikrotik", "ubiquiti", "tp_link", "cisco"]),
-                    device_type=random.choice(["router", "switch", "access_point"]),
-                    ip_address=f"192.168.{random.randint(1, 10)}.{random.randint(1, 254)}",
+                    name=generate_network_name(random.choice(['Router', 'Switch', 'AccessPoint', 'Controller'])),
+                    brand=random.choice(device_brands),
+                    device_type=random.choice(device_types),
+                    ip_address=generate_network_ip(),
                     port=random.choice([8728, 80, 443, 22]),
                     username="admin",
-                    auth_type=random.choice(["username_password", "ssh_key"]),
-                    connection_status=random.choice(["connected", "disconnected", "error"]) if i % 10 != 0 else "connected",
+                    auth_type=random.choice(auth_types),
+                    connection_status=random.choice(connection_statuses) if i % 10 != 0 else ConnectionStatus.CONNECTED,
                 )
                 db.add(device)
                 network_devices.append(device)
@@ -752,7 +886,7 @@ class BackupService:
             for i in range(min(base_count * 4, len(guests) * 2)):
                 device = Device(
                     guest_id=guests[random.randint(0, len(guests) - 1)].id,
-                    mac=f"{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}:{random.randint(0, 255):02x}",
+                    mac=generate_mac(),
                     name=random.choice(["iPhone", "Samsung Galaxy", "MacBook", "HP Laptop", "iPad", "Android Tablet", "Dell Laptop"]) + f" #{i+1}",
                     suspended=random.random() < 0.1,  # 10% suspendidos
                 )

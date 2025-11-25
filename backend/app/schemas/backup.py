@@ -61,3 +61,19 @@ class SystemHealthOut(BaseModel):
     latest_backup: Optional[str] = Field(None, description="Fecha del respaldo más reciente")
     total_backup_size_mb: float = Field(..., description="Tamaño total de respaldos en MB")
     timestamp: str = Field(..., description="Timestamp de la verificación")
+
+
+class BackupScheduleOut(BaseModel):
+    """Configuración de respaldos programados."""
+    enabled: bool = Field(..., description="Si el respaldo recurrente está activo")
+    interval_minutes: int = Field(..., description="Intervalo en minutos entre respaldos")
+    next_run: Optional[str] = Field(None, description="Próxima ejecución programada")
+    last_run: Optional[str] = Field(None, description="Última ejecución completada")
+    description: Optional[str] = Field(None, description="Descripción utilizada en los respaldos programados")
+
+
+class BackupScheduleUpdate(BaseModel):
+    """Solicitud para actualizar la programación de respaldos."""
+    enabled: bool = Field(..., description="Activar o desactivar la programación")
+    interval_minutes: int = Field(..., ge=15, le=10080, description="Intervalo en minutos (entre 15 y 10080)")
+    description: Optional[str] = Field(None, description="Descripción opcional para los respaldos programados")

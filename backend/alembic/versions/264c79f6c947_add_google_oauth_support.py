@@ -27,7 +27,8 @@ def upgrade():
     op.add_column('users', sa.Column('profile_picture', sa.String(255), nullable=True))
 
     # Make hashed_password nullable for Google OAuth users
-    op.alter_column('users', 'hashed_password', existing_type=sa.String(255), nullable=True)
+    with op.batch_alter_table('users') as batch_op:
+        batch_op.alter_column('hashed_password', existing_type=sa.String(255), nullable=True)
 
     # Create indexes
     op.create_index('ix_users_google_id', 'users', ['google_id'], unique=True)
@@ -49,4 +50,5 @@ def downgrade():
     op.drop_column('users', 'approved')
 
     # Restore hashed_password as NOT NULL
-    op.alter_column('users', 'hashed_password', existing_type=sa.String(255), nullable=False)
+    with op.batch_alter_table('users') as batch_op:
+        batch_op.alter_column('hashed_password', existing_type=sa.String(255), nullable=False)
