@@ -73,8 +73,19 @@ export default function BackupManager() {
   const [showTestDataWarningDialog, setShowTestDataWarningDialog] = useState(false);
   const [testDataCount, setTestDataCount] = useState(10);
   const [existingDataInfo, setExistingDataInfo] = useState<any>(null);
+  const defaultSchedule: BackupSchedule = {
+    enabled: false,
+    interval_minutes: 1440,
+    next_run: null,
+    last_run: null,
+    description: 'Respaldo programado automático',
+  };
   const [schedule, setSchedule] = useState<BackupSchedule | null>(null);
-  const [scheduleForm, setScheduleForm] = useState({ enabled: false, interval_minutes: 1440, description: '' });
+  const [scheduleForm, setScheduleForm] = useState({
+    enabled: defaultSchedule.enabled,
+    interval_minutes: defaultSchedule.interval_minutes,
+    description: defaultSchedule.description || '',
+  });
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
 
   // Cargar datos iniciales
@@ -87,11 +98,12 @@ export default function BackupManager() {
   const loadData = async () => {
     try {
       setIsLoading(true);
+      const schedulePromise = api.get('/admin/backup/schedule').catch(() => ({ data: defaultSchedule }));
       const [backupsRes, healthRes, dbInfoRes, scheduleRes] = await Promise.all([
         api.get('/admin/backup/list'),
         api.get('/admin/backup/health'),
         api.get('/admin/backup/database-info'),
-        api.get('/admin/backup/schedule'),
+        schedulePromise,
       ]);
       setBackups(backupsRes.data.backups || []);
       setHealth(healthRes.data);
