@@ -1,19 +1,22 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The repository splits concerns into `backend/` (FastAPI) and `frontend/` (React + Vite). Backend code lives under `app/` with `core/` for config, `models/`, `routers/`, `schemas/`, and `services/`; database migrations live in `alembic/`, while `tests/` stores pytest suites and `scripts/` holds ops helpers. Frontend source is under `frontend/src/` with `components/`, `pages/`, `hooks/`, `lib/` for API clients, and `types/`; build assets output to `frontend/dist/`. Root-level scripts such as `setup.sh`, `start_backend.sh`, `start_frontend.sh`, and `create_test_data.sh` provide the quickest path to a working demo.
+The repo is split between `backend/` (FastAPI + SQLite) and `frontend/` (React + Vite). Backend sources live in `backend/app/` across `core/`, `models/`, `routers/`, `schemas/`, and services powering backups, billing, and Mikrotik. `backend/alembic/` stores migrations, `backend/tests/` holds pytest suites, and `backend/scripts/` contains seeding helpers. Frontend code lives in `frontend/src/` (`components/`, `pages/`, `hooks/`, `lib/`, `types/`), with builds emitted to `frontend/dist/`. Use the root scripts (`setup.sh`, `start_backend.sh`, `start_frontend.sh`, `create_test_data.sh`) for local setup.
 
 ## Build, Test, and Development Commands
-- Backend: `cd backend && make install && make run` installs dependencies and starts uvicorn with reload; `make migrate` applies Alembic migrations; `make admin email=... pass=...` bootstraps an account.
-- Frontend: `cd frontend && npm install && npm run dev` launches Vite on port 5173 (override with `-- --port 3000`); `npm run build && npm run preview` produces and serves the production bundle.
-- Full-stack helpers: from the repo root, run `./setup.sh` to provision both stacks, then `./start_backend.sh`, `./start_frontend.sh`, and `./create_test_data.sh` to populate demo data.
+- Backend: `cd backend && make install && make run` installs dependencies and runs uvicorn with reload. Apply schema changes with `make migrate` and bootstrap users using `make admin email=... pass=...`.
+- Frontend: `cd frontend && npm install && npm run dev` launches Vite (default port 5173; override via `-- --port 3000`). Use `npm run build && npm run preview` to check the production bundle.
+- Full stack: run `./setup.sh` once, then the `start_*.sh` scripts plus `./create_test_data.sh` whenever you need a fresh dataset for invoices, backups, and Mikrotik devices.
 
 ## Coding Style & Naming Conventions
-Python modules follow PEP8 with 4-space indents and snake_case filenames; formatting is enforced with Black at 100 characters (`pyproject.toml`) and Ruff linters (`ruff check backend --fix`). Mypy runs on the `app` package, so keep types explicit on public functions and avoid dynamic attribute lookups when possible. React/TypeScript components use PascalCase filenames in `src/components` or `src/pages`, hooks start with `use`, and shared utilities sit under `src/lib` or `src/utils`. Tailwind CSS powers styling, so prefer utility classes over bespoke CSS and colocate component-specific tweaks near the JSX.
+Python adheres to PEP8 (4 spaces, snake_case) with typed services and explicit router returns. Run `ruff check backend --fix`, `black backend`, and `mypy backend/app` before committing. React/TypeScript favors PascalCase components, camelCase utilities, and `useX` hooks. Keep shared helpers inside `src/lib`, reuse the currency formatter to avoid `undefined` or duplicate “Bs”, and lean on Tailwind utility classes.
 
 ## Testing Guidelines
-- Backend: tests live in `backend/tests/` and should be named `test_<feature>.py`; run `cd backend && pytest` for quick feedback or `pytest --cov=app --cov-report=html` to inspect coverage under `htmlcov/`.
-- Frontend: colocate Vitest specs (`*.test.ts(x)`) next to the component, import the shared test utils from `src/lib/test-utils`, and run `cd frontend && npx vitest run` (add `--watch` for dev) until a dedicated npm script is added. Use `npm run build` before submitting to catch TypeScript errors that aren’t surfaced in dev mode.
+- Backend: place pytest files under `backend/tests/test_<feature>.py` and run `cd backend && pytest`. Add `--cov=app --cov-report=term-missing` when altering billing, backup, or RouterOS flows.
+- Frontend: colocate Vitest specs (`Component.test.tsx`) with their component, use utilities from `src/lib/test-utils`, and run `cd frontend && npx vitest run`. Always finish with `npm run build` to catch strict TypeScript errors.
 
 ## Commit & Pull Request Guidelines
-Git history favors concise, conventional prefixes (`feat:`, `fix:`, `docs:`) plus a short summary (e.g., `fix: use dashboard stats for room availability`). Reference issue IDs in the description, list any new env vars, migrations, or scripts, and include screenshots/GIFs for UI-facing work. Pull requests should describe testing performed (`pytest`, `npx vitest run`, manual smoke across dashboards) and call out any data resets required. Keep diffs focused; split unrelated backend/frontend changes into separate PRs when practical.
+Commits use conventional short prefixes (`feat: backup scheduler`) and mention schema changes, env vars, or RouterOS prerequisites. Pull requests should describe the motivation, include screenshots for UI updates, list commands executed (`pytest`, `npx vitest`, `create_test_data.sh`), and flag any data resets. Keep PRs focused so reviewers can validate backups, billing, and Mikrotik flows independently.
+
+## Security & Configuration Tips
+RouterOS automation pulls credentials from `NetworkDevice` rows marked `mikrotik`; verify IP, port, and API permissions before enabling automatic suspensions. Keep secrets in `.env` files ignored by Git. The backup scheduler writes to `backend/backups/backup_schedule.json`, so deployments must grant read/write access and document the path.

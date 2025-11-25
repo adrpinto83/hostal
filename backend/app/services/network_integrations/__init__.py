@@ -7,10 +7,12 @@ from .base import NetworkIntegrationBase
 from .ubiquiti import UbiquitiIntegration
 from .mikrotik import MikrotikIntegration
 from .cisco import CiscoIntegration
+from .openwrt import OpenWrtIntegration
 
 __all__ = [
     "NetworkIntegrationBase",
     "UbiquitiIntegration",
     "MikrotikIntegration",
     "CiscoIntegration",
+    "OpenWrtIntegration",
 ]

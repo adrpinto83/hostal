@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader, CheckCircle, AlertCircle } from 'lucide-react';
 
-const BRANDS = ['ubiquiti', 'mikrotik', 'cisco', 'tp_link', 'asus', 'dlink', 'netgear', 'aruba', 'fortinet', 'other'];
+const BRANDS = ['ubiquiti', 'mikrotik', 'openwrt', 'cisco', 'tp_link', 'asus', 'dlink', 'netgear', 'aruba', 'fortinet', 'other'];
 const DEVICE_TYPES = ['switch', 'router', 'access_point', 'firewall', 'controller', 'modem'];
 const AUTH_TYPES = ['username_password', 'api_key', 'token', 'certificate', 'ssh_key'];
 

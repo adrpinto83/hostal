@@ -17,14 +17,19 @@ Para implementar integración real, configurar variables de entorno:
 - ROUTER_API_PASSWORD: Password (si aplica)
 """
 import os
+import asyncio
 import structlog
 import httpx
 from typing import Optional
 
+from ..core.db import SessionLocal
+from ..models.network_device import NetworkDevice, DeviceBrand
+from ..services.network_integrations import MikrotikIntegration, OpenWrtIntegration
+
 log = structlog.get_logger()
 
 # Configuración de router desde environment
-ROUTER_TYPE = os.getenv("ROUTER_TYPE", "debug")  # debug, pfsense, unifi, mikrotik, omada
+ROUTER_TYPE = os.getenv("ROUTER_TYPE", "debug")  # debug, pfsense, unifi, mikrotik, openwrt, omada
 ROUTER_API_URL = os.getenv("ROUTER_API_URL")
 ROUTER_API_KEY = os.getenv("ROUTER_API_KEY")
 ROUTER_API_USER = os.getenv("ROUTER_API_USER")
@@ -94,6 +99,8 @@ def notify_router_block(mac: str) -> None:
         _pfsense_block_mac(mac)
     elif ROUTER_TYPE == "mikrotik":
         _mikrotik_block_mac(mac)
+    elif ROUTER_TYPE == "openwrt":
+        _openwrt_block_mac(mac)
 
 
 def notify_router_unblock(mac: str) -> None:
@@ -113,6 +120,8 @@ def notify_router_unblock(mac: str) -> None:
         _pfsense_allow_mac(mac)
     elif ROUTER_TYPE == "mikrotik":
         _mikrotik_unblock_mac(mac)
+    elif ROUTER_TYPE == "openwrt":
+        _openwrt_unblock_mac(mac)
 
 
 # ============================================================================
@@ -190,11 +199,108 @@ def _pfsense_block_mac(mac: str):
 
 
 def _mikrotik_block_mac(mac: str):
-    """Bloquea una MAC en MikroTik RouterOS."""
-    # Implementación con librosa RouterOS API
-    log.warning("mikrotik_integration_not_implemented", action="block", mac=mac)
+    """Bloquea una MAC en MikroTik RouterOS usando dispositivos configurados."""
+    integration_data = _get_mikrotik_integration()
+    if not integration_data:
+        log.warning("mikrotik_device_not_configured", mac=mac)
+        return
+
+    integration, session = integration_data
+    try:
+        asyncio.run(integration.block_mac(mac, "Suspensión desde Hostal"))
+    except Exception as exc:
+        log.error("mikrotik_block_failed", mac=mac, error=str(exc))
+    finally:
+        session.close()
 
 
 def _mikrotik_unblock_mac(mac: str):
-    """Desbloquea una MAC en MikroTik RouterOS."""
-    log.warning("mikrotik_integration_not_implemented", action="unblock", mac=mac)
+    """Desbloquea una MAC en MikroTik RouterOS usando dispositivos configurados."""
+    integration_data = _get_mikrotik_integration()
+    if not integration_data:
+        log.warning("mikrotik_device_not_configured", mac=mac)
+        return
+
+    integration, session = integration_data
+    try:
+        asyncio.run(integration.unblock_mac(mac))
+    except Exception as exc:
+        log.error("mikrotik_unblock_failed", mac=mac, error=str(exc))
+    finally:
+        session.close()
+
+
+def _get_mikrotik_integration():
+    session = SessionLocal()
+    try:
+        device = (
+            session.query(NetworkDevice)
+            .filter(
+                NetworkDevice.brand == DeviceBrand.MIKROTIK,
+                NetworkDevice.is_active.is_(True),
+                NetworkDevice.supports_mac_blocking.is_(True),
+            )
+            .order_by(NetworkDevice.updated_at.desc())
+            .first()
+        )
+        if not device:
+            session.close()
+            return None
+        return MikrotikIntegration(device, session), session
+    except Exception:
+        session.close()
+        raise
+
+
+def _openwrt_block_mac(mac: str):
+    """Bloquea una MAC en OpenWrt usando la integración configurada."""
+    integration_data = _get_openwrt_integration()
+    if not integration_data:
+        log.warning("openwrt_device_not_configured", mac=mac)
+        return
+
+    integration, session = integration_data
+    try:
+        asyncio.run(integration.block_mac(mac, "Suspensión desde Hostal"))
+    except Exception as exc:
+        log.error("openwrt_block_failed", mac=mac, error=str(exc))
+    finally:
+        session.close()
+
+
+def _openwrt_unblock_mac(mac: str):
+    """Desbloquea una MAC en OpenWrt usando la integración configurada."""
+    integration_data = _get_openwrt_integration()
+    if not integration_data:
+        log.warning("openwrt_device_not_configured", mac=mac)
+        return
+
+    integration, session = integration_data
+    try:
+        asyncio.run(integration.unblock_mac(mac))
+    except Exception as exc:
+        log.error("openwrt_unblock_failed", mac=mac, error=str(exc))
+    finally:
+        session.close()
+
+
+def _get_openwrt_integration():
+    session = SessionLocal()
+    try:
+        device = (
+            session.query(NetworkDevice)
+            .filter(
+                NetworkDevice.brand == DeviceBrand.OPENWRT,
+                NetworkDevice.is_active.is_(True),
+                NetworkDevice.supports_mac_blocking.is_(True),
+            )
+            .order_by(NetworkDevice.updated_at.desc())
+            .first()
+        )
+        if not device:
+            session.close()
+            return None
+        return OpenWrtIntegration(device, session), session
+    except Exception:
+        session.close()
+        raise

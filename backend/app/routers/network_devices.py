@@ -31,6 +31,7 @@ from ..services.network_integrations import (
     UbiquitiIntegration,
     MikrotikIntegration,
     CiscoIntegration,
+    OpenWrtIntegration,
 )
 
 router = APIRouter(tags=["Network Devices"])
@@ -44,6 +45,7 @@ def get_integration(device: NetworkDevice, db: Session) -> NetworkIntegrationBas
         DeviceBrand.UBIQUITI: UbiquitiIntegration,
         DeviceBrand.MIKROTIK: MikrotikIntegration,
         DeviceBrand.CISCO: CiscoIntegration,
+        DeviceBrand.OPENWRT: OpenWrtIntegration,
     }
 
     integration_class = integrations.get(device.brand)

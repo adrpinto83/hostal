@@ -653,7 +653,7 @@ export interface NetworkActivity {
 }
 
 // Network Device Types
-export type DeviceBrand = 'ubiquiti' | 'mikrotik' | 'cisco' | 'tp_link' | 'asus' | 'dlink' | 'netgear' | 'aruba' | 'fortinet' | 'other';
+export type DeviceBrand = 'ubiquiti' | 'mikrotik' | 'openwrt' | 'cisco' | 'tp_link' | 'asus' | 'dlink' | 'netgear' | 'aruba' | 'fortinet' | 'other';
 export type DeviceType = 'switch' | 'router' | 'access_point' | 'firewall' | 'controller' | 'modem';
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'testing';
 export type AuthType = 'username_password' | 'api_key' | 'token' | 'certificate' | 'ssh_key';

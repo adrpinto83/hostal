@@ -20,6 +20,7 @@ class DeviceBrand(str, Enum):
     """Marcas de dispositivos de red soportadas."""
     UBIQUITI = "ubiquiti"  # UniFi Controller
     MIKROTIK = "mikrotik"  # RouterOS / API REST
+    OPENWRT = "openwrt"  # LuCI / RPC
     CISCO = "cisco"  # IOS-XE / NETCONF
     TP_LINK = "tp_link"  # Omada Controller
     ASUS = "asus"  # ASUS Router
